@@ -1,0 +1,48 @@
+# /etc/systemd/system/nobitex-bot.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now nobitex-bot
+#   journalctl -u nobitex-bot -f          # engine output (no secrets are logged)
+#
+# The dashboard binds 127.0.0.1:8787 (config.json -> engine.server_host), so
+# only the reverse proxy in front of it can reach it. Keep it that way: never
+# put 8787 in a firewall allow rule.
+#
+# The live view is OFF by default (one engine.status() per cycle on a box
+# that must run for weeks): journalctl shows the startup banner and the
+# [web] lines. Add --live to ExecStart for a debugging session if you want
+# the decisions/orders/account line (nobitex_bot/console.py).
+#
+# Optional, recommended: refuse to start on a broken host (missing CA store,
+# wrong clock, port already taken) by adding this line above ExecStart:
+#   ExecStartPre=/opt/nobitex-bot/.venv/bin/python run.py --doctor
+# It exits 2 on a FAIL, which marks the unit failed instead of trading blind.
+
+[Unit]
+Description=Nobitex smart trading bot (dashboard on 127.0.0.1:8787)
+Documentation=file:/opt/nobitex-bot/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobitex
+Group=nobitex
+WorkingDirectory=/opt/nobitex-bot
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONUTF8=1
+# no pip dependencies are required (standard library only); certifi is optional
+ExecStart=/opt/nobitex-bot/.venv/bin/python run.py
+
+# the engine places real orders when live_trading=true: always bring it back
+Restart=always
+RestartSec=5
+
+# keep it modest and hard to abuse
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/nobitex-bot/data /opt/nobitex-bot/logs
+
+[Install]
+WantedBy=multi-user.target

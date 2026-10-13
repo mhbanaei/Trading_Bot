@@ -1,0 +1,2 @@
+[warn] exchange.mode=nobitex but no credentials/api_key configured — running DEMO simulator instead (login from the dashboard to attach the real account).
+[dbg] mode=nobitex exchange=NobitexAPI

@@ -1,0 +1,78 @@
+# Nobitex dashboard behind Caddy, published on port 8787 — the bot itself
+# keeps listening on 127.0.0.1:8787 and is never exposed directly.
+#
+#   sudo apt install caddy                 # official repo: see deploy/README.md
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Change two things:
+#   1. the public IP in `bind` and the name in the site address,
+#   2. the bcrypt hash:  caddy hash-password --plaintext 'YOUR-PROXY-PASSWORD'
+#
+# Why `bind` + the same port is not a conflict: the bot owns 127.0.0.1:8787
+# (loopback only) while this listener takes ONLY the public IP on the same
+# port, so a request from your PC arrives at Caddy and one from the machine
+# itself goes straight to the bot.
+
+{
+	# Ports 80 and 443 on this box belong to another service. Do NOT let Caddy
+	# grab port 80 for the HTTP-to-HTTPS redirect — it would fail to start.
+	auto_https disable_redirects
+	# email ops@v42.ir
+}
+
+v42.ir:8787 {
+	# public interface only (a host, never a port, goes here)
+	bind 185.165.30.181
+
+	# No Let's Encrypt: ACME needs port 80 or 443, and both are taken on this
+	# server. Caddy signs with its own local CA instead — trust its root once
+	# on your PC (deploy/README.md) and the browser warning disappears.
+	# Have a real certificate? Replace this line with:
+	#   tls /etc/ssl/nobitex/fullchain.pem /etc/ssl/nobitex/privkey.pem
+	tls internal
+
+	# ---------------------------------------------------------------- layer 1
+	# a password prompt in front of everything (bcrypt; v2.8+ name)
+	basic_auth {
+		ops $2a$14$REPLACE_ME_WITH_caddy_hash-password_OUTPUT
+	}
+
+	# optional allow-list: only your own addresses may even see the prompt.
+	# @stranger not remote_ip 1.2.3.4
+	# respond @stranger "forbidden" 403
+
+	# ---------------------------------------------------------------- layer 2
+	# the bot's own login page (web.password in config.json) stays ON top of
+	# this: a stolen proxy password alone still cannot place an order.
+
+	reverse_proxy 127.0.0.1:8787 {
+		# Caddy forwards the original Host and sets X-Forwarded-Proto/-For/-Host
+		# by itself — exactly what the dashboard needs for its CSRF guard
+		# (Origin vs Host) and for the Secure flag on the session cookie.
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 60s
+		}
+	}
+
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/nobitex-dashboard.log
+	}
+}
+
+# If DNS for the name is not ready yet, you can reach it by IP: add the
+# address on its own (Caddy will use the internal CA for it too):
+#
+# 185.165.30.181:8787 {
+# 	bind 185.165.30.181
+# 	tls internal
+# 	basic_auth { ops $2a$14$... }
+# 	reverse_proxy 127.0.0.1:8787
+# }

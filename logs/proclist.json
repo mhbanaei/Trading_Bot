@@ -1,0 +1,44 @@
+﻿[
+    {
+        "ProcessId":  2736,
+        "ParentProcessId":  272,
+        "CreationDate":  "\/Date(1791730689575)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314\\python.exe \"C:\\Users\\Administrator\\Desktop\\MAIN\\live-notifier\\main.py\" "
+    },
+    {
+        "ProcessId":  7588,
+        "ParentProcessId":  8896,
+        "CreationDate":  "\/Date(1791763873809)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314\\python.exe \"C:\\Users\\Administrator\\Desktop\\MAIN\\nginx\\Server_Auth_Aparat_Multi_Agent_SAAMA.py\" "
+    },
+    {
+        "ProcessId":  3716,
+        "ParentProcessId":  784,
+        "CreationDate":  "\/Date(1791769658964)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314\\python.exe \"C:\\Users\\Administrator\\Desktop\\MAIN\\Live-Fivem-User-Server-log\\Live_Fivem_User_Server_Log.py\" "
+    },
+    {
+        "ProcessId":  1684,
+        "ParentProcessId":  2528,
+        "CreationDate":  "\/Date(1791828574901)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314\\python.exe -X utf8 run.py --port 9999"
+    },
+    {
+        "ProcessId":  820,
+        "ParentProcessId":  8292,
+        "CreationDate":  "\/Date(1791829522970)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314\\python.exe \"C:\\Users\\Administrator\\Desktop\\MAIN\\Fivem_shift_bot\\start.py\" "
+    },
+    {
+        "ProcessId":  7336,
+        "ParentProcessId":  820,
+        "CreationDate":  "\/Date(1791829529721)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\Desktop\\MAIN\\Fivem_shift_bot\\.venv\\Scripts\\python.exe C:\\Users\\Administrator\\Desktop\\MAIN\\Fivem_shift_bot\\bot.py"
+    },
+    {
+        "ProcessId":  2260,
+        "ParentProcessId":  7336,
+        "CreationDate":  "\/Date(1791829529757)\/",
+        "CommandLine":  "C:\\Users\\Administrator\\Desktop\\MAIN\\Fivem_shift_bot\\.venv\\Scripts\\python.exe C:\\Users\\Administrator\\Desktop\\MAIN\\Fivem_shift_bot\\bot.py"
+    }
+]

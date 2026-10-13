@@ -1,0 +1,2386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Contract &amp; Schema Specification — Nobitex Trading Bot</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;
+--accent:#58a6ff;--green:#7ee787;--gold:#f2cc60;--blue:#a5d6ff;--red:#ff7b72}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);
+font-family:"Vazirmatn","Segoe UI",system-ui,-apple-system,Tahoma,sans-serif;
+font-size:15px;line-height:1.75}
+.topbar{position:sticky;top:0;z-index:20;background:rgba(13,17,23,.92);
+backdrop-filter:blur(6px);border-bottom:1px solid var(--border);
+padding:10px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.brand{font-weight:700;font-size:15px;white-space:nowrap}
+.brand small{color:var(--muted);font-weight:400}
+.meta{color:var(--muted);font-size:12px;white-space:nowrap}
+#count{color:var(--gold);font-size:12px}
+.spacer{flex:1}
+#search{background:var(--panel);border:1px solid var(--border);color:var(--text);
+border-radius:6px;padding:6px 10px;font-size:13px;width:220px;outline:none}
+#search:focus{border-color:var(--accent)}
+.layout{display:flex;gap:0;align-items:flex-start}
+#toc{width:300px;flex:0 0 300px;position:sticky;top:57px;max-height:calc(100vh - 57px);
+overflow:auto;border-right:1px solid var(--border);padding:14px 8px 30px 12px;font-size:13px}
+#toc .toc-h{color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+margin:6px 6px 8px}
+#toc a{display:block;color:var(--text);text-decoration:none;padding:3px 8px;border-radius:5px;
+direction:ltr;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#toc a:hover{background:var(--panel);color:var(--accent)}
+#toc a.sub{padding-left:22px;color:var(--muted);font-size:12px}
+#toc a.dim{opacity:.25}
+main{flex:1;min-width:0;max-width:980px;margin:0 auto;padding:26px 34px 80px}
+section.hidden{display:none}
+h1{font-size:24px;border-bottom:1px solid var(--border);padding-bottom:8px;margin:44px 0 14px}
+main>section:first-child h1{margin-top:6px}
+h2{font-size:18px;margin:28px 0 8px;color:var(--accent)}
+h3{font-size:15px;margin:20px 0 6px}
+p,li{overflow-wrap:break-word}
+ul,ol{margin:8px 0;padding-inline-start:24px}
+li{margin:3px 0;unicode-bidi:plaintext}
+hr{border:0;border-top:1px solid var(--border);margin:22px 0}
+code{font-family:Consolas,"Cascadia Mono","Courier New",monospace;background:var(--panel);
+border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:.9em}
+.code{background:#010409;border:1px solid var(--border);border-radius:8px;margin:14px 0}
+.code-bar{display:flex;justify-content:space-between;align-items:center;
+padding:3px 10px;border-bottom:1px solid #21262d;font-size:11px;color:var(--muted)}
+.code-bar .lang{text-transform:uppercase;letter-spacing:.08em}
+.copy{background:transparent;border:1px solid var(--border);color:var(--muted);
+border-radius:4px;font-size:11px;padding:2px 8px;cursor:pointer}
+.copy:hover{color:var(--text);border-color:var(--accent)}
+pre{margin:0;padding:12px 14px;overflow:auto;direction:ltr;text-align:left;
+font-family:Consolas,"Cascadia Mono","Courier New",monospace;font-size:13px;line-height:1.55}
+pre code{background:none;border:0;padding:0}
+.tk-key{color:var(--green)}.tk-str{color:var(--blue)}.tk-num{color:var(--gold)}
+.tk-bool{color:var(--red)}
+footer{margin-top:60px;border-top:1px solid var(--border);color:var(--muted);
+font-size:12px;padding-top:14px}
+footer code{font-size:11px}
+.toc-toggle{display:none;background:var(--panel);border:1px solid var(--border);
+color:var(--text);border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer}
+.toc-toggle:hover{border-color:var(--accent)}
+.backdrop{position:fixed;top:57px;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);
+z-index:25;display:none}
+body.toc-open .backdrop{display:block}
+@media (max-width:1080px){
+#toc{position:fixed;top:57px;left:0;bottom:0;width:290px;max-height:none;background:var(--bg);
+z-index:30;transform:translateX(-105%);transition:transform .18s ease,visibility .18s;
+visibility:hidden;box-shadow:4px 0 18px rgba(0,0,0,.45)}
+body.toc-open #toc{transform:none;visibility:visible}
+.toc-toggle{display:inline-block}
+.meta{display:none}
+}
+@media print{.topbar,#toc,.copy{display:none}body{background:#fff;color:#111}}
+</style></head>
+<body>
+<header class="topbar">
+<button class="toc-toggle" type="button" aria-label="Toggle table of contents">&#9776; Contents</button>
+<span class="brand">Nobitex Trading Bot &middot; Data Contract <small>v1.0</small></span>
+<span class="meta">102 sections &middot; sha256 b2cf9ad22cbd</span>
+<span id="count"></span><span class="spacer"></span>
+<input id="search" type="search" placeholder="Search sections…" aria-label="Filter sections">
+</header>
+<div class="layout">
+<nav id="toc" aria-label="Table of contents"><div class="toc-h">Contents</div>
+<a class="sub" href="#قرارداد-رسمی-داده-ها-و-schemaهای-ربات-هوشمند-nobitex" title="قرارداد رسمی داده‌ها و Schemaهای ربات هوشمند Nobitex">قرارداد رسمی داده‌ها و Schemaهای ربات هوشمند Nobitex</a>
+<a href="#sec-1" title="1. اصول عمومی Data Contract">1. اصول عمومی Data Contract</a>
+<a class="sub" href="#sec-1-1" title="1.1 قوانین اجباری">1.1 قوانین اجباری</a>
+<a href="#sec-2" title="2. قوانین Timestamp">2. قوانین Timestamp</a>
+<a href="#sec-3" title="3. Data Type Rules">3. Data Type Rules</a>
+<a class="sub" href="#sec-3-1" title="3.1 Decimal">3.1 Decimal</a>
+<a class="sub" href="#sec-3-2" title="3.2 Integer">3.2 Integer</a>
+<a class="sub" href="#sec-3-3" title="3.3 Boolean">3.3 Boolean</a>
+<a href="#sec-4" title="4. Asset Contract">4. Asset Contract</a>
+<a href="#sec-5" title="5. Market Contract">5. Market Contract</a>
+<a href="#sec-6" title="6. Market Registry Contract">6. Market Registry Contract</a>
+<a href="#sec-7" title="7. Snapshot Contract">7. Snapshot Contract</a>
+<a href="#sec-8" title="8. Snapshot Status">8. Snapshot Status</a>
+<a href="#sec-9" title="9. Snapshot Lineage">9. Snapshot Lineage</a>
+<a href="#sec-10" title="10. Market Snapshot Schema">10. Market Snapshot Schema</a>
+<a href="#sec-11" title="11. Order Book Contract">11. Order Book Contract</a>
+<a href="#sec-12" title="12. Order Book Derived Features">12. Order Book Derived Features</a>
+<a href="#sec-13" title="13. OHLC Contract">13. OHLC Contract</a>
+<a href="#sec-14" title="14. Recent Trades Contract">14. Recent Trades Contract</a>
+<a href="#sec-15" title="15. Liquidity Contract">15. Liquidity Contract</a>
+<a href="#sec-16" title="16. Volatility Contract">16. Volatility Contract</a>
+<a href="#sec-17" title="17. Technical Features Contract">17. Technical Features Contract</a>
+<a href="#sec-18" title="18. Market Structure Contract">18. Market Structure Contract</a>
+<a href="#sec-19" title="19. Market Regime Contract">19. Market Regime Contract</a>
+<a href="#sec-20" title="20. Data Quality Contract">20. Data Quality Contract</a>
+<a href="#sec-21" title="21. Portfolio Snapshot Contract">21. Portfolio Snapshot Contract</a>
+<a href="#sec-22" title="22. Portfolio Risk Contract">22. Portfolio Risk Contract</a>
+<a href="#sec-23" title="23. Open Order Contract">23. Open Order Contract</a>
+<a href="#sec-24" title="24. Order Status Enum">24. Order Status Enum</a>
+<a href="#sec-25" title="25. Trade / Fill Contract">25. Trade / Fill Contract</a>
+<a href="#sec-26" title="26. Historical Trade Contract">26. Historical Trade Contract</a>
+<a href="#sec-27" title="27. Fee Contract">27. Fee Contract</a>
+<a href="#sec-28" title="28. Trading Cost Contract">28. Trading Cost Contract</a>
+<a href="#sec-29" title="29. AI Context Contract">29. AI Context Contract</a>
+<a href="#sec-30" title="30. Candidate Market Contract">30. Candidate Market Contract</a>
+<a href="#sec-31" title="31. AI Decision Contract">31. AI Decision Contract</a>
+<a href="#sec-32" title="32. AI Action Enum">32. AI Action Enum</a>
+<a href="#sec-33" title="33. Risk Decision Contract">33. Risk Decision Contract</a>
+<a href="#sec-34" title="34. Risk Rejection Contract">34. Risk Rejection Contract</a>
+<a href="#sec-35" title="35. Position Size Contract">35. Position Size Contract</a>
+<a href="#sec-36" title="36. Stop Loss Contract">36. Stop Loss Contract</a>
+<a href="#sec-37" title="37. Take Profit Contract">37. Take Profit Contract</a>
+<a href="#sec-38" title="38. Execution Order Contract">38. Execution Order Contract</a>
+<a href="#sec-39" title="39. Execution Status">39. Execution Status</a>
+<a href="#sec-40" title="40. Client Order ID Contract">40. Client Order ID Contract</a>
+<a href="#sec-41" title="41. Decision Idempotency">41. Decision Idempotency</a>
+<a href="#sec-42" title="42. Decision Expiration">42. Decision Expiration</a>
+<a href="#sec-43" title="43. Revalidation Contract">43. Revalidation Contract</a>
+<a href="#sec-44" title="44. Order Update Contract">44. Order Update Contract</a>
+<a href="#sec-45" title="45. PnL Contract">45. PnL Contract</a>
+<a href="#sec-46" title="46. AI Performance Contract">46. AI Performance Contract</a>
+<a href="#sec-47" title="47. Historical AI Summary Contract">47. Historical AI Summary Contract</a>
+<a href="#sec-48" title="48. Global Market Context Contract">48. Global Market Context Contract</a>
+<a href="#sec-49" title="49. System Health Contract">49. System Health Contract</a>
+<a href="#sec-50" title="50. Error Contract">50. Error Contract</a>
+<a href="#sec-51" title="51. Error Severity">51. Error Severity</a>
+<a href="#sec-52" title="52. Event Contract">52. Event Contract</a>
+<a href="#sec-53" title="53. Event Types">53. Event Types</a>
+<a href="#sec-54" title="54. Snapshot Cycle Contract">54. Snapshot Cycle Contract</a>
+<a href="#sec-55" title="55. Snapshot Naming Contract">55. Snapshot Naming Contract</a>
+<a href="#sec-56" title="56. Atomic Snapshot Write">56. Atomic Snapshot Write</a>
+<a href="#sec-57" title="57. Snapshot Integrity">57. Snapshot Integrity</a>
+<a href="#sec-58" title="58. Data Freshness Contract">58. Data Freshness Contract</a>
+<a href="#sec-59" title="59. Nullability Rules">59. Nullability Rules</a>
+<a href="#sec-60" title="60. Enum Validation">60. Enum Validation</a>
+<a href="#sec-61" title="61. Schema Versioning">61. Schema Versioning</a>
+<a href="#sec-62" title="62. Backward Compatibility">62. Backward Compatibility</a>
+<a href="#sec-63" title="63. Schema Validation">63. Schema Validation</a>
+<a href="#sec-64" title="64. Cross-Field Validation">64. Cross-Field Validation</a>
+<a href="#sec-65" title="65. Financial Validation">65. Financial Validation</a>
+<a href="#sec-66" title="66. Data Provenance">66. Data Provenance</a>
+<a href="#sec-67" title="67. REST + WebSocket Contract">67. REST + WebSocket Contract</a>
+<a href="#sec-68" title="68. Data Reconciliation Contract">68. Data Reconciliation Contract</a>
+<a href="#sec-69" title="69. AI Input Compression Contract">69. AI Input Compression Contract</a>
+<a href="#sec-70" title="70. AI Context Priority">70. AI Context Priority</a>
+<a href="#sec-71" title="71. Context Budget">71. Context Budget</a>
+<a href="#sec-72" title="72. Prompt/Context Hash">72. Prompt/Context Hash</a>
+<a href="#sec-73" title="73. AI Output Validation">73. AI Output Validation</a>
+<a href="#sec-74" title="74. AI Hallucination Protection">74. AI Hallucination Protection</a>
+<a href="#sec-75" title="75. Market Universe Contract">75. Market Universe Contract</a>
+<a href="#sec-76" title="76. Portfolio-aware Decision Contract">76. Portfolio-aware Decision Contract</a>
+<a href="#sec-77" title="77. Sell Validation">77. Sell Validation</a>
+<a href="#sec-78" title="78. Buy Validation">78. Buy Validation</a>
+<a href="#sec-79" title="79. No-Trade Contract">79. No-Trade Contract</a>
+<a href="#sec-80" title="80. Safe Mode Contract">80. Safe Mode Contract</a>
+<a href="#sec-81" title="81. Security Contract">81. Security Contract</a>
+<a href="#sec-82" title="82. API Permission Contract">82. API Permission Contract</a>
+<a href="#sec-83" title="83. Audit Contract">83. Audit Contract</a>
+<a href="#sec-84" title="84. Required IDs">84. Required IDs</a>
+<a href="#sec-85" title="85. ID Rules">85. ID Rules</a>
+<a href="#sec-86" title="86. Storage Contract">86. Storage Contract</a>
+<a href="#sec-87" title="87. JSON vs Database">87. JSON vs Database</a>
+<a href="#sec-88" title="88. Snapshot Retention">88. Snapshot Retention</a>
+<a href="#sec-89" title="89. Aggregation Contract">89. Aggregation Contract</a>
+<a href="#sec-90" title="90. Historical Candle Contract">90. Historical Candle Contract</a>
+<a href="#sec-91" title="91. Duplicate Prevention">91. Duplicate Prevention</a>
+<a href="#sec-92" title="92. Data Quality Score">92. Data Quality Score</a>
+<a href="#sec-93" title="93. Quality Gate">93. Quality Gate</a>
+<a href="#sec-94" title="94. Global Consistency Checks">94. Global Consistency Checks</a>
+<a href="#sec-95" title="95. Contract Testing">95. Contract Testing</a>
+<a href="#sec-96" title="96. Version Migration">96. Version Migration</a>
+<a href="#sec-97" title="97. Schema Registry">97. Schema Registry</a>
+<a href="#sec-98" title="98. Contract Ownership">98. Contract Ownership</a>
+<a href="#sec-99" title="99. Contract Change Policy">99. Contract Change Policy</a>
+<a href="#sec-100" title="100. Golden Rule">100. Golden Rule</a>
+<a href="#sec-101" title="101. Absolute Data Safety Rules">101. Absolute Data Safety Rules</a>
+<a href="#sec-102" title="102. Final Data Contract Principle">102. Final Data Contract Principle</a></nav>
+<main><section id="sec-top">
+<h1 id="data-contract-schema-specification" dir="auto">DATA CONTRACT &amp; SCHEMA SPECIFICATION</h1>
+<h2 id="قرارداد-رسمی-داده-ها-و-schemaهای-ربات-هوشمند-nobitex" dir="auto">قرارداد رسمی داده‌ها و Schemaهای ربات هوشمند Nobitex</h2>
+<p dir="auto">این بخش قرارداد رسمی داده میان تمام اجزای سیستم است.</p>
+<p dir="auto">تمام سرویس‌ها، ماژول‌ها و Agentها MUST بر اساس این قرارداد داده کار کنند.</p>
+<p dir="auto">هیچ ماژولی مجاز نیست Schema اختصاصی و ناسازگار با این قرارداد تولید کند.</p>
+<hr>
+</section>
+<section id="sec-1">
+<h1 id="sec-1" dir="auto">1. اصول عمومی Data Contract</h1>
+<h2 id="sec-1-1" dir="auto">1.1 قوانین اجباری</h2>
+<p dir="auto">تمام داده‌های سیستم MUST دارای موارد زیر باشند:</p>
+<ul dir="rtl"><li><code>schema_version</code></li><li><code>source</code></li><li><code>created_at</code></li><li><code>collected_at</code> یا timestamp مناسب</li><li><code>data_status</code></li><li>شناسه یکتا در صورت وجود Entity</li><li>واحد اندازه‌گیری برای مقادیر حساس</li><li>currency/quote asset برای قیمت‌ها و ارزش‌ها</li><li>precision مناسب</li><li>قابلیت تشخیص داده stale</li><li>قابلیت trace کردن داده تا Snapshot اصلی</li></ul>
+<p dir="auto">هیچ مقدار عددی حساس نباید بدون واحد ذخیره شود.</p>
+<p dir="auto">مثلاً:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"price"</span>: <span class="tk-num">68450.12</span>,
+  <span class="tk-key">"quote_asset"</span>: <span class="tk-str">"USDT"</span>
+}</code></pre></div>
+<p dir="auto">نه:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"price"</span>: <span class="tk-num">68450.12</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-2">
+<h1 id="sec-2" dir="auto">2. قوانین Timestamp</h1>
+<p dir="auto">تمام timestampها MUST به UTC و ISO-8601 ذخیره شوند.</p>
+<p dir="auto">فرمت:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>2026-09-10T12:30:00.123Z</code></pre></div>
+<p dir="auto">قوانین:</p>
+<ul dir="rtl"><li>زمان داخلی سیستم: UTC</li><li>زمان API: همان مقدار اصلی API در صورت معتبر بودن</li><li>زمان دریافت: <code>received_at</code></li><li>زمان ایجاد داده: <code>created_at</code></li><li>زمان Snapshot: <code>snapshot_at</code></li><li>timestamp بدون timezone ممنوع</li><li>timestamp آینده غیرمنطقی باید reject شود</li><li>داده stale باید علامت‌گذاری شود</li></ul>
+<hr>
+</section>
+<section id="sec-3">
+<h1 id="sec-3" dir="auto">3. Data Type Rules</h1>
+<h2 id="sec-3-1" dir="auto">3.1 Decimal</h2>
+<p dir="auto">برای موارد مالی:</p>
+<ul dir="ltr"><li>price</li><li>amount</li><li>volume</li><li>fee</li><li>balance</li><li>PnL</li><li>cost</li><li>notional</li></ul>
+<p dir="auto">از <code>Decimal</code> یا representation دقیق decimal استفاده شود.</p>
+<p dir="auto">استفاده از floating-point برای محاسبات مالی داخلی ممنوع است.</p>
+<hr>
+<h2 id="sec-3-2" dir="auto">3.2 Integer</h2>
+<p dir="auto">برای:</p>
+<ul dir="rtl"><li>counts</li><li>sequence</li><li>levels</li><li>durations برحسب millisecond در صورت نیاز</li></ul>
+<hr>
+<h2 id="sec-3-3" dir="auto">3.3 Boolean</h2>
+<p dir="auto">برای flagها:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code><span class="tk-bool">true</span>
+<span class="tk-bool">false</span></code></pre></div>
+<p dir="auto">از <code>"true"</code> و <code>"false"</code> به‌عنوان string استفاده نشود.</p>
+<hr>
+</section>
+<section id="sec-4">
+<h1 id="sec-4" dir="auto">4. Asset Contract</h1>
+<p dir="auto">Asset با Market متفاوت است.</p>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>BTC = Asset
+BTCIRT = Market
+BTCUSDT = Market</code></pre></div>
+<p dir="auto">Schema:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"schema_version"</span>: <span class="tk-str">"1.0"</span>,
+  <span class="tk-key">"asset"</span>: {
+    <span class="tk-key">"symbol"</span>: <span class="tk-str">"BTC"</span>,
+    <span class="tk-key">"name"</span>: <span class="tk-str">"Bitcoin"</span>,
+    <span class="tk-key">"asset_type"</span>: <span class="tk-str">"CRYPTO"</span>,
+    <span class="tk-key">"decimals"</span>: <span class="tk-num">8</span>,
+    <span class="tk-key">"status"</span>: <span class="tk-str">"ACTIVE"</span>,
+    <span class="tk-key">"tradable"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"deposit_enabled"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"withdraw_enabled"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"source"</span>: <span class="tk-str">"nobitex"</span>,
+    <span class="tk-key">"updated_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>
+  }
+}</code></pre></div>
+<p dir="auto">Fields:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>symbol
+name
+asset_type
+decimals
+status
+tradable
+deposit_enabled
+withdraw_enabled
+source
+updated_at</code></pre></div>
+<hr>
+</section>
+<section id="sec-5">
+<h1 id="sec-5" dir="auto">5. Market Contract</h1>
+<p dir="auto">Market نماینده یک trading pair است.</p>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>BTCIRT
+BTCUSDT
+ETHIRT
+ETHUSDT</code></pre></div>
+<p dir="auto">Schema:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"schema_version"</span>: <span class="tk-str">"1.0"</span>,
+  <span class="tk-key">"market"</span>: {
+    <span class="tk-key">"symbol"</span>: <span class="tk-str">"BTCIRT"</span>,
+    <span class="tk-key">"base_asset"</span>: <span class="tk-str">"BTC"</span>,
+    <span class="tk-key">"quote_asset"</span>: <span class="tk-str">"IRT"</span>,
+    <span class="tk-key">"status"</span>: <span class="tk-str">"ACTIVE"</span>,
+    <span class="tk-key">"tradable"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"price_precision"</span>: <span class="tk-num">0.1</span>,
+    <span class="tk-key">"amount_precision"</span>: <span class="tk-num">0.00000001</span>,
+    <span class="tk-key">"min_amount"</span>: <span class="tk-num">0.00001</span>,
+    <span class="tk-key">"min_notional"</span>: <span class="tk-bool">null</span>,
+    <span class="tk-key">"market_type"</span>: <span class="tk-str">"SPOT"</span>,
+    <span class="tk-key">"updated_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>
+  }
+}</code></pre></div>
+<p dir="auto">قوانین:</p>
+<ul dir="rtl"><li>Market بدون base asset معتبر نیست.</li><li>Market بدون quote asset معتبر نیست.</li><li><code>base_asset != quote_asset</code></li><li>precision باید از منبع رسمی استخراج شود.</li><li>limits نباید hardcode شوند اگر API اطلاعات معتبر ارائه می‌دهد.</li><li>Market جدید باید Dynamic Discovery شود.</li><li>Market حذف‌شده از Registry پاک نشود؛ فقط:</li></ul>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code><span class="tk-key">"tradable"</span>: <span class="tk-bool">false</span></code></pre></div>
+<hr>
+</section>
+<section id="sec-6">
+<h1 id="sec-6" dir="auto">6. Market Registry Contract</h1>
+<p dir="auto">فایل:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>data/markets/market_registry.json</code></pre></div>
+<p dir="auto">ساختار:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"schema_version"</span>: <span class="tk-str">"1.0"</span>,
+  <span class="tk-key">"registry_version"</span>: <span class="tk-num">42</span>,
+  <span class="tk-key">"updated_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+  <span class="tk-key">"source"</span>: <span class="tk-str">"nobitex"</span>,
+  <span class="tk-key">"markets"</span>: []
+}</code></pre></div>
+<p dir="auto">هر Market باید شامل:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>symbol
+base_asset
+quote_asset
+status
+tradable
+precision
+limits
+created_at
+updated_at
+first_seen_at
+last_seen_at</code></pre></div>
+<p dir="auto">Registry باید append-compatible باشد.</p>
+<hr>
+</section>
+<section id="sec-7">
+<h1 id="sec-7" dir="auto">7. Snapshot Contract</h1>
+<p dir="auto">هر چرخه 30 دقیقه‌ای یک Snapshot مستقل ایجاد می‌کند.</p>
+<p dir="auto">نام:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_000001.json
+snapshot_000002.json
+snapshot_000003.json
+...</code></pre></div>
+<p dir="auto">Schema:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"schema_version"</span>: <span class="tk-str">"1.0"</span>,
+  <span class="tk-key">"snapshot_id"</span>: <span class="tk-str">"snap_20260910_123000_000001"</span>,
+  <span class="tk-key">"cycle_id"</span>: <span class="tk-str">"cycle_20260910_123000"</span>,
+  <span class="tk-key">"created_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+  <span class="tk-key">"collection_started_at"</span>: <span class="tk-str">"2026-09-10T12:30:01Z"</span>,
+  <span class="tk-key">"collection_finished_at"</span>: <span class="tk-str">"2026-09-10T12:30:18Z"</span>,
+  <span class="tk-key">"status"</span>: <span class="tk-str">"COMPLETE"</span>,
+  <span class="tk-key">"source"</span>: <span class="tk-str">"nobitex"</span>,
+  <span class="tk-key">"market_count"</span>: <span class="tk-num">184</span>,
+  <span class="tk-key">"valid_market_count"</span>: <span class="tk-num">181</span>,
+  <span class="tk-key">"data_quality_score"</span>: <span class="tk-num">0.97</span>,
+  <span class="tk-key">"markets"</span>: [],
+  <span class="tk-key">"portfolio"</span>: {},
+  <span class="tk-key">"open_orders"</span>: [],
+  <span class="tk-key">"recent_trades"</span>: [],
+  <span class="tk-key">"system_state"</span>: {}
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-8">
+<h1 id="sec-8" dir="auto">8. Snapshot Status</h1>
+<p dir="auto">مقادیر مجاز:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>COLLECTING
+PARTIAL
+COMPLETE
+INVALID
+CORRUPTED</code></pre></div>
+<p dir="auto">تنها Snapshotهای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>COMPLETE</code></pre></div>
+<p dir="auto">برای AI Analysis به‌صورت عادی قابل استفاده هستند.</p>
+<p dir="auto">Snapshotهای PARTIAL فقط در صورت رعایت threshold کیفیت قابل استفاده‌اند.</p>
+<hr>
+</section>
+<section id="sec-9">
+<h1 id="sec-9" dir="auto">9. Snapshot Lineage</h1>
+<p dir="auto">هر داده باید قابلیت trace شدن به Snapshot را داشته باشد.</p>
+<p dir="auto">حداقل:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"snapshot_id"</span>: <span class="tk-str">"snap_..."</span>,
+  <span class="tk-key">"cycle_id"</span>: <span class="tk-str">"cycle_..."</span>
+}</code></pre></div>
+<p dir="auto">در صورت نیاز:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>source_timestamp
+received_at
+source_endpoint
+source_sequence</code></pre></div>
+<hr>
+</section>
+<section id="sec-10">
+<h1 id="sec-10" dir="auto">10. Market Snapshot Schema</h1>
+<p dir="auto">برای هر Market:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"symbol"</span>: <span class="tk-str">"BTCUSDT"</span>,
+  <span class="tk-key">"base_asset"</span>: <span class="tk-str">"BTC"</span>,
+  <span class="tk-key">"quote_asset"</span>: <span class="tk-str">"USDT"</span>,
+
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+  <span class="tk-key">"received_at"</span>: <span class="tk-str">"2026-09-10T12:30:01Z"</span>,
+
+  <span class="tk-key">"last_price"</span>: <span class="tk-num">113245.12</span>,
+
+  <span class="tk-key">"best_bid"</span>: <span class="tk-num">113240.00</span>,
+  <span class="tk-key">"best_ask"</span>: <span class="tk-num">113250.00</span>,
+
+  <span class="tk-key">"spread"</span>: <span class="tk-num">10.00</span>,
+  <span class="tk-key">"spread_percent"</span>: <span class="tk-num">0.0088</span>,
+
+  <span class="tk-key">"volume_24h"</span>: <span class="tk-num">1250.45</span>,
+  <span class="tk-key">"quote_volume_24h"</span>: <span class="tk-num">141000000.0</span>,
+
+  <span class="tk-key">"change_24h"</span>: <span class="tk-num">2.41</span>,
+  <span class="tk-key">"high_24h"</span>: <span class="tk-num">114500.00</span>,
+  <span class="tk-key">"low_24h"</span>: <span class="tk-num">109800.00</span>,
+
+  <span class="tk-key">"orderbook"</span>: {},
+  <span class="tk-key">"trades"</span>: [],
+  <span class="tk-key">"ohlc"</span>: {},
+
+  <span class="tk-key">"liquidity"</span>: {},
+  <span class="tk-key">"volatility"</span>: {},
+
+  <span class="tk-key">"data_quality"</span>: {}
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-11">
+<h1 id="sec-11" dir="auto">11. Order Book Contract</h1>
+<p dir="auto">Schema:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+  <span class="tk-key">"sequence"</span>: <span class="tk-num">18273921</span>,
+
+  <span class="tk-key">"bids"</span>: [
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">113240.0</span>,
+      <span class="tk-key">"amount"</span>: <span class="tk-num">0.15</span>,
+      <span class="tk-key">"notional"</span>: <span class="tk-num">16986.0</span>
+    }
+  ],
+
+  <span class="tk-key">"asks"</span>: [
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">113250.0</span>,
+      <span class="tk-key">"amount"</span>: <span class="tk-num">0.12</span>,
+      <span class="tk-key">"notional"</span>: <span class="tk-num">13590.0</span>
+    }
+  ],
+
+  <span class="tk-key">"depth_levels"</span>: <span class="tk-num">50</span>,
+
+  <span class="tk-key">"bid_volume"</span>: <span class="tk-num">125.5</span>,
+  <span class="tk-key">"ask_volume"</span>: <span class="tk-num">118.3</span>,
+
+  <span class="tk-key">"imbalance"</span>: <span class="tk-num">0.0295</span>
+}</code></pre></div>
+<p dir="auto">قوانین:</p>
+<ul dir="rtl"><li>bids باید descending باشند.</li><li>asks باید ascending باشند.</li><li>best bid &lt; best ask در orderbook سالم.</li><li>price &lt;= 0 ممنوع.</li><li>amount &lt;= 0 ممنوع.</li><li>duplicate price level باید merge شود.</li><li>orderbook ناقص باید <code>data_quality.status</code> مناسب داشته باشد.</li></ul>
+<hr>
+</section>
+<section id="sec-12">
+<h1 id="sec-12" dir="auto">12. Order Book Derived Features</h1>
+<p dir="auto">سیستم MUST بتواند این موارد را محاسبه کند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>best_bid
+best_ask
+spread
+spread_percent
+bid_volume
+ask_volume
+bid_ask_imbalance
+depth_1pct
+depth_2pct
+depth_5pct
+buy_slippage_estimate
+sell_slippage_estimate
+estimated_market_impact
+liquidity_score</code></pre></div>
+<p dir="auto">Orderbook به‌تنهایی نباید سیگنال BUY/SELL ایجاد کند.</p>
+<hr>
+</section>
+<section id="sec-13">
+<h1 id="sec-13" dir="auto">13. OHLC Contract</h1>
+<p dir="auto">ساختار:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"timeframe"</span>: <span class="tk-str">"30m"</span>,
+  <span class="tk-key">"candles"</span>: [
+    {
+      <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:00:00Z"</span>,
+      <span class="tk-key">"open"</span>: <span class="tk-num">112500.0</span>,
+      <span class="tk-key">"high"</span>: <span class="tk-num">113400.0</span>,
+      <span class="tk-key">"low"</span>: <span class="tk-num">112100.0</span>,
+      <span class="tk-key">"close"</span>: <span class="tk-num">113245.0</span>,
+      <span class="tk-key">"volume"</span>: <span class="tk-num">184.2</span>
+    }
+  ]
+}</code></pre></div>
+<p dir="auto">Timeframeهای استاندارد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>5m
+15m
+30m
+1h
+4h
+1d</code></pre></div>
+<p dir="auto">در صورت کمبود داده، timeframe نباید جعل یا extrapolate شود.</p>
+<hr>
+</section>
+<section id="sec-14">
+<h1 id="sec-14" dir="auto">14. Recent Trades Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"trades"</span>: [
+    {
+      <span class="tk-key">"trade_id"</span>: <span class="tk-str">"123456"</span>,
+      <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:29:58Z"</span>,
+      <span class="tk-key">"price"</span>: <span class="tk-num">113240.0</span>,
+      <span class="tk-key">"amount"</span>: <span class="tk-num">0.015</span>,
+      <span class="tk-key">"side"</span>: <span class="tk-str">"BUY"</span>,
+      <span class="tk-key">"notional"</span>: <span class="tk-num">1698.6</span>
+    }
+  ]
+}</code></pre></div>
+<p dir="auto"><code>trade_id</code> در صورت ارائه توسط API باید preserve شود.</p>
+<p dir="auto">Duplicate trade نباید دوباره وارد Storage شود.</p>
+<hr>
+</section>
+<section id="sec-15">
+<h1 id="sec-15" dir="auto">15. Liquidity Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"score"</span>: <span class="tk-num">0.91</span>,
+  <span class="tk-key">"spread_score"</span>: <span class="tk-num">0.96</span>,
+  <span class="tk-key">"depth_score"</span>: <span class="tk-num">0.88</span>,
+  <span class="tk-key">"volume_score"</span>: <span class="tk-num">0.94</span>,
+  <span class="tk-key">"slippage_score"</span>: <span class="tk-num">0.86</span>,
+  <span class="tk-key">"market_impact_score"</span>: <span class="tk-num">0.89</span>,
+
+  <span class="tk-key">"estimated_buy_slippage"</span>: <span class="tk-num">0.0012</span>,
+  <span class="tk-key">"estimated_sell_slippage"</span>: <span class="tk-num">0.0014</span>,
+
+  <span class="tk-key">"status"</span>: <span class="tk-str">"GOOD"</span>
+}</code></pre></div>
+<p dir="auto">Status:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>EXCELLENT
+GOOD
+MEDIUM
+POOR
+CRITICAL
+UNKNOWN</code></pre></div>
+<p dir="auto">اگر liquidity:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>CRITICAL
+UNKNOWN</code></pre></div>
+<p dir="auto">باشد، Market به‌صورت پیش‌فرض قابل معامله نیست.</p>
+<hr>
+</section>
+<section id="sec-16">
+<h1 id="sec-16" dir="auto">16. Volatility Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"atr"</span>: <span class="tk-num">1245.2</span>,
+  <span class="tk-key">"atr_percent"</span>: <span class="tk-num">0.011</span>,
+  <span class="tk-key">"realized_volatility"</span>: <span class="tk-num">0.32</span>,
+  <span class="tk-key">"historical_volatility"</span>: <span class="tk-num">0.29</span>,
+  <span class="tk-key">"volatility_regime"</span>: <span class="tk-str">"MEDIUM"</span>
+}</code></pre></div>
+<p dir="auto">Regime:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>VERY_LOW
+LOW
+MEDIUM
+HIGH
+EXTREME
+UNKNOWN</code></pre></div>
+<hr>
+</section>
+<section id="sec-17">
+<h1 id="sec-17" dir="auto">17. Technical Features Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"ema"</span>: {
+    <span class="tk-key">"9"</span>: <span class="tk-num">112900.0</span>,
+    <span class="tk-key">"20"</span>: <span class="tk-num">112500.0</span>,
+    <span class="tk-key">"50"</span>: <span class="tk-num">111800.0</span>,
+    <span class="tk-key">"100"</span>: <span class="tk-num">109900.0</span>,
+    <span class="tk-key">"200"</span>: <span class="tk-num">106500.0</span>
+  },
+
+  <span class="tk-key">"sma"</span>: {
+    <span class="tk-key">"20"</span>: <span class="tk-num">112400.0</span>,
+    <span class="tk-key">"50"</span>: <span class="tk-num">111700.0</span>,
+    <span class="tk-key">"200"</span>: <span class="tk-num">106300.0</span>
+  },
+
+  <span class="tk-key">"rsi"</span>: <span class="tk-num">64.2</span>,
+
+  <span class="tk-key">"macd"</span>: {
+    <span class="tk-key">"value"</span>: <span class="tk-num">412.3</span>,
+    <span class="tk-key">"signal"</span>: <span class="tk-num">351.2</span>,
+    <span class="tk-key">"histogram"</span>: <span class="tk-num">61.1</span>
+  },
+
+  <span class="tk-key">"stochastic"</span>: {
+    <span class="tk-key">"k"</span>: <span class="tk-num">78.2</span>,
+    <span class="tk-key">"d"</span>: <span class="tk-num">74.1</span>
+  },
+
+  <span class="tk-key">"roc"</span>: <span class="tk-num">3.2</span>,
+
+  <span class="tk-key">"bollinger"</span>: {
+    <span class="tk-key">"upper"</span>: <span class="tk-num">114200.0</span>,
+    <span class="tk-key">"middle"</span>: <span class="tk-num">112400.0</span>,
+    <span class="tk-key">"lower"</span>: <span class="tk-num">110600.0</span>,
+    <span class="tk-key">"bandwidth"</span>: <span class="tk-num">0.032</span>
+  },
+
+  <span class="tk-key">"obv"</span>: <span class="tk-num">182739123.0</span>,
+
+  <span class="tk-key">"volume_ratio"</span>: <span class="tk-num">1.42</span>
+}</code></pre></div>
+<p dir="auto">Indicatorهای بدون داده کافی MUST مقدار:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>null</code></pre></div>
+<p dir="auto">داشته باشند و نباید صفر شوند.</p>
+<hr>
+</section>
+<section id="sec-18">
+<h1 id="sec-18" dir="auto">18. Market Structure Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"trend"</span>: <span class="tk-str">"UPTREND"</span>,
+
+  <span class="tk-key">"structure"</span>: {
+    <span class="tk-key">"higher_high"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"higher_low"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"lower_high"</span>: <span class="tk-bool">false</span>,
+    <span class="tk-key">"lower_low"</span>: <span class="tk-bool">false</span>
+  },
+
+  <span class="tk-key">"support_levels"</span>: [
+    <span class="tk-num">111500.0</span>,
+    <span class="tk-num">109800.0</span>
+  ],
+
+  <span class="tk-key">"resistance_levels"</span>: [
+    <span class="tk-num">114500.0</span>,
+    <span class="tk-num">116200.0</span>
+  ],
+
+  <span class="tk-key">"breakout"</span>: {
+    <span class="tk-key">"detected"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"direction"</span>: <span class="tk-str">"UP"</span>,
+    <span class="tk-key">"strength"</span>: <span class="tk-num">0.82</span>
+  }
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-19">
+<h1 id="sec-19" dir="auto">19. Market Regime Contract</h1>
+<p dir="auto">مقادیر:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>TRENDING_UP
+TRENDING_DOWN
+RANGING
+BREAKOUT
+BREAKDOWN
+HIGH_VOLATILITY
+LOW_VOLATILITY
+UNCERTAIN</code></pre></div>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"regime"</span>: <span class="tk-str">"TRENDING_UP"</span>,
+  <span class="tk-key">"confidence"</span>: <span class="tk-num">0.84</span>,
+  <span class="tk-key">"detected_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-20">
+<h1 id="sec-20" dir="auto">20. Data Quality Contract</h1>
+<p dir="auto">برای هر Market:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"status"</span>: <span class="tk-str">"GOOD"</span>,
+  <span class="tk-key">"score"</span>: <span class="tk-num">0.98</span>,
+
+  <span class="tk-key">"checks"</span>: {
+    <span class="tk-key">"price_valid"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"timestamp_valid"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"orderbook_valid"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"ohlc_valid"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"trades_valid"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"fresh"</span>: <span class="tk-bool">true</span>
+  },
+
+  <span class="tk-key">"warnings"</span>: []
+}</code></pre></div>
+<p dir="auto">Status:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>GOOD
+WARNING
+STALE
+INVALID
+CRITICAL</code></pre></div>
+<hr>
+</section>
+<section id="sec-21">
+<h1 id="sec-21" dir="auto">21. Portfolio Snapshot Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+
+  <span class="tk-key">"account"</span>: {
+    <span class="tk-key">"equity_irt"</span>: <span class="tk-num">1250000000.0</span>,
+    <span class="tk-key">"equity_usdt"</span>: <span class="tk-num">18500.0</span>,
+    <span class="tk-key">"available_irt"</span>: <span class="tk-num">350000000.0</span>,
+    <span class="tk-key">"available_usdt"</span>: <span class="tk-num">4500.0</span>
+  },
+
+  <span class="tk-key">"assets"</span>: [
+    {
+      <span class="tk-key">"asset"</span>: <span class="tk-str">"BTC"</span>,
+      <span class="tk-key">"available"</span>: <span class="tk-num">0.125</span>,
+      <span class="tk-key">"locked"</span>: <span class="tk-num">0.02</span>,
+      <span class="tk-key">"total"</span>: <span class="tk-num">0.145</span>,
+
+      <span class="tk-key">"quote_asset"</span>: <span class="tk-str">"USDT"</span>,
+      <span class="tk-key">"current_price"</span>: <span class="tk-num">113245.0</span>,
+      <span class="tk-key">"market_value"</span>: <span class="tk-num">16420.525</span>,
+
+      <span class="tk-key">"portfolio_weight"</span>: <span class="tk-num">0.887</span>,
+
+      <span class="tk-key">"average_entry_price"</span>: <span class="tk-num">107500.0</span>,
+
+      <span class="tk-key">"unrealized_pnl"</span>: <span class="tk-num">833.125</span>,
+      <span class="tk-key">"realized_pnl"</span>: <span class="tk-num">120.0</span>
+    }
+  ]
+}</code></pre></div>
+<p dir="auto">قوانین:</p>
+<ul dir="rtl"><li>balance منفی بدون دلیل معتبر reject شود.</li><li>total باید با available + locked سازگار باشد.</li><li>ارزش Portfolio باید با price timestamp مشخص محاسبه شود.</li><li>قیمت تخمینی باید source داشته باشد.</li></ul>
+<hr>
+</section>
+<section id="sec-22">
+<h1 id="sec-22" dir="auto">22. Portfolio Risk Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"total_equity"</span>: <span class="tk-num">18500.0</span>,
+
+  <span class="tk-key">"exposure"</span>: {
+    <span class="tk-key">"BTC"</span>: <span class="tk-num">0.887</span>,
+    <span class="tk-key">"ETH"</span>: <span class="tk-num">0.06</span>,
+    <span class="tk-key">"USDT"</span>: <span class="tk-num">0.053</span>
+  },
+
+  <span class="tk-key">"cash_ratio"</span>: <span class="tk-num">0.053</span>,
+
+  <span class="tk-key">"unrealized_pnl"</span>: <span class="tk-num">850.0</span>,
+  <span class="tk-key">"realized_pnl"</span>: <span class="tk-num">1200.0</span>,
+
+  <span class="tk-key">"drawdown"</span>: {
+    <span class="tk-key">"current"</span>: <span class="tk-num">0.034</span>,
+    <span class="tk-key">"max"</span>: <span class="tk-num">0.082</span>
+  },
+
+  <span class="tk-key">"correlation_risk"</span>: <span class="tk-num">0.72</span>,
+
+  <span class="tk-key">"risk_status"</span>: <span class="tk-str">"NORMAL"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-23">
+<h1 id="sec-23" dir="auto">23. Open Order Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"order_id"</span>: <span class="tk-str">"123456789"</span>,
+  <span class="tk-key">"client_order_id"</span>: <span class="tk-str">"bot_20260910_123000_001"</span>,
+
+  <span class="tk-key">"market"</span>: <span class="tk-str">"BTCUSDT"</span>,
+
+  <span class="tk-key">"side"</span>: <span class="tk-str">"BUY"</span>,
+  <span class="tk-key">"type"</span>: <span class="tk-str">"LIMIT"</span>,
+  <span class="tk-key">"execution"</span>: <span class="tk-str">"LIMIT"</span>,
+
+  <span class="tk-key">"price"</span>: <span class="tk-num">112900.0</span>,
+  <span class="tk-key">"amount"</span>: <span class="tk-num">0.01</span>,
+
+  <span class="tk-key">"matched_amount"</span>: <span class="tk-num">0.004</span>,
+  <span class="tk-key">"unmatched_amount"</span>: <span class="tk-num">0.006</span>,
+
+  <span class="tk-key">"status"</span>: <span class="tk-str">"PARTIALLY_FILLED"</span>,
+
+  <span class="tk-key">"fee"</span>: {
+    <span class="tk-key">"amount"</span>: <span class="tk-num">4.52</span>,
+    <span class="tk-key">"asset"</span>: <span class="tk-str">"USDT"</span>
+  },
+
+  <span class="tk-key">"created_at"</span>: <span class="tk-str">"2026-09-10T12:25:00Z"</span>,
+  <span class="tk-key">"updated_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-24">
+<h1 id="sec-24" dir="auto">24. Order Status Enum</h1>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>PENDING
+OPEN
+PARTIALLY_FILLED
+FILLED
+CANCEL_REQUESTED
+CANCELLED
+REJECTED
+EXPIRED
+UNKNOWN</code></pre></div>
+<p dir="auto"><code>UNKNOWN</code> یک وضعیت خطرناک است و MUST باعث جلوگیری از ایجاد order جدید روی همان exposure شود تا وضعیت مشخص شود.</p>
+<hr>
+</section>
+<section id="sec-25">
+<h1 id="sec-25" dir="auto">25. Trade / Fill Contract</h1>
+<p dir="auto">هر execution واقعی باید به‌صورت Fill ذخیره شود.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"trade_id"</span>: <span class="tk-str">"987654"</span>,
+  <span class="tk-key">"order_id"</span>: <span class="tk-str">"123456789"</span>,
+
+  <span class="tk-key">"market"</span>: <span class="tk-str">"BTCUSDT"</span>,
+  <span class="tk-key">"side"</span>: <span class="tk-str">"BUY"</span>,
+
+  <span class="tk-key">"price"</span>: <span class="tk-num">113000.0</span>,
+  <span class="tk-key">"amount"</span>: <span class="tk-num">0.004</span>,
+
+  <span class="tk-key">"gross_value"</span>: <span class="tk-num">452.0</span>,
+
+  <span class="tk-key">"fee"</span>: {
+    <span class="tk-key">"amount"</span>: <span class="tk-num">0.452</span>,
+    <span class="tk-key">"asset"</span>: <span class="tk-str">"USDT"</span>
+  },
+
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:05Z"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-26">
+<h1 id="sec-26" dir="auto">26. Historical Trade Contract</h1>
+<p dir="auto">Historical tradeها باید immutable باشند.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"trade_id"</span>: <span class="tk-str">"987654"</span>,
+  <span class="tk-key">"order_id"</span>: <span class="tk-str">"123456789"</span>,
+  <span class="tk-key">"market"</span>: <span class="tk-str">"BTCUSDT"</span>,
+  <span class="tk-key">"side"</span>: <span class="tk-str">"BUY"</span>,
+  <span class="tk-key">"price"</span>: <span class="tk-num">113000.0</span>,
+  <span class="tk-key">"amount"</span>: <span class="tk-num">0.004</span>,
+  <span class="tk-key">"fee_amount"</span>: <span class="tk-num">0.452</span>,
+  <span class="tk-key">"fee_asset"</span>: <span class="tk-str">"USDT"</span>,
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:05Z"</span>,
+  <span class="tk-key">"source"</span>: <span class="tk-str">"nobitex"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-27">
+<h1 id="sec-27" dir="auto">27. Fee Contract</h1>
+<p dir="auto">Fee نباید hardcode شود.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"fee_type"</span>: <span class="tk-str">"TRADING"</span>,
+  <span class="tk-key">"side"</span>: <span class="tk-str">"BUY"</span>,
+  <span class="tk-key">"rate"</span>: <span class="tk-num">0.0025</span>,
+  <span class="tk-key">"asset"</span>: <span class="tk-str">"USDT"</span>,
+  <span class="tk-key">"source"</span>: <span class="tk-str">"NOBITEX_API"</span>,
+  <span class="tk-key">"effective_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>
+}</code></pre></div>
+<p dir="auto">سیستم باید بتواند feeهای متفاوت را در محاسبات لحاظ کند.</p>
+<hr>
+</section>
+<section id="sec-28">
+<h1 id="sec-28" dir="auto">28. Trading Cost Contract</h1>
+<p dir="auto">قبل از هر معامله:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"gross_expected_return"</span>: <span class="tk-num">0.018</span>,
+
+  <span class="tk-key">"costs"</span>: {
+    <span class="tk-key">"buy_fee"</span>: <span class="tk-num">0.0025</span>,
+    <span class="tk-key">"sell_fee"</span>: <span class="tk-num">0.0025</span>,
+    <span class="tk-key">"spread"</span>: <span class="tk-num">0.0009</span>,
+    <span class="tk-key">"slippage"</span>: <span class="tk-num">0.0018</span>,
+    <span class="tk-key">"market_impact"</span>: <span class="tk-num">0.0012</span>
+  },
+
+  <span class="tk-key">"estimated_total_cost"</span>: <span class="tk-num">0.0089</span>,
+
+  <span class="tk-key">"expected_net_return"</span>: <span class="tk-num">0.0091</span>
+}</code></pre></div>
+<p dir="auto">قانون:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Expected Net Return =
+Expected Gross Return - Total Estimated Cost</code></pre></div>
+<p dir="auto">اگر Net Return از threshold لازم کمتر باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>NO_TRADE</code></pre></div>
+<hr>
+</section>
+<section id="sec-29">
+<h1 id="sec-29" dir="auto">29. AI Context Contract</h1>
+<p dir="auto">LLM نباید Snapshot خام کامل را دریافت کند.</p>
+<p dir="auto">ساختار:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"context_version"</span>: <span class="tk-str">"1.0"</span>,
+
+  <span class="tk-key">"snapshot_id"</span>: <span class="tk-str">"snap_..."</span>,
+  <span class="tk-key">"cycle_id"</span>: <span class="tk-str">"cycle_..."</span>,
+
+  <span class="tk-key">"account_summary"</span>: {},
+
+  <span class="tk-key">"market_candidates"</span>: [],
+
+  <span class="tk-key">"portfolio_risk"</span>: {},
+
+  <span class="tk-key">"active_orders"</span>: [],
+
+  <span class="tk-key">"recent_decisions"</span>: [],
+
+  <span class="tk-key">"historical_summary"</span>: {},
+
+  <span class="tk-key">"global_market_context"</span>: {},
+
+  <span class="tk-key">"system_constraints"</span>: {}
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-30">
+<h1 id="sec-30" dir="auto">30. Candidate Market Contract</h1>
+<p dir="auto">Quant Scanner قبل از AI باید Marketها را رتبه‌بندی کند.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"symbol"</span>: <span class="tk-str">"BTCUSDT"</span>,
+
+  <span class="tk-key">"rank"</span>: <span class="tk-num">1</span>,
+
+  <span class="tk-key">"score"</span>: <span class="tk-num">0.91</span>,
+
+  <span class="tk-key">"signals"</span>: {
+    <span class="tk-key">"trend"</span>: <span class="tk-num">0.88</span>,
+    <span class="tk-key">"momentum"</span>: <span class="tk-num">0.83</span>,
+    <span class="tk-key">"liquidity"</span>: <span class="tk-num">0.95</span>,
+    <span class="tk-key">"volatility"</span>: <span class="tk-num">0.72</span>,
+    <span class="tk-key">"orderbook"</span>: <span class="tk-num">0.76</span>,
+    <span class="tk-key">"risk"</span>: <span class="tk-num">0.81</span>
+  },
+
+  <span class="tk-key">"reasons"</span>: [
+    <span class="tk-str">"TREND_ALIGNMENT"</span>,
+    <span class="tk-str">"POSITIVE_MOMENTUM"</span>,
+    <span class="tk-str">"HIGH_LIQUIDITY"</span>
+  ]
+}</code></pre></div>
+<p dir="auto">AI فقط Top-N را دریافت کند.</p>
+<p dir="auto">N باید configurable باشد.</p>
+<p dir="auto">مثلاً:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>TOP 10
+TOP 20
+TOP 30</code></pre></div>
+<hr>
+</section>
+<section id="sec-31">
+<h1 id="sec-31" dir="auto">31. AI Decision Contract</h1>
+<p dir="auto">AI MUST فقط JSON معتبر تولید کند.</p>
+<p dir="auto">Schema:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"decision_id"</span>: <span class="tk-str">"dec_20260910_123000_BTCUSDT_001"</span>,
+
+  <span class="tk-key">"snapshot_id"</span>: <span class="tk-str">"snap_20260910_123000_000001"</span>,
+  <span class="tk-key">"cycle_id"</span>: <span class="tk-str">"cycle_20260910_123000"</span>,
+
+  <span class="tk-key">"symbol"</span>: <span class="tk-str">"BTCUSDT"</span>,
+
+  <span class="tk-key">"action"</span>: <span class="tk-str">"BUY"</span>,
+
+  <span class="tk-key">"confidence"</span>: <span class="tk-num">0.84</span>,
+
+  <span class="tk-key">"time_horizon"</span>: <span class="tk-str">"INTRADAY"</span>,
+
+  <span class="tk-key">"entry"</span>: {
+    <span class="tk-key">"price"</span>: <span class="tk-num">113000.0</span>,
+    <span class="tk-key">"min"</span>: <span class="tk-num">112800.0</span>,
+    <span class="tk-key">"max"</span>: <span class="tk-num">113300.0</span>
+  },
+
+  <span class="tk-key">"stop_loss"</span>: {
+    <span class="tk-key">"price"</span>: <span class="tk-num">110900.0</span>,
+    <span class="tk-key">"reason"</span>: <span class="tk-str">"ATR_SUPPORT"</span>
+  },
+
+  <span class="tk-key">"take_profit"</span>: [
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">115500.0</span>,
+      <span class="tk-key">"percentage"</span>: <span class="tk-num">0.5</span>
+    },
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">117800.0</span>,
+      <span class="tk-key">"percentage"</span>: <span class="tk-num">0.3</span>
+    },
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">120000.0</span>,
+      <span class="tk-key">"percentage"</span>: <span class="tk-num">0.2</span>
+    }
+  ],
+
+  <span class="tk-key">"position_size"</span>: {
+    <span class="tk-key">"amount"</span>: <span class="tk-num">0.012</span>,
+    <span class="tk-key">"quote_value"</span>: <span class="tk-num">1356.0</span>
+  },
+
+  <span class="tk-key">"risk"</span>: {
+    <span class="tk-key">"max_loss"</span>: <span class="tk-num">25.0</span>,
+    <span class="tk-key">"risk_reward"</span>: <span class="tk-num">2.7</span>
+  },
+
+  <span class="tk-key">"cost"</span>: {
+    <span class="tk-key">"estimated_total_cost"</span>: <span class="tk-num">0.0085</span>,
+    <span class="tk-key">"expected_gross_return"</span>: <span class="tk-num">0.022</span>,
+    <span class="tk-key">"expected_net_return"</span>: <span class="tk-num">0.0135</span>
+  },
+
+  <span class="tk-key">"invalidation_conditions"</span>: [
+    <span class="tk-str">"BREAK_SUPPORT"</span>,
+    <span class="tk-str">"SPREAD_EXPANSION"</span>,
+    <span class="tk-str">"LIQUIDITY_COLLAPSE"</span>
+  ],
+
+  <span class="tk-key">"reason_codes"</span>: [
+    <span class="tk-str">"TREND_UP"</span>,
+    <span class="tk-str">"MOMENTUM_POSITIVE"</span>,
+    <span class="tk-str">"LIQUIDITY_GOOD"</span>
+  ],
+
+  <span class="tk-key">"created_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+  <span class="tk-key">"expires_at"</span>: <span class="tk-str">"2026-09-10T13:00:00Z"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-32">
+<h1 id="sec-32" dir="auto">32. AI Action Enum</h1>
+<p dir="auto">فقط:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>BUY
+SELL
+HOLD
+AVOID</code></pre></div>
+<p dir="auto">معنای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>BUY   = احتمال خرید وجود دارد ولی اجرای واقعی هنوز باید توسط Risk Engine تأیید شود.
+
+SELL  = احتمال فروش وجود دارد ولی اجرای واقعی هنوز باید توسط Risk Engine تأیید شود.
+
+HOLD  = موقعیت فعلی حفظ شود.
+
+AVOID = وارد این Market نشو.</code></pre></div>
+<p dir="auto">AI حق ارسال مستقیم Order ندارد.</p>
+<hr>
+</section>
+<section id="sec-33">
+<h1 id="sec-33" dir="auto">33. Risk Decision Contract</h1>
+<p dir="auto">Risk Engine باید تصمیم AI را validate کند.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"risk_decision_id"</span>: <span class="tk-str">"risk_..."</span>,
+  <span class="tk-key">"decision_id"</span>: <span class="tk-str">"dec_..."</span>,
+
+  <span class="tk-key">"status"</span>: <span class="tk-str">"APPROVED"</span>,
+
+  <span class="tk-key">"checks"</span>: {
+    <span class="tk-key">"data_quality"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"liquidity"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"max_risk"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"position_limit"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"exposure_limit"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"drawdown_limit"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"fee_check"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"slippage_check"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"duplicate_order_check"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"decision_freshness"</span>: <span class="tk-bool">true</span>
+  },
+
+  <span class="tk-key">"approved_position_size"</span>: <span class="tk-num">0.01</span>,
+
+  <span class="tk-key">"approved_max_loss"</span>: <span class="tk-num">22.5</span>,
+
+  <span class="tk-key">"approved_entry_range"</span>: {
+    <span class="tk-key">"min"</span>: <span class="tk-num">112900.0</span>,
+    <span class="tk-key">"max"</span>: <span class="tk-num">113300.0</span>
+  },
+
+  <span class="tk-key">"rejection_reasons"</span>: [],
+
+  <span class="tk-key">"created_at"</span>: <span class="tk-str">"2026-09-10T12:30:05Z"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-34">
+<h1 id="sec-34" dir="auto">34. Risk Rejection Contract</h1>
+<p dir="auto">اگر Risk Engine رد کند:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"status"</span>: <span class="tk-str">"REJECTED"</span>,
+
+  <span class="tk-key">"rejection_reasons"</span>: [
+    <span class="tk-str">"EXCESSIVE_PORTFOLIO_EXPOSURE"</span>,
+    <span class="tk-str">"INSUFFICIENT_NET_EXPECTED_RETURN"</span>
+  ]
+}</code></pre></div>
+<p dir="auto">AI مجاز به override نیست.</p>
+<hr>
+</section>
+<section id="sec-35">
+<h1 id="sec-35" dir="auto">35. Position Size Contract</h1>
+<p dir="auto">Position size باید مستقل از AI validate شود.</p>
+<p dir="auto">Inputs:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>account_equity
+available_balance
+risk_per_trade
+stop_loss_distance
+volatility
+liquidity
+existing_exposure
+correlation
+max_position_size</code></pre></div>
+<p dir="auto">محاسبه پایه:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Position Size =
+Maximum Allowed Loss / Stop Loss Distance</code></pre></div>
+<p dir="auto">سپس با liquidity، exposure و سایر محدودیت‌ها محدود شود.</p>
+<hr>
+</section>
+<section id="sec-36">
+<h1 id="sec-36" dir="auto">36. Stop Loss Contract</h1>
+<p dir="auto">Stop Loss باید شامل دلیل باشد.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"price"</span>: <span class="tk-num">110900.0</span>,
+
+  <span class="tk-key">"method"</span>: <span class="tk-str">"ATR_SUPPORT"</span>,
+
+  <span class="tk-key">"atr"</span>: <span class="tk-num">1245.2</span>,
+
+  <span class="tk-key">"support"</span>: <span class="tk-num">111000.0</span>,
+
+  <span class="tk-key">"distance_percent"</span>: <span class="tk-num">0.0189</span>,
+
+  <span class="tk-key">"validated"</span>: <span class="tk-bool">true</span>
+}</code></pre></div>
+<p dir="auto">روش‌ها:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>ATR
+SUPPORT_RESISTANCE
+MARKET_STRUCTURE
+VOLATILITY
+COMBINATION</code></pre></div>
+<p dir="auto">Stop Loss تصادفی ممنوع.</p>
+<hr>
+</section>
+<section id="sec-37">
+<h1 id="sec-37" dir="auto">37. Take Profit Contract</h1>
+<p dir="auto">چند مرحله‌ای مجاز است:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"targets"</span>: [
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">115500.0</span>,
+      <span class="tk-key">"close_percent"</span>: <span class="tk-num">50</span>
+    },
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">117800.0</span>,
+      <span class="tk-key">"close_percent"</span>: <span class="tk-num">30</span>
+    },
+    {
+      <span class="tk-key">"price"</span>: <span class="tk-num">120000.0</span>,
+      <span class="tk-key">"close_percent"</span>: <span class="tk-num">20</span>
+    }
+  ]
+}</code></pre></div>
+<p dir="auto">مجموع <code>close_percent</code> باید دقیقاً 100 باشد.</p>
+<hr>
+</section>
+<section id="sec-38">
+<h1 id="sec-38" dir="auto">38. Execution Order Contract</h1>
+<p dir="auto">پس از تأیید Risk:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"execution_id"</span>: <span class="tk-str">"exec_..."</span>,
+  <span class="tk-key">"decision_id"</span>: <span class="tk-str">"dec_..."</span>,
+  <span class="tk-key">"risk_decision_id"</span>: <span class="tk-str">"risk_..."</span>,
+
+  <span class="tk-key">"market"</span>: <span class="tk-str">"BTCUSDT"</span>,
+  <span class="tk-key">"side"</span>: <span class="tk-str">"BUY"</span>,
+
+  <span class="tk-key">"order_type"</span>: <span class="tk-str">"LIMIT"</span>,
+  <span class="tk-key">"execution_type"</span>: <span class="tk-str">"LIMIT"</span>,
+
+  <span class="tk-key">"price"</span>: <span class="tk-num">113100.0</span>,
+  <span class="tk-key">"amount"</span>: <span class="tk-num">0.01</span>,
+
+  <span class="tk-key">"client_order_id"</span>: <span class="tk-str">"bot_20260910_123000_001"</span>,
+
+  <span class="tk-key">"max_slippage"</span>: <span class="tk-num">0.001</span>,
+
+  <span class="tk-key">"status"</span>: <span class="tk-str">"READY"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-39">
+<h1 id="sec-39" dir="auto">39. Execution Status</h1>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>READY
+SUBMITTING
+SUBMITTED
+OPEN
+PARTIALLY_FILLED
+FILLED
+CANCEL_PENDING
+CANCELLED
+REJECTED
+FAILED
+UNKNOWN</code></pre></div>
+<hr>
+</section>
+<section id="sec-40">
+<h1 id="sec-40" dir="auto">40. Client Order ID Contract</h1>
+<p dir="auto">هر Order باید:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>unique
+deterministic
+traceable</code></pre></div>
+<p dir="auto">باشد.</p>
+<p dir="auto">فرمت پیشنهادی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>bot_&lt;cycle&gt;_&lt;symbol&gt;_&lt;sequence&gt;</code></pre></div>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>bot_20260910_1230_BTCUSDT_001</code></pre></div>
+<p dir="auto">طول باید با محدودیت API مقصد سازگار باشد.</p>
+<hr>
+</section>
+<section id="sec-41">
+<h1 id="sec-41" dir="auto">41. Decision Idempotency</h1>
+<p dir="auto">هر تصمیم دارای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>decision_id
+snapshot_id
+cycle_id</code></pre></div>
+<p dir="auto">است.</p>
+<p dir="auto">قبل از Order:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>decision_id
++
+symbol
++
+side
++
+recent orders
++
+recent trades</code></pre></div>
+<p dir="auto">بررسی شود.</p>
+<p dir="auto">اگر همان تصمیم قبلاً اجرا شده:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>DO_NOT_DUPLICATE</code></pre></div>
+<hr>
+</section>
+<section id="sec-42">
+<h1 id="sec-42" dir="auto">42. Decision Expiration</h1>
+<p dir="auto">هر Decision:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>created_at
+expires_at</code></pre></div>
+<p dir="auto">دارد.</p>
+<p dir="auto">اگر:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>now &gt; expires_at</code></pre></div>
+<p dir="auto">باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>EXPIRED</code></pre></div>
+<p dir="auto">و نباید اجرا شود.</p>
+<p dir="auto">قبل از execution باید Market دوباره validate شود.</p>
+<hr>
+</section>
+<section id="sec-43">
+<h1 id="sec-43" dir="auto">43. Revalidation Contract</h1>
+<p dir="auto">بین AI Decision و Order Execution ممکن است قیمت تغییر کند.</p>
+<p dir="auto">بنابراین قبل از Execution:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>price
+spread
+orderbook
+liquidity
+balance
+open orders
+risk</code></pre></div>
+<p dir="auto">دوباره بررسی شود.</p>
+<p dir="auto">اگر شرایط از محدوده مجاز خارج شده:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>REJECT_EXECUTION</code></pre></div>
+<hr>
+</section>
+<section id="sec-44">
+<h1 id="sec-44" dir="auto">44. Order Update Contract</h1>
+<p dir="auto">هر تغییر Order باید Event ایجاد کند.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"event_id"</span>: <span class="tk-str">"evt_..."</span>,
+  <span class="tk-key">"order_id"</span>: <span class="tk-str">"123456789"</span>,
+
+  <span class="tk-key">"previous_status"</span>: <span class="tk-str">"OPEN"</span>,
+  <span class="tk-key">"new_status"</span>: <span class="tk-str">"PARTIALLY_FILLED"</span>,
+
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:31:00Z"</span>,
+
+  <span class="tk-key">"matched_amount"</span>: <span class="tk-num">0.004</span>,
+  <span class="tk-key">"remaining_amount"</span>: <span class="tk-num">0.006</span>
+}</code></pre></div>
+<p dir="auto">Order history نباید overwrite شود.</p>
+<hr>
+</section>
+<section id="sec-45">
+<h1 id="sec-45" dir="auto">45. PnL Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"market"</span>: <span class="tk-str">"BTCUSDT"</span>,
+
+  <span class="tk-key">"realized_pnl"</span>: <span class="tk-num">125.5</span>,
+  <span class="tk-key">"unrealized_pnl"</span>: <span class="tk-num">83.2</span>,
+
+  <span class="tk-key">"fees"</span>: <span class="tk-num">14.2</span>,
+  <span class="tk-key">"slippage_cost"</span>: <span class="tk-num">5.8</span>,
+
+  <span class="tk-key">"gross_pnl"</span>: <span class="tk-num">142.0</span>,
+  <span class="tk-key">"net_pnl"</span>: <span class="tk-num">119.7</span>,
+
+  <span class="tk-key">"currency"</span>: <span class="tk-str">"USDT"</span>,
+
+  <span class="tk-key">"calculated_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-46">
+<h1 id="sec-46" dir="auto">46. AI Performance Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"decision_id"</span>: <span class="tk-str">"dec_..."</span>,
+
+  <span class="tk-key">"prediction"</span>: {
+    <span class="tk-key">"action"</span>: <span class="tk-str">"BUY"</span>,
+    <span class="tk-key">"expected_return"</span>: <span class="tk-num">0.018</span>
+  },
+
+  <span class="tk-key">"outcome"</span>: {
+    <span class="tk-key">"actual_return"</span>: <span class="tk-num">0.012</span>,
+    <span class="tk-key">"actual_pnl"</span>: <span class="tk-num">18.4</span>
+  },
+
+  <span class="tk-key">"metrics"</span>: {
+    <span class="tk-key">"direction_correct"</span>: <span class="tk-bool">true</span>,
+    <span class="tk-key">"return_error"</span>: <span class="tk-num">0.006</span>,
+    <span class="tk-key">"profitable"</span>: <span class="tk-bool">true</span>
+  }
+}</code></pre></div>
+<p dir="auto">Metrics:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>direction_accuracy
+win_rate
+profit_factor
+average_return
+average_loss
+false_positive_rate
+false_negative_rate
+expected_vs_actual_error
+performance_by_market
+performance_by_regime
+performance_by_confidence</code></pre></div>
+<hr>
+</section>
+<section id="sec-47">
+<h1 id="sec-47" dir="auto">47. Historical AI Summary Contract</h1>
+<p dir="auto">به‌جای ارسال Raw History به AI:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"period"</span>: <span class="tk-str">"30d"</span>,
+
+  <span class="tk-key">"total_decisions"</span>: <span class="tk-num">1840</span>,
+
+  <span class="tk-key">"buy_accuracy"</span>: <span class="tk-num">0.61</span>,
+  <span class="tk-key">"sell_accuracy"</span>: <span class="tk-num">0.58</span>,
+
+  <span class="tk-key">"win_rate"</span>: <span class="tk-num">0.57</span>,
+
+  <span class="tk-key">"avg_expected_return"</span>: <span class="tk-num">0.014</span>,
+  <span class="tk-key">"avg_actual_return"</span>: <span class="tk-num">0.009</span>,
+
+  <span class="tk-key">"best_regimes"</span>: [
+    <span class="tk-str">"TRENDING_UP"</span>,
+    <span class="tk-str">"BREAKOUT"</span>
+  ],
+
+  <span class="tk-key">"weak_regimes"</span>: [
+    <span class="tk-str">"RANGING"</span>,
+    <span class="tk-str">"HIGH_VOLATILITY"</span>
+  ]
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-48">
+<h1 id="sec-48" dir="auto">48. Global Market Context Contract</h1>
+<p dir="auto">در صورت استفاده:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+
+  <span class="tk-key">"btc_dominance"</span>: <span class="tk-bool">null</span>,
+
+  <span class="tk-key">"global_market"</span>: {
+    <span class="tk-key">"trend"</span>: <span class="tk-str">"RISK_ON"</span>,
+    <span class="tk-key">"volatility"</span>: <span class="tk-str">"MEDIUM"</span>
+  },
+
+  <span class="tk-key">"external_prices"</span>: [],
+
+  <span class="tk-key">"source"</span>: <span class="tk-str">"external_market_data"</span>
+}</code></pre></div>
+<p dir="auto">هر External Data باید source و timestamp داشته باشد.</p>
+<hr>
+</section>
+<section id="sec-49">
+<h1 id="sec-49" dir="auto">49. System Health Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+
+  <span class="tk-key">"api"</span>: {
+    <span class="tk-key">"status"</span>: <span class="tk-str">"HEALTHY"</span>,
+    <span class="tk-key">"latency_ms"</span>: <span class="tk-num">120</span>
+  },
+
+  <span class="tk-key">"websocket"</span>: {
+    <span class="tk-key">"status"</span>: <span class="tk-str">"HEALTHY"</span>,
+    <span class="tk-key">"last_message_at"</span>: <span class="tk-str">"2026-09-10T12:29:59Z"</span>
+  },
+
+  <span class="tk-key">"data_collector"</span>: {
+    <span class="tk-key">"status"</span>: <span class="tk-str">"RUNNING"</span>
+  },
+
+  <span class="tk-key">"ai"</span>: {
+    <span class="tk-key">"status"</span>: <span class="tk-str">"HEALTHY"</span>,
+    <span class="tk-key">"last_analysis_at"</span>: <span class="tk-str">"2026-09-10T12:00:00Z"</span>
+  },
+
+  <span class="tk-key">"risk_engine"</span>: {
+    <span class="tk-key">"status"</span>: <span class="tk-str">"HEALTHY"</span>
+  },
+
+  <span class="tk-key">"execution_engine"</span>: {
+    <span class="tk-key">"status"</span>: <span class="tk-str">"READY"</span>
+  }
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-50">
+<h1 id="sec-50" dir="auto">50. Error Contract</h1>
+<p dir="auto">تمام Errorها باید machine-readable باشند.</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"error_id"</span>: <span class="tk-str">"err_..."</span>,
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+
+  <span class="tk-key">"component"</span>: <span class="tk-str">"DATA_COLLECTOR"</span>,
+
+  <span class="tk-key">"code"</span>: <span class="tk-str">"STALE_MARKET_DATA"</span>,
+
+  <span class="tk-key">"severity"</span>: <span class="tk-str">"HIGH"</span>,
+
+  <span class="tk-key">"message"</span>: <span class="tk-str">"Market data exceeded freshness threshold"</span>,
+
+  <span class="tk-key">"retryable"</span>: <span class="tk-bool">true</span>,
+
+  <span class="tk-key">"safe_mode_required"</span>: <span class="tk-bool">true</span>
+}</code></pre></div>
+<hr>
+</section>
+<section id="sec-51">
+<h1 id="sec-51" dir="auto">51. Error Severity</h1>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>INFO
+WARNING
+HIGH
+CRITICAL
+FATAL</code></pre></div>
+<hr>
+</section>
+<section id="sec-52">
+<h1 id="sec-52" dir="auto">52. Event Contract</h1>
+<p dir="auto">تمام Eventها:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"event_id"</span>: <span class="tk-str">"evt_..."</span>,
+  <span class="tk-key">"event_type"</span>: <span class="tk-str">"ORDER_FILLED"</span>,
+
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:31:00Z"</span>,
+
+  <span class="tk-key">"source"</span>: <span class="tk-str">"execution_engine"</span>,
+
+  <span class="tk-key">"cycle_id"</span>: <span class="tk-str">"cycle_..."</span>,
+
+  <span class="tk-key">"payload"</span>: {}
+}</code></pre></div>
+<p dir="auto">Eventها immutable باشند.</p>
+<hr>
+</section>
+<section id="sec-53">
+<h1 id="sec-53" dir="auto">53. Event Types</h1>
+<p dir="auto">حداقل:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>SNAPSHOT_CREATED
+SNAPSHOT_COMPLETED
+SNAPSHOT_INVALID
+MARKET_DISCOVERED
+MARKET_DISABLED
+
+AI_ANALYSIS_STARTED
+AI_ANALYSIS_COMPLETED
+AI_DECISION_CREATED
+
+RISK_APPROVED
+RISK_REJECTED
+
+ORDER_SUBMITTED
+ORDER_OPENED
+ORDER_PARTIALLY_FILLED
+ORDER_FILLED
+ORDER_CANCELLED
+ORDER_REJECTED
+
+POSITION_OPENED
+POSITION_UPDATED
+POSITION_CLOSED
+
+SAFE_MODE_ENTERED
+SAFE_MODE_EXITED
+
+SYSTEM_ERROR</code></pre></div>
+<hr>
+</section>
+<section id="sec-54">
+<h1 id="sec-54" dir="auto">54. Snapshot Cycle Contract</h1>
+<p dir="auto">چرخه اصلی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>T0
+|
+|-- Collect Snapshot N
+|
+T0 + 30m
+|
+|-- Analyze Snapshot N
+|-- Collect Snapshot N+1
+|
+T0 + 60m
+|
+|-- Analyze Snapshot N+1
+|-- Collect Snapshot N+2
+|
+...</code></pre></div>
+<p dir="auto">Analysis و Collection نباید به‌صورت blocking به یکدیگر وابسته باشند.</p>
+<hr>
+</section>
+<section id="sec-55">
+<h1 id="sec-55" dir="auto">55. Snapshot Naming Contract</h1>
+<p dir="auto">فرمت:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_&lt;zero_padded_sequence&gt;.json</code></pre></div>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_000001.json
+snapshot_000002.json
+snapshot_000003.json</code></pre></div>
+<p dir="auto">Metadata داخلی باید timestamp واقعی را نیز داشته باشد.</p>
+<hr>
+</section>
+<section id="sec-56">
+<h1 id="sec-56" dir="auto">56. Atomic Snapshot Write</h1>
+<p dir="auto">Snapshot ابتدا:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_000001.json.tmp</code></pre></div>
+<p dir="auto">ذخیره شود.</p>
+<p dir="auto">پس از:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>schema validation
+integrity validation
+flush
+fsync در صورت نیاز</code></pre></div>
+<p dir="auto">به:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_000001.json</code></pre></div>
+<p dir="auto">rename شود.</p>
+<p dir="auto">Snapshot ناقص نباید با نام نهایی دیده شود.</p>
+<hr>
+</section>
+<section id="sec-57">
+<h1 id="sec-57" dir="auto">57. Snapshot Integrity</h1>
+<p dir="auto">هر Snapshot می‌تواند دارای checksum باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"integrity"</span>: {
+    <span class="tk-key">"algorithm"</span>: <span class="tk-str">"SHA-256"</span>,
+    <span class="tk-key">"checksum"</span>: <span class="tk-str">"..."</span>
+  }
+}</code></pre></div>
+<p dir="auto">Checksum بعد از serialization نهایی محاسبه شود.</p>
+<hr>
+</section>
+<section id="sec-58">
+<h1 id="sec-58" dir="auto">58. Data Freshness Contract</h1>
+<p dir="auto">هر داده باید threshold freshness داشته باشد.</p>
+<p dir="auto">مثلاً:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>orderbook: seconds
+ticker: seconds
+OHLC: timeframe dependent
+portfolio: short-lived
+historical data: long-lived</code></pre></div>
+<p dir="auto">Thresholdها configurable باشند.</p>
+<p dir="auto">اگر داده stale باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>DO_NOT_TRADE</code></pre></div>
+<p dir="auto">مگر اینکه Risk Policy صراحتاً شرایط دیگری تعیین کند.</p>
+<hr>
+</section>
+<section id="sec-59">
+<h1 id="sec-59" dir="auto">59. Nullability Rules</h1>
+<p dir="auto"><code>null</code> یعنی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>داده موجود نیست / قابل محاسبه نیست</code></pre></div>
+<p dir="auto">و با:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>0</code></pre></div>
+<p dir="auto">تفاوت دارد.</p>
+<p dir="auto">مثلاً:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"rsi"</span>: <span class="tk-bool">null</span>
+}</code></pre></div>
+<p dir="auto">یعنی RSI قابل محاسبه نیست.</p>
+<p dir="auto">این:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"rsi"</span>: <span class="tk-num">0</span>
+}</code></pre></div>
+<p dir="auto">یک مقدار واقعی است و نباید برای missing data استفاده شود.</p>
+<hr>
+</section>
+<section id="sec-60">
+<h1 id="sec-60" dir="auto">60. Enum Validation</h1>
+<p dir="auto">تمام Enumها MUST validation شوند.</p>
+<p dir="auto">مقدار ناشناخته:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>UNKNOWN</code></pre></div>
+<p dir="auto">یا rejection، بسته به Entity.</p>
+<p dir="auto">Agent نباید Enum جدیدی را خودش invent کند.</p>
+<hr>
+</section>
+<section id="sec-61">
+<h1 id="sec-61" dir="auto">61. Schema Versioning</h1>
+<p dir="auto">تمام Schemaها دارای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>schema_version</code></pre></div>
+<p dir="auto">هستند.</p>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>1.0
+1.1
+2.0</code></pre></div>
+<p dir="auto">قوانین:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>MAJOR = breaking change
+MINOR = backward-compatible addition
+PATCH = validation/documentation fix</code></pre></div>
+<hr>
+</section>
+<section id="sec-62">
+<h1 id="sec-62" dir="auto">62. Backward Compatibility</h1>
+<p dir="auto">Readerها باید تا حد امکان نسخه‌های قبلی را بخوانند.</p>
+<p dir="auto">برای تغییر breaking:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>migration layer</code></pre></div>
+<p dir="auto">اجباری است.</p>
+<p dir="auto">هیچ فایل قدیمی بدون migration نباید silently reinterpret شود.</p>
+<hr>
+</section>
+<section id="sec-63">
+<h1 id="sec-63" dir="auto">63. Schema Validation</h1>
+<p dir="auto">هر ورودی باید قبل از استفاده validate شود.</p>
+<p dir="auto">Validation شامل:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>type
+required fields
+enum
+range
+precision
+timestamp
+cross-field consistency
+business rules
+source integrity</code></pre></div>
+<hr>
+</section>
+<section id="sec-64">
+<h1 id="sec-64" dir="auto">64. Cross-Field Validation</h1>
+<p dir="auto">مثال:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>total_balance = available_balance + locked_balance</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>best_bid &lt; best_ask</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>matched_amount + unmatched_amount = amount</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>take_profit percentages = 100</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>base_asset != quote_asset</code></pre></div>
+<hr>
+</section>
+<section id="sec-65">
+<h1 id="sec-65" dir="auto">65. Financial Validation</h1>
+<p dir="auto">این موارد MUST کنترل شوند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>price &gt; 0
+amount &gt; 0
+fee &gt;= 0
+balance &gt;= 0
+position_size &gt; 0
+stop_loss logically valid
+take_profit logically valid</code></pre></div>
+<p dir="auto">مقادیر NaN و Infinity ممنوع.</p>
+<hr>
+</section>
+<section id="sec-66">
+<h1 id="sec-66" dir="auto">66. Data Provenance</h1>
+<p dir="auto">برای داده‌های مهم:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"source"</span>: <span class="tk-str">"nobitex"</span>,
+  <span class="tk-key">"source_type"</span>: <span class="tk-str">"REST"</span>,
+  <span class="tk-key">"source_endpoint"</span>: <span class="tk-str">"..."</span>,
+  <span class="tk-key">"received_at"</span>: <span class="tk-str">"..."</span>,
+  <span class="tk-key">"source_timestamp"</span>: <span class="tk-str">"..."</span>
+}</code></pre></div>
+<p dir="auto">برای WebSocket:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>source_type = WEBSOCKET</code></pre></div>
+<hr>
+</section>
+<section id="sec-67">
+<h1 id="sec-67" dir="auto">67. REST + WebSocket Contract</h1>
+<p dir="auto">معماری پیشنهادی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>WebSocket
+    |
+    +--&gt; Real-time Market Data
+    |
+    +--&gt; Orderbook updates
+    |
+    +--&gt; Candle updates
+
+REST
+    |
+    +--&gt; Initial synchronization
+    +--&gt; Recovery
+    +--&gt; Portfolio
+    +--&gt; Orders
+    +--&gt; Trades
+    +--&gt; Market discovery</code></pre></div>
+<p dir="auto">WebSocket نباید تنها منبع حقیقت برای state حساس باشد.</p>
+<p dir="auto">در صورت desynchronization:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>REST RESYNC</code></pre></div>
+<p dir="auto">انجام شود.</p>
+<hr>
+</section>
+<section id="sec-68">
+<h1 id="sec-68" dir="auto">68. Data Reconciliation Contract</h1>
+<p dir="auto">سیستم باید periodically بررسی کند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Local Portfolio
+vs
+Exchange Portfolio</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Local Orders
+vs
+Exchange Orders</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Local Trades
+vs
+Exchange Trades</code></pre></div>
+<p dir="auto">هر اختلاف مهم:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>SAFE_MODE</code></pre></div>
+<p dir="auto">را فعال می‌کند تا وضعیت بررسی شود.</p>
+<hr>
+</section>
+<section id="sec-69">
+<h1 id="sec-69" dir="auto">69. AI Input Compression Contract</h1>
+<p dir="auto">LLM نباید این موارد را بدون ضرورت دریافت کند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>raw full orderbook
+raw thousands of trades
+all historical candles
+all snapshots
+duplicate indicators
+duplicate portfolio data</code></pre></div>
+<p dir="auto">Pipeline:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>RAW DATA
+   ↓
+NORMALIZATION
+   ↓
+FEATURE EXTRACTION
+   ↓
+SCORING
+   ↓
+RELEVANCE FILTER
+   ↓
+COMPRESSION
+   ↓
+AI CONTEXT</code></pre></div>
+<hr>
+</section>
+<section id="sec-70">
+<h1 id="sec-70" dir="auto">70. AI Context Priority</h1>
+<p dir="auto">اولویت:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>1. Current portfolio
+2. Current positions
+3. Current market state
+4. Risk state
+5. Fees
+6. Liquidity
+7. Recent price action
+8. Technical features
+9. Market structure
+10. Previous AI decisions
+11. Historical statistics
+12. Older context</code></pre></div>
+<hr>
+</section>
+<section id="sec-71">
+<h1 id="sec-71" dir="auto">71. Context Budget</h1>
+<p dir="auto">سیستم MUST دارای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>max_context_tokens
+max_output_tokens
+max_markets
+max_candles_per_market
+max_trades_per_market</code></pre></div>
+<p dir="auto">باشد.</p>
+<p dir="auto">اگر context بیش از budget شد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>low-priority data</code></pre></div>
+<p dir="auto">حذف شود.</p>
+<p dir="auto">داده‌های critical حذف نشوند.</p>
+<hr>
+</section>
+<section id="sec-72">
+<h1 id="sec-72" dir="auto">72. Prompt/Context Hash</h1>
+<p dir="auto">هر AI request:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"prompt_version"</span>: <span class="tk-str">"3.2"</span>,
+  <span class="tk-key">"context_hash"</span>: <span class="tk-str">"sha256:..."</span>,
+  <span class="tk-key">"model"</span>: <span class="tk-str">"configured_model"</span>,
+  <span class="tk-key">"created_at"</span>: <span class="tk-str">"..."</span>
+}</code></pre></div>
+<p dir="auto">داشته باشد.</p>
+<p dir="auto">این برای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>reproducibility
+audit
+caching
+debugging
+performance analysis</code></pre></div>
+<p dir="auto">است.</p>
+<hr>
+</section>
+<section id="sec-73">
+<h1 id="sec-73" dir="auto">73. AI Output Validation</h1>
+<p dir="auto">AI output MUST:</p>
+<ol dir="ltr"><li>parse شود.</li><li>JSON syntax validate شود.</li><li>Schema validate شود.</li><li>enumها validate شوند.</li><li>numeric ranges validate شوند.</li><li>risk constraints validate شوند.</li><li>freshness validate شود.</li><li>سپس به Risk Engine ارسال شود.</li></ol>
+<p dir="auto">LLM output مستقیماً به Execution Engine ارسال نشود.</p>
+<hr>
+</section>
+<section id="sec-74">
+<h1 id="sec-74" dir="auto">74. AI Hallucination Protection</h1>
+<p dir="auto">اگر AI:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>symbol نامعتبر
+price غیرواقعی
+market غیرموجود
+negative amount
+invalid stop loss
+invalid TP
+unknown asset</code></pre></div>
+<p dir="auto">تولید کند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>AI_OUTPUT_INVALID</code></pre></div>
+<p dir="auto">و:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>NO_TRADE</code></pre></div>
+<hr>
+</section>
+<section id="sec-75">
+<h1 id="sec-75" dir="auto">75. Market Universe Contract</h1>
+<p dir="auto">AI نباید Market خارج از:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>market_registry</code></pre></div>
+<p dir="auto">را پیشنهاد کند.</p>
+<p dir="auto">اگر:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>symbol not found</code></pre></div>
+<p dir="auto">باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>REJECT</code></pre></div>
+<hr>
+</section>
+<section id="sec-76">
+<h1 id="sec-76" dir="auto">76. Portfolio-aware Decision Contract</h1>
+<p dir="auto">AI Context باید بداند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>current holdings
+available balance
+locked balance
+existing exposure
+open orders
+risk
+drawdown</code></pre></div>
+<p dir="auto">تا خرید دارایی موجود یا فروش دارایی ناموجود را بدون دلیل پیشنهاد نکند.</p>
+<p dir="auto">اما Risk Engine مرجع نهایی موجودی است.</p>
+<hr>
+</section>
+<section id="sec-77">
+<h1 id="sec-77" dir="auto">77. Sell Validation</h1>
+<p dir="auto">قبل از SELL:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>available asset balance
+locked balance
+existing sell orders
+minimum order size
+current exposure</code></pre></div>
+<p dir="auto">بررسی شود.</p>
+<p dir="auto">SELL بیش از available position ممنوع است.</p>
+<hr>
+</section>
+<section id="sec-78">
+<h1 id="sec-78" dir="auto">78. Buy Validation</h1>
+<p dir="auto">قبل از BUY:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>available quote balance
+fees
+minimum amount
+minimum notional
+open buy orders
+portfolio exposure
+risk limits</code></pre></div>
+<p dir="auto">بررسی شود.</p>
+<hr>
+</section>
+<section id="sec-79">
+<h1 id="sec-79" dir="auto">79. No-Trade Contract</h1>
+<p dir="auto">سیستم باید بتواند صریحاً بگوید:</p>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"action"</span>: <span class="tk-str">"NO_TRADE"</span>,
+
+  <span class="tk-key">"reason_codes"</span>: [
+    <span class="tk-str">"LOW_LIQUIDITY"</span>,
+    <span class="tk-str">"HIGH_SPREAD"</span>,
+    <span class="tk-str">"INSUFFICIENT_EDGE"</span>,
+    <span class="tk-str">"STALE_DATA"</span>
+  ]
+}</code></pre></div>
+<p dir="auto">No-trade یک تصمیم معتبر است، نه failure.</p>
+<hr>
+</section>
+<section id="sec-80">
+<h1 id="sec-80" dir="auto">80. Safe Mode Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"mode"</span>: <span class="tk-str">"SAFE_MODE"</span>,
+
+  <span class="tk-key">"entered_at"</span>: <span class="tk-str">"2026-09-10T12:30:00Z"</span>,
+
+  <span class="tk-key">"reasons"</span>: [
+    <span class="tk-str">"API_ERROR"</span>,
+    <span class="tk-str">"DATA_INCONSISTENCY"</span>
+  ],
+
+  <span class="tk-key">"allow_new_orders"</span>: <span class="tk-bool">false</span>,
+
+  <span class="tk-key">"allow_cancel_orders"</span>: <span class="tk-bool">true</span>,
+
+  <span class="tk-key">"allow_reconciliation"</span>: <span class="tk-bool">true</span>
+}</code></pre></div>
+<p dir="auto">AI نمی‌تواند Safe Mode را خاموش کند.</p>
+<hr>
+</section>
+<section id="sec-81">
+<h1 id="sec-81" dir="auto">81. Security Contract</h1>
+<p dir="auto">هیچ‌یک از موارد زیر نباید در:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot
+AI context
+logs
+events
+errors
+analytics
+Git
+database plaintext</code></pre></div>
+<p dir="auto">ذخیره شوند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>API key
+private key
+TOTP
+password
+authentication secret
+withdrawal credential</code></pre></div>
+<p dir="auto">Credentialها باید در Secret Manager یا encrypted secure storage قرار گیرند.</p>
+<hr>
+</section>
+<section id="sec-82">
+<h1 id="sec-82" dir="auto">82. API Permission Contract</h1>
+<p dir="auto">ربات معاملاتی باید حداقل permissionهای لازم را داشته باشد.</p>
+<p dir="auto">برای trading:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>READ
+TRADE</code></pre></div>
+<p dir="auto">مناسب است.</p>
+<p dir="auto">برای این ربات:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>WITHDRAW</code></pre></div>
+<p dir="auto">نباید فعال شود.</p>
+<hr>
+</section>
+<section id="sec-83">
+<h1 id="sec-83" dir="auto">83. Audit Contract</h1>
+<p dir="auto">برای هر معامله باید chain زیر قابل بازسازی باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Snapshot
+   ↓
+Feature Set
+   ↓
+Candidate Ranking
+   ↓
+AI Context
+   ↓
+AI Decision
+   ↓
+Risk Decision
+   ↓
+Execution Decision
+   ↓
+Exchange Order
+   ↓
+Fills
+   ↓
+PnL</code></pre></div>
+<p dir="auto">هیچ مرحله‌ای نباید بدون ID قابل trace باشد.</p>
+<hr>
+</section>
+<section id="sec-84">
+<h1 id="sec-84" dir="auto">84. Required IDs</h1>
+<p dir="auto">Entityهای مهم:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_id
+cycle_id
+decision_id
+risk_decision_id
+execution_id
+order_id
+client_order_id
+trade_id
+event_id
+error_id
+context_hash</code></pre></div>
+<hr>
+</section>
+<section id="sec-85">
+<h1 id="sec-85" dir="auto">85. ID Rules</h1>
+<p dir="auto">IDها باید:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>unique
+stable
+traceable
+non-secret</code></pre></div>
+<p dir="auto">باشند.</p>
+<p dir="auto">ID نباید شامل credential یا اطلاعات حساس باشد.</p>
+<hr>
+</section>
+<section id="sec-86">
+<h1 id="sec-86" dir="auto">86. Storage Contract</h1>
+<p dir="auto">ساختار پیشنهادی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>data/
+├── assets/
+│   └── asset_registry.json
+│
+├── markets/
+│   └── market_registry.json
+│
+├── snapshots/
+│   ├── snapshot_000001.json
+│   ├── snapshot_000002.json
+│   └── ...
+│
+├── features/
+│   └── ...
+│
+├── historical/
+│   └── ...
+│
+├── ai/
+│   ├── contexts/
+│   ├── decisions/
+│   └── performance/
+│
+├── risk/
+│   └── decisions/
+│
+├── orders/
+│   ├── active/
+│   └── history/
+│
+├── trades/
+│   └── ...
+│
+├── events/
+│   └── ...
+│
+├── audit/
+│   └── ...
+│
+└── archive/</code></pre></div>
+<hr>
+</section>
+<section id="sec-87">
+<h1 id="sec-87" dir="auto">87. JSON vs Database</h1>
+<p dir="auto">JSON مناسب برای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>registry
+snapshot
+AI decision
+configuration
+audit artifacts</code></pre></div>
+<p dir="auto">Database مناسب برای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>trades
+orders
+fills
+features
+historical candles
+events
+performance</code></pre></div>
+<p dir="auto">برای نسخه اولیه:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>SQLite</code></pre></div>
+<p dir="auto">و برای production:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>PostgreSQL</code></pre></div>
+<p dir="auto">مناسب است.</p>
+<hr>
+</section>
+<section id="sec-88">
+<h1 id="sec-88" dir="auto">88. Snapshot Retention</h1>
+<p dir="auto">Snapshotهای raw قدیمی باید:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>compressed
+archived
+aggregated</code></pre></div>
+<p dir="auto">شوند.</p>
+<p dir="auto">اما حذف اطلاعات مهم audit بدون retention policy ممنوع است.</p>
+<hr>
+</section>
+<section id="sec-89">
+<h1 id="sec-89" dir="auto">89. Aggregation Contract</h1>
+<p dir="auto">از Snapshotهای 30 دقیقه‌ای:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>30m
+1h
+4h
+1d
+1w</code></pre></div>
+<p dir="auto">featureهای aggregate ساخته شوند.</p>
+<p dir="auto">این Aggregateها جایگزین raw data برای AI context می‌شوند.</p>
+<hr>
+</section>
+<section id="sec-90">
+<h1 id="sec-90" dir="auto">90. Historical Candle Contract</h1>
+<div class="code"><div class="code-bar"><span class="lang">json</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>{
+  <span class="tk-key">"symbol"</span>: <span class="tk-str">"BTCUSDT"</span>,
+  <span class="tk-key">"timeframe"</span>: <span class="tk-str">"30m"</span>,
+
+  <span class="tk-key">"timestamp"</span>: <span class="tk-str">"2026-09-10T12:00:00Z"</span>,
+
+  <span class="tk-key">"open"</span>: <span class="tk-num">112500.0</span>,
+  <span class="tk-key">"high"</span>: <span class="tk-num">113400.0</span>,
+  <span class="tk-key">"low"</span>: <span class="tk-num">112100.0</span>,
+  <span class="tk-key">"close"</span>: <span class="tk-num">113245.0</span>,
+
+  <span class="tk-key">"volume"</span>: <span class="tk-num">184.2</span>,
+
+  <span class="tk-key">"source"</span>: <span class="tk-str">"nobitex"</span>
+}</code></pre></div>
+<p dir="auto">Unique key:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>(symbol, timeframe, timestamp)</code></pre></div>
+<hr>
+</section>
+<section id="sec-91">
+<h1 id="sec-91" dir="auto">91. Duplicate Prevention</h1>
+<p dir="auto">برای Entityهای immutable:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>trade_id
+event_id
+candle(symbol,timeframe,timestamp)</code></pre></div>
+<p dir="auto">unique constraint وجود داشته باشد.</p>
+<p dir="auto">برای Snapshot:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot_id</code></pre></div>
+<p dir="auto">unique باشد.</p>
+<hr>
+</section>
+<section id="sec-92">
+<h1 id="sec-92" dir="auto">92. Data Quality Score</h1>
+<p dir="auto">Score در بازه:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>0.0 تا 1.0</code></pre></div>
+<p dir="auto">باشد.</p>
+<p dir="auto">پیشنهاد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>0.95 - 1.00 = Excellent
+0.90 - 0.95 = Good
+0.75 - 0.90 = Warning
+0.50 - 0.75 = Poor
+&lt; 0.50      = Critical</code></pre></div>
+<p dir="auto">Thresholdها configurable باشند.</p>
+<hr>
+</section>
+<section id="sec-93">
+<h1 id="sec-93" dir="auto">93. Quality Gate</h1>
+<p dir="auto">قبل از AI:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>if data_quality &lt; minimum_ai_quality:
+    NO_AI_ANALYSIS</code></pre></div>
+<p dir="auto">قبل از Trading:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>if data_quality &lt; minimum_trade_quality:
+    NO_TRADE</code></pre></div>
+<hr>
+</section>
+<section id="sec-94">
+<h1 id="sec-94" dir="auto">94. Global Consistency Checks</h1>
+<p dir="auto">سیستم باید بررسی کند:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>market exists
+asset exists
+price valid
+timestamp valid
+orderbook valid
+balance valid
+orders synchronized
+trade history synchronized
+fee available
+risk available</code></pre></div>
+<p dir="auto">هر failure مهم باید وارد Risk Gate شود.</p>
+<hr>
+</section>
+<section id="sec-95">
+<h1 id="sec-95" dir="auto">95. Contract Testing</h1>
+<p dir="auto">برای هر Schema باید تست وجود داشته باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>valid payload
+missing required field
+wrong type
+invalid enum
+negative amount
+invalid timestamp
+duplicate entity
+cross-field inconsistency
+old schema
+future schema</code></pre></div>
+<hr>
+</section>
+<section id="sec-96">
+<h1 id="sec-96" dir="auto">96. Version Migration</h1>
+<p dir="auto">مثلاً:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>snapshot v1.0
+      ↓
+migration
+      ↓
+snapshot v2.0</code></pre></div>
+<p dir="auto">Migration باید deterministic باشد.</p>
+<p dir="auto">اطلاعات حذف‌شده نباید بدون ثبت دلیل از بین بروند.</p>
+<hr>
+</section>
+<section id="sec-97">
+<h1 id="sec-97" dir="auto">97. Schema Registry</h1>
+<p dir="auto">سیستم باید یک Registry برای Schemaها داشته باشد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>schemas/
+├── asset.schema.json
+├── market.schema.json
+├── snapshot.schema.json
+├── orderbook.schema.json
+├── candle.schema.json
+├── portfolio.schema.json
+├── order.schema.json
+├── trade.schema.json
+├── ai_decision.schema.json
+├── risk_decision.schema.json
+├── execution.schema.json
+├── event.schema.json
+└── error.schema.json</code></pre></div>
+<hr>
+</section>
+<section id="sec-98">
+<h1 id="sec-98" dir="auto">98. Contract Ownership</h1>
+<p dir="auto">مالک هر Contract:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Asset/Market      → Market Data Layer
+Snapshot          → Data Collector
+Features          → Feature Engine
+Portfolio         → Account Data Layer
+AI Decision       → AI Layer
+Risk Decision     → Risk Engine
+Execution         → Execution Engine
+Order/Trade       → Exchange Integration
+Event             → Event/Audit Layer</code></pre></div>
+<p dir="auto">هیچ AI Agentی مالک Contractهای Risk یا Execution نیست.</p>
+<hr>
+</section>
+<section id="sec-99">
+<h1 id="sec-99" dir="auto">99. Contract Change Policy</h1>
+<p dir="auto">هر تغییر Schema باید:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>version increment
+migration assessment
+validation update
+tests update
+documentation update</code></pre></div>
+<p dir="auto">داشته باشد.</p>
+<p dir="auto">Breaking change بدون version bump ممنوع است.</p>
+<hr>
+</section>
+<section id="sec-100">
+<h1 id="sec-100" dir="auto">100. Golden Rule</h1>
+<p dir="auto">در تمام سیستم این ترتیب باید رعایت شود:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>RAW DATA
+   ↓
+VALIDATION
+   ↓
+NORMALIZATION
+   ↓
+SNAPSHOT
+   ↓
+FEATURE EXTRACTION
+   ↓
+QUALITY GATE
+   ↓
+QUANT SCANNER
+   ↓
+RELEVANCE FILTER
+   ↓
+AI CONTEXT
+   ↓
+AI DECISION
+   ↓
+AI OUTPUT VALIDATION
+   ↓
+RISK ENGINE
+   ↓
+REVALIDATION
+   ↓
+EXECUTION ENGINE
+   ↓
+EXCHANGE
+   ↓
+ORDER/FILL
+   ↓
+RECONCILIATION
+   ↓
+PNL
+   ↓
+PERFORMANCE
+   ↓
+HISTORICAL SUMMARY</code></pre></div>
+<p dir="auto">هیچ مرحله‌ای نباید دور زده شود.</p>
+<hr>
+</section>
+<section id="sec-101">
+<h1 id="sec-101" dir="auto">101. Absolute Data Safety Rules</h1>
+<p dir="auto">اگر یکی از موارد زیر رخ دهد:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>schema validation failure
+data corruption
+stale critical data
+unknown market
+unknown order status
+portfolio mismatch
+exchange/local reconciliation failure
+invalid AI output
+risk calculation failure
+fee uncertainty
+liquidity collapse
+extreme spread
+authentication failure
+API inconsistency
+WebSocket desynchronization</code></pre></div>
+<p dir="auto">سیستم MUST:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>NO NEW TRADE</code></pre></div>
+<p dir="auto">را اجرا کند.</p>
+<p dir="auto">در شرایط شدید:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>SAFE_MODE</code></pre></div>
+<p dir="auto">فعال شود.</p>
+<hr>
+</section>
+<section id="sec-102">
+<h1 id="sec-102" dir="auto">102. Final Data Contract Principle</h1>
+<p dir="auto">داده باید:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Correct
+Complete enough
+Fresh
+Traceable
+Versioned
+Validated
+Deterministic
+Auditable
+Minimal for AI
+Safe</code></pre></div>
+<p dir="auto">باشد.</p>
+<p dir="auto">و اصل نهایی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>AI may interpret data.
+AI may recommend an action.
+AI may NOT redefine the data contract.
+AI may NOT bypass validation.
+AI may NOT bypass risk controls.
+AI may NOT directly execute trades.
+AI may NOT override security controls.</code></pre></div>
+<p dir="auto">مرجع نهایی:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>Data Contract
+    &gt;
+Validation
+    &gt;
+Risk Engine
+    &gt;
+Execution Rules
+    &gt;
+AI Recommendation</code></pre></div>
+<p dir="auto">و در تمام شرایط:</p>
+<div class="code"><div class="code-bar"><span class="lang">text</span><button class="copy" type="button">Copy</button></div><pre dir="ltr"><code>IF UNCERTAIN → NO TRADE</code></pre></div>
+</section></main>
+</div>
+<footer><div class="inner">Generated from <code>docs/data-contract.md</code> &middot; sha256:<code>b2cf9ad22cbd</code> &middot; 102 contract sections &middot; 2026-09-10T16:55:11Z<br>Rebuild after editing the markdown: <code>python scripts/build_data_contract_html.py</code></div></footer>
+<div class="backdrop" id="backdrop"></div>
+<script>
+(function(){
+  var input=document.getElementById('search');
+  var count=document.getElementById('count');
+  var sections=Array.prototype.slice.call(document.querySelectorAll('main section'));
+  var links=Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  function apply(){
+    var q=input.value.trim().toLowerCase(),shown=0;
+    sections.forEach(function(s){
+      var hit=!q||s.textContent.toLowerCase().indexOf(q)!==-1;
+      s.classList.toggle('hidden',!hit);if(hit)shown++;
+    });
+    links.forEach(function(a){
+      var t=document.getElementById(a.getAttribute('href').slice(1));
+      a.classList.toggle('dim',!!q&&t&&t.classList.contains('hidden'));
+    });
+    count.textContent=q?(shown+' / '+sections.length+' sections'):'';
+  }
+  if(input){input.addEventListener('input',apply);}
+  var toggle=document.querySelector('.toc-toggle');
+  var backdrop=document.getElementById('backdrop');
+  function closeToc(){document.body.classList.remove('toc-open');}
+  if(toggle){toggle.addEventListener('click',function(){document.body.classList.toggle('toc-open');});}
+  if(backdrop){backdrop.addEventListener('click',closeToc);}
+  links.forEach(function(a){a.addEventListener('click',closeToc);});
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){input.value='';apply();input.blur();closeToc();}
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.copy'),function(b){
+    b.addEventListener('click',function(){
+      var pre=b.closest('.code').querySelector('pre');
+      function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy';},1200);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(pre.innerText).then(done,function(){b.textContent='Ctrl+C';});
+      }else{b.textContent='Ctrl+C';}
+    });
+  });
+})();
+</script></body></html>

@@ -1,0 +1,6 @@
+# proxy secrets never belong in version control
+htpasswd
+.htpasswd*
+*.htpasswd
+*.key
+*.pem

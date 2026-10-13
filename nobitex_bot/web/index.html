@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ربات معاملاتی هوشمند نوبیتکس</title>
+<style>
+:root{
+  --bg:#0b0f17; --panel:#111827; --panel2:#0e1522; --border:#1f2a3a;
+  --text:#e5edf8; --muted:#8b9bb4; --accent:#3b82f6; --green:#22c55e;
+  --red:#ef4444; --orange:#f59e0b; --purple:#a78bfa; --cyan:#22d3ee;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+body{background:var(--bg); color:var(--text);
+  font-family:Vazirmatn,"Segoe UI",Tahoma,sans-serif; font-size:14px}
+header{display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:12px 18px; background:var(--panel); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:20}
+header h1{font-size:17px; font-weight:700}
+header .spacer{flex:1}
+.badge{padding:3px 10px; border-radius:999px; font-size:12px; border:1px solid var(--border)}
+.badge.ok{color:var(--green); border-color:#14532d; background:#052e16}
+.badge.off{color:var(--muted)}
+.badge.warn{color:var(--orange); border-color:#7c2d12; background:#431407}
+.badge.err{color:var(--red); border-color:#7f1d1d; background:#450a0a}
+.badge.demo{color:var(--cyan); border-color:#155e75; background:#083344}
+button{background:var(--panel2); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:7px 14px; cursor:pointer; font-family:inherit; font-size:13px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+button.danger{background:#7f1d1d; border-color:#b91c1c; color:#fff}
+button:disabled{opacity:.45; cursor:not-allowed}
+nav{display:flex; gap:4px; padding:8px 18px 0; background:var(--panel);
+  border-bottom:1px solid var(--border); overflow-x:auto}
+nav button{border:none; background:transparent; padding:10px 14px; border-radius:8px 8px 0 0; color:var(--muted)}
+nav button.active{color:var(--text); background:var(--bg); border-bottom:2px solid var(--accent)}
+main{padding:18px; max-width:1800px; margin:0 auto}
+.tabs{display:none}
+.tabs.active{display:block}
+.grid{display:grid; gap:12px}
+.g5{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px}
+.card h3{font-size:13px; color:var(--muted); font-weight:600; margin-bottom:8px}
+.kpi .v{font-size:20px; font-weight:700; direction:ltr; text-align:right}
+.kpi .s{font-size:11px; color:var(--muted); margin-top:3px}
+.pos{color:var(--green)} .neg{color:var(--red)} .mut{color:var(--muted)}
+table{width:100%; border-collapse:collapse; font-size:13px}
+th{color:var(--muted); font-weight:600; text-align:right; padding:8px 10px;
+  border-bottom:1px solid var(--border); white-space:nowrap; font-size:12px}
+td{padding:8px 10px; border-bottom:1px solid #16202f; white-space:nowrap}
+tr:hover td{background:#0d1420}
+td.num{direction:ltr; text-align:right; font-variant-numeric:tabular-nums}
+.pill{padding:2px 9px; border-radius:999px; font-size:11px; display:inline-block}
+.pill.BUY{background:#052e16; color:var(--green)}
+.pill.SELL{background:#450a0a; color:var(--red)}
+.pill.HOLD{background:#1e293b; color:var(--muted)}
+.pill.AVOID{background:#431407; color:var(--orange)}
+.pill.APPROVED{background:#052e16; color:var(--green)}
+.pill.REJECTED{background:#450a0a; color:var(--red)}
+.pill.GOOD{background:#052e16; color:var(--green)}
+.pill.WARNING{background:#422006; color:var(--orange)}
+.pill.STALE,.pill.INVALID,.pill.CRITICAL{background:#450a0a; color:var(--red)}
+.pill.EXCELLENT{background:#052e16; color:var(--green)}
+.pill.MEDIUM{background:#1e3a5f; color:var(--cyan)}
+.pill.POOR{background:#431407; color:var(--orange)}
+.pill.UNKNOWN{background:#1e293b; color:var(--muted)}
+.pill.OPEN,.pill.NEW,.pill.SUBMITTED,.pill.PENDING,.pill.QUEUED,.pill.ACTIVE{background:#1e3a5f; color:var(--cyan)}
+.pill.PARTIAL,.pill.PARTIALLY_FILLED{background:#422006; color:var(--orange)}
+canvas{width:100%; height:220px; display:block}
+.evline{display:flex; gap:8px; padding:6px 4px; border-bottom:1px solid #16202f;
+  font-size:12px; align-items:baseline}
+.evline .t{color:var(--muted); direction:ltr; min-width:150px}
+.evline .ty{min-width:170px; font-weight:600}
+.evtype-snapshot{color:var(--cyan)} .evtype-ai{color:var(--purple)}
+.evtype-risk{color:var(--orange)} .evtype-order{color:var(--green)}
+.evtype-safe{color:var(--red)} .evtype-system{color:var(--red)}
+.evtype-market{color:var(--muted)} .evtype-position{color:var(--green)}
+.hrow{display:flex; flex-wrap:wrap; gap:5px 8px; padding:9px 4px;
+  border-bottom:1px solid #16202f; align-items:baseline; font-size:13px}
+/* wide screens: tighter inter-item gaps so everything fits ONE line
+   (with the sell button at the row's end); paddings stay normal */
+@media (min-width:1600px){
+  .hrow{padding:9px 6px; gap:4px 6px}
+  .hrow .sym{min-width:96px}
+  .hrow .stop-num{width:140px} .hrow .stop-pct{width:70px}
+  .hrow .stop-money{width:104px}
+}
+@media (min-width:1920px){
+  .hrow{padding:9px 8px; gap:4px 7px}
+  .hrow .sym{min-width:104px}
+}
+.hrow:hover{background:#0d1420}
+.hrow .sym{font-weight:700; min-width:86px; direction:ltr}
+.hrow .num{direction:ltr; display:inline-block; font-variant-numeric:tabular-nums}
+/* uniform text inside the holdings box: EVERY child is pinned to the row's
+   13px — muted labels, bold numbers, percent chips, buttons — no stray
+   bigger/smaller pieces */
+.hrow *, .hrow span, .hrow b{font-size:13px !important}
+.hrow button{font-size:12px !important}
+.btn-buynow{background:#12351f; border:1px solid #1d5c33; color:#7ee2a8;
+  border-radius:7px; cursor:pointer; padding:3px 10px}
+.btn-buynow:hover{background:#174428}
+.hrow .stop-edit{cursor:pointer; border-bottom:1px dashed var(--accent); padding-bottom:1px}
+.hrow .stop-edit:hover{color:var(--accent)}
+.hrow .lockb{font-size:11px; margin-left:4px; background:rgba(250,204,21,.12); border:1px solid rgba(250,204,21,.35); color:#fde047; border-radius:6px; padding:0 5px; white-space:nowrap}
+.lock-btn{font-size:11px; padding:3px 8px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; margin-left:6px}
+.lock-btn.lock-on{border-color:rgba(250,204,21,.45); color:#fde047; background:rgba(250,204,21,.08)}
+.dust-convert-btn{cursor:pointer; border:1px solid var(--cyan); color:var(--cyan);
+  border-radius:6px; padding:2px 10px; font-size:12px; font-weight:700}
+.dust-convert-btn:hover{background:rgba(34,211,238,.12)}
+.hrow .stop-pair{display:inline-flex; gap:4px; direction:ltr}
+.hrow .stop-num{width:118px}
+.hrow .stop-pct{width:58px}
+.hrow .stop-money{width:92px}
+.hrow .stop-num,.hrow .stop-pct,.hrow .stop-money{background:var(--panel2); border:1px solid var(--accent);
+  color:var(--text); border-radius:6px; padding:3px 6px; font-family:inherit;
+  direction:ltr; font-size:12px}
+.hrow .stop-pct:focus,.hrow .stop-money:focus{border-color:var(--orange)}
+/* ---- دو بخش دارایی‌ها: تتری (USDT) و تومانی (IRT) ----
+   هر خرید زیر بخش بازار خودش می‌نشیند و موجودی نقد همان بازار
+   بالای همان بخش است؛ دکمه‌های خرید/فروش و جزئیات هر سکه هم داخل
+   همان بخش می‌مانند. */
+.hgroup{border:1px solid #16202f; border-radius:10px; margin:8px 0; padding:0 6px 6px}
+.hgroup-head{display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;
+  padding:7px 4px; border-bottom:1px solid #16202f; font-size:13px;
+  font-weight:700; color:var(--accent)}
+.hgroup-head .mut{font-weight:400}
+.hgroup .hhead{background:transparent}
+/* ---- clickable column sorting: holdings header + every table ---- */
+.sortable{cursor:pointer; user-select:none}
+.sortable:hover{color:var(--accent)}
+.hhead{display:flex; flex-wrap:wrap; gap:5px 8px; padding:7px 4px;
+  border-bottom:2px solid #1c2a3d; font-size:12px; color:var(--muted);
+  align-items:baseline; background:#0d1420}
+.hhead .sym{min-width:86px; font-weight:600; direction:ltr}
+.hhead .sortable{cursor:pointer; user-select:none; border-bottom:1px dashed #2a3a52}
+.hhead .sortable:hover{color:var(--accent)}
+@media (min-width:1600px){.hhead{gap:4px 6px}.hhead .sym{min-width:96px}}
+@media (min-width:1920px){.hhead{gap:4px 7px}.hhead .sym{min-width:104px}}
+.hrow button{padding:3px 10px; font-size:12px}
+.settings label{display:block; color:var(--muted); font-size:12px; margin:10px 0 3px}
+.settings input,.settings select{width:100%; background:var(--panel2); color:var(--text);
+  border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-family:inherit;
+  font-size:13px; direction:ltr}
+.settings fieldset{border:1px solid var(--border); border-radius:10px;
+  margin-bottom:12px; padding:10px 14px 14px}
+.settings legend{color:var(--accent); font-size:13px; padding:0 6px}
+.row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+  background:var(--panel); border:1px solid var(--accent); padding:10px 22px;
+  border-radius:10px; display:none; z-index:50}
+.muted{color:var(--muted); font-size:12px}
+.empty{color:var(--muted); text-align:center; padding:26px; font-size:13px}
+.legend{display:flex; gap:14px; font-size:11px; color:var(--muted); margin-top:6px}
+.dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 ربات معاملاتی هوشمند</h1>
+  <span id="modeBadge" class="badge demo">حالت آزمایشی</span>
+  <span id="connBadge" class="badge off" style="cursor:pointer" title="کلیک: رفتن به تب حساب نوبیتکس" onclick="document.querySelector('#tabs button[data-tab=exchange]')?.click()">اتصال: —</span>
+  <span id="engineBadge" class="badge off">موتور: متوقف</span>
+  <span id="safeBadge" class="badge ok" style="display:none" title="حالت امن = حالت ریسک خاموش (پروفایل محافظه‌کار)">حالت امن</span>
+  <span id="riskModeBadge" class="badge" style="display:none;background:var(--orange);border-color:var(--orange)">حالت ریسک ⚡</span>
+
+  <div class="spacer"></div>
+  <button id="btnEngine" class="primary">شروع موتور</button>
+  <button id="btnCycle" class="primary" style="background:var(--green);border-color:var(--green)">⚡ اجرای فوری چرخه</button>
+  <button id="btnBest" class="primary" style="background:var(--orange);border-color:var(--orange)">🎯 اجرای بهترین معامله</button>
+  <button id="btnCycleQuiet">اجرای چرخه</button>
+  <button id="btnAuto">معامله خودکار: خاموش</button>
+  <button id="btnBuyBest">بهترین گزینه: روشن</button>
+  <button id="btnProfile" class="primary" title="حالت امن و حالت ریسک دو حالت یک سوئیچ‌اند: کلیک = رفتن به حالت دیگر">🛡 حالت امن — روشن (کلیک: حالت ریسک)</button>
+
+  <button id="btnDashLogout" style="display:none" title="خروج از داشبورد — برای ورود دوباره پسورد لازم است">🔒 خروج</button>
+</header>
+<nav id="tabs">
+  <button data-tab="overview" class="active">نمای کلی</button>
+  <button data-tab="markets">بازارها</button>
+  <button data-tab="decisions">تصمیم‌های AI</button>
+  <button data-tab="risk">ریسک و اجرا</button>
+  <button data-tab="portfolio">پرتفوی</button>
+  <button data-tab="exchange" id="tabExchangeBtn" style="display:none">حساب نوبیتکس</button>
+  <button data-tab="events">رویدادها</button>
+  <button data-tab="settings">تنظیمات</button>
+</nav>
+<main>
+  <section id="tab-overview" class="tabs active">
+    <div class="grid g5" id="kpis"></div>
+    <div class="card" style="margin-top:12px"><h3>💼 دارایی‌های من <span class="muted">(دو بخش تتری/تومانی — خریدها زیر بخش بازار خودشان، با خرید/فروش + سود از خرید و سود ۲۴ساعت + حد ضرر و حد سود قابل ویرایش)</span></h3><div id="holdingsBox"><div class="empty">در حال بارگذاری…</div></div></div>
+    <div class="grid g2" style="margin-top:12px">
+      <div class="card"><h3>سفارش‌های در جریان <span class="muted">(هر سفارش باز/نیمه‌پُر و آیتم‌هایی که داخلش هست)</span></h3><div id="openOrdersBox"></div></div>
+      <div class="card"><h3>آخرین تصمیم‌ها</h3><div id="decBox"></div></div>
+    </div>
+  </section>
+
+  <section id="tab-markets" class="tabs">
+    <div class="card"><h3>همه بازارها</h3><div id="marketsBox"></div></div>
+  </section>
+
+  <section id="tab-decisions" class="tabs">
+    <div class="card"><h3>تاریخچه تصمیم‌ها</h3><div id="histBox"></div></div>
+  </section>
+
+  <section id="tab-risk" class="tabs">
+    <div class="grid g2">
+      <div class="card"><h3>تصمیم‌های موتور ریسک</h3><div id="riskBox"></div></div>
+      <div class="card"><h3>اجراها</h3><div id="execBox"></div></div>
+    </div>
+  </section>
+
+  <section id="tab-portfolio" class="tabs">
+    <div class="grid g2">
+      <div class="card"><h3>موقعیت‌های باز</h3><div id="posBox"></div></div>
+      <div class="card"><h3>دارایی‌ها</h3><div id="assetBox"></div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>خریدهای انجام‌شده و پلن فروش (حد ضرر / حد سود)</h3><div id="sellPlanBox"></div></div>
+    <div class="card" style="margin-top:12px"><h3>معاملات انجام‌شده</h3><div id="fillsBox"></div></div>
+  </section>
+
+  <section id="tab-events" class="tabs">
+    <div class="card"><h3>جریان رویدادها</h3><div id="evBox"></div></div>
+  </section>
+
+  <section id="tab-exchange" class="tabs">
+    <div class="grid g2">
+      <div class="card" id="loginCard">
+        <h3>ورود به حساب نوبیتکس (واقعی)</h3>
+        <div class="settings" id="loginForm">
+          <label>ایمیل / نام کاربری</label>
+          <input id="nbUser" autocomplete="username" dir="ltr">
+          <label>رمز عبور</label>
+          <input id="nbPass" type="password" autocomplete="current-password" dir="ltr">
+          <label>کد دو مرحله‌ای (اکنون از Google Authenticator)</label>
+          <input id="nbOtp" inputmode="numeric" maxlength="6" dir="ltr" placeholder="123456">
+          <label>رمز دوعاملی 2FA مخفی (اختیاری - برای ورود خودکار بعدی)</label>
+          <input id="nbSecret" dir="ltr" placeholder="BASE32SECRET...">
+          <label>اعتبار توکن</label>
+          <select id="nbRemember">
+            <option value="yes" selected>۳۰ روز (remember=yes)</option>
+            <option value="no">۴ ساعت</option>
+          </select>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+            <button id="btnLogin" class="primary">ورود به نوبیتکس</button>
+            <button id="btnLogout" class="danger">خروج / پاک کردن رمزها</button>
+          </div>
+          <div id="loginMsg" class="muted" style="margin-top:8px; white-space:pre-line"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>وضعیت حساب واقعی</h3>
+        <div id="accStatus" class="muted">—</div>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+          <button id="btnSyncWallet" class="primary">همگام‌سازی موجودی واقعی</button>
+          <button id="btnCycleQuiet2">اجرای فوری چرخه</button>
+          <button id="btnLiveTrading" class="danger">معامله واقعی: روشن</button>
+        </div>
+        <div class="muted" style="margin-top:6px">با ورود، ربات مستقیم روی حساب واقعی معامله می‌کند (بدون حالت آزمایشی). برای توقف معامله واقعی این دکمه را خاموش کنید.</div>
+        <h3 style="margin-top:14px">موجودی اسپات واقعی (زنده از نوبیتکس)</h3>
+        <div id="realWalletBox"><div class="empty">ابتدا وارد شوید</div></div>
+        <h3 style="margin-top:14px">سفارش‌های واقعی (باز و انجام‌شده)</h3>
+        <div id="realOrdersBox"><div class="empty">پس از ورود و ثبت سفارش نمایش داده می‌شود</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-settings" class="tabs">
+    <div class="card settings">
+      <h3>تنظیمات ربات <span class="muted">(در config.json ذخیره می‌شود)</span></h3>
+      <div id="cfgForm"></div>
+        <div class="muted" style="font-size:12px;margin:6px 0">راهنما: همهٔ درصدی‌ها به‌صورت درصد عادی وارد می‌شوند (مثلاً حد ضرر ۳- یا حد سود ۱۲). «حداقل مبلغ هر سفارش» به دلار است و برای بازارهای تومانی خودکار به تومان تبدیل می‌شود (حداقل نوبیتکس ≈ ۱۰۰ هزار تومان ≈ ۰٫۴۴ دلار). تغییرات بدون ری‌استارت درجا اعمال می‌شود؛ برای اتصال به حساب، تب «حساب نوبیتکس» را ببینید.</div>
+      <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap">
+        <button id="btnSaveCfg" class="primary">ذخیره تنظیمات</button>
+        <button id="btnResetPaper" class="danger">ریست پرتفوی آزمایشی</button>
+        <span class="muted" style="align-self:center">تنظیمات ذخیره‌شده بلافاصله روی ربات در حال اجرا اعمال می‌شوند — نیازی به ری‌استارت نیست.</span>
+      </div>
+    </div>
+    <div class="card settings" style="margin-top:12px">
+      <h3>🔒 امنیت داشبورد <span class="muted">(قفل ورود به برنامه — web در config.json)</span></h3>
+      <div id="secStatus" class="muted" style="font-size:12px;margin:2px 0 10px">در حال خواندن وضعیت…</div>
+      <div class="row">
+        <div><label>پسورد جدید داشبورد (خالی = بدون تغییر)</label><input id="secNewPass" type="password" dir="ltr" autocomplete="new-password"></div>
+        <div><label>تکرار پسورد جدید</label><input id="secNewPass2" type="password" dir="ltr" autocomplete="new-password"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label>تعداد پسورد اشتباه مجاز قبل از قفل</label><input id="secMaxAttempts" type="number" min="1" max="20" dir="ltr"></div>
+        <div><label>باز شدن خودکار قفل بعد از (ثانیه؛ ۰ = فقط با تغییر پسورد باز می‌شود)</label><input id="secLockout" type="number" min="0" dir="ltr"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label>مدت اعتبار هر ورود (ساعت)</label><input id="secSessionHours" type="number" min="1" max="720" dir="ltr"></div>
+        <div><label>تأخیر هر پسورد اشتباه (ثانیه)</label><input id="secFailDelay" type="number" min="0" max="3" step="0.1" dir="ltr"></div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap">
+        <button id="btnSaveSec" class="primary">ذخیره امنیت داشبورد</button>
+        <span class="muted" style="align-self:center">پسورد به‌صورت هش‌شده هم قابل ذخیره است: <code dir="ltr">python -m nobitex_bot.webauth --hash «پسورد»</code></span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">اگر پسورد یادتان رفت یا داشبورد قفل شد: مقدار <code dir="ltr">web.password</code> را در فایل config.json عوض کنید — قفل فوراً باز می‌شود و ری‌استارت هم لازم نیست.</div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const fmt=(x,d=2)=>x===null||x===undefined||isNaN(x)?"—":Number(x).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:0});
+const pct=x=>x===null||x===undefined?"—":(x>=0?"+":"")+(x*100).toFixed(2)+"%";
+const cls=x=>x>0?"pos":x<0?"neg":"mut";
+const pill=v=>`<span class="pill ${v}">${v||"—"}</span>`;
+function tehran(iso){ if(!iso) return "—"; const t=new Date(iso); if(isNaN(t)) return String(iso).slice(11,19);
+  return t.toLocaleTimeString("fa-IR",{timeZone:"Asia/Tehran",hour12:false}); }
+function tehranFull(iso){ if(!iso) return "—"; const t=new Date(iso); if(isNaN(t)) return String(iso);
+  return t.toLocaleString("fa-IR",{timeZone:"Asia/Tehran",hour12:false,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let state=null, cfg=null, activeTab="overview";
+/* SS36 dollar display mode: whenever the trading market is both/usdt,
+   the UI shows every money number in $. IRT-mode keeps everything in
+   Toman exactly as before. usdtPerIrt = Toman per $1 from the engine. */
+const displayUsd=()=>["both","usdt"].includes(
+  String((cfg&&cfg.exchange&&cfg.exchange.trade_quote_markets)||"").trim().toLowerCase());
+const usdtPerIrt=()=>{const v=state&&state.usdt_per_irt;return (v&&v>0)?v:0};
+/* Toman -> $ (money amounts, cash, invested, value, PnL) */
+const toUsd=v=>{const r=usdtPerIrt();return v==null||isNaN(v)||!r?null:v/r};
+/* market price -> display price: USDT-market prices arrive in plain $,
+   IRT-market prices are Toman and divide by the live rate */
+const toMkt=(v,sym)=>{if(!displayUsd())return v;
+  return /USDT$/.test(String(sym||""))?v:v*usdtPerIrt()};
+const fromMkt=(v,sym)=>{if(!displayUsd())return v;
+  return /USDT$/.test(String(sym||""))?v:(usdtPerIrt()?v/usdtPerIrt():v)};
+const dispPrice=(v,market)=>{if(v==null||isNaN(v))return null;
+  return fromMkt(v,market)};
+/* format a market price in the DISPLAY unit ($ in both/usdt, Toman in irt) */
+const fmtD=(v,market)=>{const x=dispPrice(v,market);
+  return x==null?"—":(displayUsd()?"$":"")+fmt(x,x>100?0:6)};
+/* price in the market's OWN money — $ for *USDT markets, Toman for *IRT.
+   The two holdings sections never borrow each other's currency, so a
+   Toman price is never shown as dollars (and vice versa). */
+const fmtMkt=(v,market)=>{if(v==null||isNaN(v))return "—";
+  return /USDT$/.test(String(market||""))?("$"+fmt(v,v>100?0:6))
+    :(fmt(v,v>100?0:6)+" ت");};
+const usd=(v,dec)=>{const x=toUsd(v);return x==null?"—":"$"+fmt(x,dec===undefined?0:dec)};
+
+/* every box goes through setBox: a rendering bug in ONE table can no
+   longer leave its card stuck on the initial «در حال بارگذاری…» text —
+   the error is shown inside the card AND logged with its stack. */
+function setBox(sel,fn,label){
+  const el=$(sel); if(!el)return;
+  try{ const out=fn();
+    if(out&&typeof out.then==="function")throw new Error("setBox requires a sync renderer");
+    el.innerHTML=out; }
+  catch(e){
+    console.error("[render] "+label,e);
+    el.innerHTML='<div class="empty">خطا در نمایش '+esc(label)+': '+esc(String((e&&e.message)||e))+' — کنسول مرورگر جزئیات را دارد</div>';
+  }
+}
+async function jget(u){const r=await fetch(u);
+  /* the dashboard is password-gated now: a 401 means the session is gone
+     (restart/expiry/logout elsewhere) -> back to the login page */
+  if(r.status===401){location.href="/login";throw new Error("AUTH_REQUIRED")}
+  if(!r.ok){let m="HTTP "+r.status;try{const e=await r.json();if(e&&e.error)m+=" — "+e.error}catch(_){ }throw new Error(m)}
+  return r.json()}
+async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});
+  if(r.status===401){location.href="/login";throw new Error("AUTH_REQUIRED")}
+  return r.json()}
+function toast(m){const t=$("#toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",2200)}
+
+/* ---- dust-convert confirmation dialog (no browser confirm/prompt) ----
+   Shows EVERY dust row with its real Toman value + checkbox; the user
+   picks rows and presses the green confirm. The POST only fires then. */
+let dustModal=null;
+function closeDustModal(){ if(dustModal){dustModal.remove(); dustModal=null;} }
+function fmtTom(v){ if(v==null||isNaN(v))return "—"; v=Number(v); return v>=1000 ? Math.round(v).toLocaleString("en-US") : (Math.round(v*100)/100)+""; }
+async function openDustModal(){
+  closeDustModal();
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center";
+  ov.innerHTML=`<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:520px;width:92%;max-height:80vh;display:flex;flex-direction:column" dir="rtl">
+    <div style="font-weight:800;font-size:15px;margin-bottom:6px">تبدیل دارایی‌های خرد به تومان</div>
+    <div class="mut" style="font-size:12px;margin-bottom:10px" id="dustSub">در حال خواندن دارایی‌ها…</div>
+    <div id="dustRows" style="overflow:auto;flex:1;min-height:120px;border:1px solid var(--border);border-radius:8px;padding:6px">…</div>
+    <div id="dustSum" style="font-size:13px;margin-top:10px;font-weight:700"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button id="dustCancel" style="padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer">انصراف</button>
+      <button id="dustGo" disabled style="padding:7px 14px;border-radius:8px;border:none;background:var(--green);color:#04150a;font-weight:800;cursor:pointer;opacity:.5">تبدیل کن</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov); dustModal=ov;
+  ov.addEventListener("click",e=>{ if(e.target===ov) closeDustModal(); });
+  ov.querySelector("#dustCancel").onclick=closeDustModal;
+  const rowsEl=ov.querySelector("#dustRows"), sumEl=ov.querySelector("#dustSum"), goBtn=ov.querySelector("#dustGo"), subEl=ov.querySelector("#dustSub");
+  let items=[];
+  try{ const r=await fetch("/api/dust_preview"); const d=await r.json();
+    if(d.error){ subEl.textContent=d.error; rowsEl.innerHTML="<div class='empty'>—</div>"; return; }
+    items=d.items||[];
+    if(!items.length){ subEl.textContent="دارایی خرد قابل تبدیلی پیدا نشد"; rowsEl.innerHTML="<div class='empty'>—</div>"; return; }
+    subEl.textContent="تیک بزن و تایید کن — فقط ردیف‌های تیک‌خورده واقعاً تبدیل می‌شوند";
+    const conv=items.filter(x=>x.convertible), noc=items.filter(x=>!x.convertible);
+    rowsEl.innerHTML=`<div style="padding:4px 6px;display:flex;gap:8px;align-items:center;position:sticky;top:0;background:var(--panel);z-index:1">
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px"><input type="checkbox" id="dustAll" checked> انتخاب همه‌ی قابل‌تبدیل‌ها</label>
+      <span class="mut" style="font-size:11px">ارزش به تومان</span>
+    </div>`
+    + conv.map(x=>`<label style="display:flex;gap:8px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" class="dustChk" data-coin="${esc(x.coin)}" checked>
+        <span style="min-width:72px;font-weight:700">${esc(x.coin)}</span>
+        <span class="mut" style="font-size:11px;direction:ltr">${x.amount>=1?fmtTom(x.amount):x.amount}</span>
+        <span style="flex:1"></span>
+        <span style="font-weight:700;color:var(--green)">${fmtTom(x.value_irt)} تومان</span>
+      </label>`).join("")
+    + (noc.length? `<div class="mut" style="padding:6px;font-size:11px;margin-top:4px">غیرقابل تبدیل (کف صرافی یا بدون قیمت):</div>`
+      + noc.map(x=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 6px 4px 26px;opacity:.65">
+          <span style="min-width:72px">${esc(x.coin)}</span><span style="flex:1"></span>
+          <span class="mut" style="font-size:11px">${x.value_irt!=null?fmtTom(x.value_irt)+" تومان — ":""}${esc(x.reason||"")}</span>
+        </div>`).join("") : "");
+    const upd=()=>{ const sel=[...rowsEl.querySelectorAll(".dustChk:checked")];
+      const tot=sel.reduce((s,c)=>{const it=items.find(x=>x.coin===c.dataset.coin); return s+(it?(it.value_irt||0):0);},0);
+      goBtn.disabled=!sel.length; goBtn.style.opacity=sel.length?1:.5;
+      sumEl.textContent=sel.length?(sel.length+" سکه انتخاب شد — مجموع " + fmtTom(tot) + " تومان"):"هیچ سکه‌ای انتخاب نشده"; };
+    rowsEl.addEventListener("change",e=>{ if(e.target.id==="dustAll"){ rowsEl.querySelectorAll(".dustChk").forEach(c=>c.checked=e.target.checked); } upd(); });
+    upd();
+    goBtn.onclick=async()=>{
+      const coins=[...rowsEl.querySelectorAll(".dustChk:checked")].map(c=>c.dataset.coin);
+      if(!coins.length)return;
+      goBtn.disabled=true; goBtn.textContent="در حال تبدیل…";
+      try{ const r=await jpost("/api/control/convert_selected",{coins}); const res=(r&&r.result)||{};
+        const ok=res.converted||0, bad=res.failed||0;
+        const det=(res.details||[]).map(x=>x.coin+": "+(x.error? ("رد شد — "+(x.message||x.error)) : ("تبدیل شد"+(x.value_irt!=null?(" ("+fmtTom(x.value_irt)+" تومان)"):"")))).join("\n");
+        closeDustModal();
+        toast(ok? (ok+" سکه تبدیل شد"+(bad?(" | "+bad+" ناموفق — جزئیات در ادامه"):"")) : ("تبدیلی انجام نشد"+(bad?" — "+bad+" سکه رد شد، جزئیات در ادامه":"")));
+        if(det) setTimeout(()=>{ toast(det); const t=$("#toast"); t.style.whiteSpace="pre-line"; setTimeout(()=>t.style.whiteSpace="",3000); }, (ok&&bad)?2400:150);
+      }catch(e){ toast("خطا: "+e); }
+      poll();
+    };
+  }catch(e){ subEl.textContent="خطا در دریافت لیست: "+e; }
+}
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tabs").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active"); $("#tab-"+b.dataset.tab).classList.add("active");
+  activeTab=b.dataset.tab; refreshSlow();
+});
+
+/* ---------------- controls ---------------- */
+$("#btnEngine").onclick=async()=>{const running=state&&state.running;
+  await jpost(running?"/api/control/stop":"/api/control/start");toast(running?"موتور متوقف شد":"موتور شروع شد");poll()};
+async function runCycle(msg){if(msg)toast(msg);try{const r=await jpost("/api/control/cycle");toast(r.ok?"چرخه کامل شد"+(r.summary&&r.summary.executions?" — "+r.summary.executions+" اجرا":""):"خطا در چرخه")}catch(e){toast("خطا در چرخه")}poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}}
+$("#btnCycle").onclick=()=>runCycle("در حال اجرای چرخه کامل (داده + تحلیل + معامله)…");
+$("#btnCycleQuiet").onclick=()=>runCycle();
+$("#btnCycleQuiet2").onclick=()=>runCycle();
+$("#btnAuto").onclick=async()=>{const en=!(state&&state.auto_trading);await jpost("/api/control/auto",{enabled:en});poll()};
+$("#btnBuyBest").onclick=async()=>{const en=!(state&&state.buy_best);const r=await jpost("/api/control/buy_best",{enabled:en});
+  if(r.ok)toast("خرید بهترین گزینه: "+(r.buy_best?"روشن":"خاموش"));else toast("خطا: "+(r.error||"?"));poll()};
+$("#btnBest").onclick=async()=>{if(!confirm("اجرای بهترین معامله با سفارش واقعی؟"))return;
+  toast("در حال ارسال بهترین معامله…");
+  try{const r=await jpost("/api/control/execute_best");
+    if(r.ok){const x=r.execution||{};toast("سفارش ثبت شد: "+(r.symbol||"")+" — "+(x.status||""));}
+    else{let msg=r.error||"?";
+      if(r.attempted&&r.attempted.length)msg+=" | "+r.attempted.map(a=>a.symbol+": "+(a.rejected?REJECT_FA(a.rejected[0]):(a.error||""))).join(" | ");
+      toast(msg);}
+  }catch(e){toast("خطا: "+e)}
+  poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}};
+function REJECT_FA(c){return ({BELOW_MIN_NOTIONAL:"موجودی کمتر از حداقل سفارش",INSUFFICIENT_CASH:"موجودی نقد کافی نیست",INSUFFICIENT_NET_EXPECTED_RETURN:"سود خالص کمتر از حد",EXCESSIVE_PORTFOLIO_EXPOSURE:"سقف کل exposure پر است",MAX_OPEN_POSITIONS_REACHED:"سقف تعداد موقعیت‌ها پر است",PRICE_MOVED_TOO_FAR:"قیمت زیاد جابه‌جا شده",DATA_QUALITY_BELOW_TRADE_THRESHOLD:"کیفیت داده پایین",LIQUIDITY_NOT_TRADABLE:"نقدینگی قابل معامله نیست",DECISION_EXPIRED:"اعتبار تصمیم منقضی شده",DRAWDOWN_LIMIT_BREACHED:"افت سرمایه از حد گذشته",NO_POSITION_TO_SELL:"موقعیتی برای فروش نیست",POSITION_SIZE_TOO_SMALL:"حجم خیلی کوچک است",MAX_RISK_EXCEEDED:"ریسک معامله از حد گذشته",POSITION_LIMIT_EXCEEDED:"سقف حجم موقعیت پر است",INVALID_STOP_LOSS:"حد ضرر نامعتبر",DO_NOT_DUPLICATE:"سفارش تکراری",BUY_ORDER_ALREADY_ACTIVE:"سفارش خرید فعال قبلی در این بازار موجود است",BUY_COOLDOWN_ACTIVE:"فاصله زمانی بین خریدها هنوز تمام نشده"})[c]||c}/* Persian labels for risk rejections */
+/* ---- ONE merged OPERATING-PROFILE switch: «حالت امن» ⇄ «حالت ریسک» ----
+   حالت امن و حالت ریسک دو حالت یک چیزند (حالت امن = فلگ ریسک خاموش)،
+   پس در UI هم یک دکمهٔ واحد دارند: متن دکمه وضعیت فعلی را می‌گوید و
+   کلیک، سوئیچ را به حالت دیگر می‌برد (رفت‌و‌برگشت به ریسک با تأیید).
+   بج کنار دکمه همان وضعیت را خلاصه می‌کند (سبز = امن، نارنجی = ریسک).
+   حالت انتخابی مثل قبل با «ذخیره تنظیمات» ماندگار می‌شود. */
+const RISK_CONFIRM="حالت ریسک روشن شود؟\n\n• خرید پرسودترین‌های ۲۴ساعته در اولویت\n• حد ضرر تندتر (فوری روی افت) + خروج خودکار وقتی از سقف ‎-6٪ بیفتد\n• حد سود کوتاه‌تر و چرخش سریع سرمایه به پرسودترین بعدی\n\nهشدار: سود بیشتر، ریسک بیشتر ⚠";
+async function setRiskProfile(en){
+  const r=await jpost("/api/control/risk_mode",{enabled:!!en});
+  if(r.ok)toast(en?"حالت ریسک روشن شد ⚡":"حالت امن روشن شد");
+  else toast(r.error||"خطا");
+  poll();
+  return r;
+}
+$("#btnProfile").onclick=async()=>{
+  /* ONE switch: safe -> risk (confirmed), risk -> safe */
+  const toRisk=!(state&&state.risk_mode);
+  if(toRisk&&!confirm(RISK_CONFIRM))return;
+  await setRiskProfile(toRisk);
+};
+
+
+/* ---------------- dashboard password gate (web.password) ---------------- */
+let dashAuth={password_set:false,locked:false,max_attempts:3};
+async function refreshDashAuth(){
+  try{ dashAuth=await jget("/api/auth/status"); }catch(e){ return; }
+  const b=document.getElementById("btnDashLogout");
+  if(b) b.style.display=dashAuth.password_set?"":"none";
+  const s=document.getElementById("secStatus");
+  if(s){
+    s.innerHTML=dashAuth.password_set
+      ? ("پسورد داشبورد: <b>فعال</b> — تلاش‌های اشتباه ثبت‌شده: <b>"+dashAuth.fail_count+"</b> از "+dashAuth.max_attempts
+         +(dashAuth.locked?" | <b class='neg'>قفل است</b>":""))
+      : "<b class='neg'>پسوردی تنظیم نشده است</b> — تا وقتی داشبورد فقط روی 127.0.0.1 است اشکالی ندارد، ولی قبل از باز کردن پورت روی VPS همین‌جا پسورد بگذارید.";
+  }
+  const setv=(id,val)=>{const el=document.getElementById(id);
+    if(el&&document.activeElement!==el&&val!=null)el.value=val};
+  setv("secMaxAttempts",dashAuth.max_attempts);
+  setv("secLockout",dashAuth.lockout_seconds);
+  setv("secSessionHours",dashAuth.session_hours);
+  setv("secFailDelay",dashAuth.failure_delay_s);
+}
+document.getElementById("btnDashLogout").onclick=async()=>{
+  if(!confirm("از داشبورد خارج شوید؟ برای ورود دوباره پسورد لازم است."))return;
+  try{await jpost("/api/auth/logout",{})}catch(e){}
+  location.href="/login";
+};
+document.getElementById("btnSaveSec").onclick=async()=>{
+  if(!cfg){toast("تنظیمات هنوز خوانده نشده است");return}
+  const p1=document.getElementById("secNewPass").value||"";
+  const p2=document.getElementById("secNewPass2").value||"";
+  if(p1||p2){
+    if(p1!==p2){toast("دو پسورد یکسان نیستند");return}
+    if(p1.length<6){toast("پسورد باید حداقل ۶ کاراکتر باشد");return}
+  }
+  const out=JSON.parse(JSON.stringify(cfg));
+  out.web=out.web||{};
+  if(p1)out.web.password=p1;
+  const num=(id,def)=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?def:v};
+  out.web.max_attempts=Math.max(1,Math.round(num("secMaxAttempts",3)));
+  out.web.lockout_seconds=Math.max(0,Math.round(num("secLockout",0)));
+  out.web.session_hours=Math.max(1,num("secSessionHours",12));
+  out.web.failure_delay_s=Math.min(3,Math.max(0,num("secFailDelay",out.web.failure_delay_s||0.8)));
+  const r=await jpost("/api/control/config",out);
+  if(!r.ok){toast("خطا: "+(r.error||"?"));return}
+  document.getElementById("secNewPass").value="";
+  document.getElementById("secNewPass2").value="";
+  if(p1){toast("پسورد داشبورد ذخیره شد — با پسورد جدید وارد شوید");
+    setTimeout(()=>location.href="/login",1200);}
+  else toast("تنظیمات امنیت داشبورد ذخیره شد");
+  refreshDashAuth();
+};
+refreshDashAuth();
+setInterval(refreshDashAuth,15000);
+/* click the سود کل KPI -> edit کل سرمایه واریزی (deposited capital).
+   NOTE: the DEFAULT source is now the REAL Nobitex turnover
+   (Σdeposits − Σwithdraws, auto-refreshed hourly); a manual value set
+   here acts as an override until the next successful exchange refresh. */
+document.addEventListener("click",e=>{
+  const kc=e.target.closest("#kpiTotalProfit");
+  if(!kc)return;
+  const hp=(state&&state.holdings_pnl)||{};
+  const cur=(hp.deposited_irt!=null?hp.deposited_irt:0);
+  const v=prompt("کل سرمایه واریزی (تومان):\nپیش\u200cفرض: جمع واقعی واریزی\u200cها منهای برداشت\u200cهای صرافی (هر ساعت خودکار به\u200cروز می\u200cشود).\nاگر عدد متفاوتی بدهید، دستی ثبت می\u200cشود و تا بازخوانی بعدی صرافی همان می\u200cماند:",String(Math.round(cur)));
+  if(v==null)return;
+  const amt=parseFloat(String(v).replace(/[٫,]/g,"."));
+  if(isNaN(amt)||amt<0){toast("مبلغ نامعتبر است");return}
+  toast("در حال ثبت…");
+  jpost("/api/control/set_deposited",{amount_irt:amt}).then(r=>{
+    if(r.ok)toast("کل سرمایه واریزی روی "+fmt(amt,0)+" تومان ثبت شد");
+    else toast(r.error||"خطا");
+  }).catch(err=>toast("خطا: "+err)).finally(()=>poll());
+});
+$("#btnResetPaper").onclick=async()=>{if(!confirm("پرتفوی آزمایشی به ۱۰۰۰۰ USDT برگردد؟"))return;
+  await jpost("/api/control/reset_paper",{starting_balance:10000});toast("پرتفوی ریست شد");poll()};
+
+/* ---------------- renderers ---------------- */
+function kpi(label,val,sub,color,opts){const o=opts||{};
+  /* o.title = tooltip آزاد — برای کارت‌هایی که بدنه‌شان باید فقط یک عدد
+     بماند؛ کارتِ kpiId همان راهنمای کلیک را نگه می‌دارد مگر عوض شود. */
+  const id=o.kpiId?` id="${o.kpiId}" style="cursor:pointer"`:"";
+  const tip=(o.title!=null?o.title:(o.kpiId?"کلیک: تغییر کل سرمایه واریزی | درصد تیتر: رشد واقعی کل حساب نسبت به کل سرمایه واریزی (سود سرمایه ÷ سرمایه واریزی) — همیشه با خطوط تومانی زیر کارت هم‌خوان است | پیش‌فرض: جمع واقعی واریزی‌ها منهای برداشت‌های صرافی (هر ساعت خودکار، و بلافاصله بعد از هر واریز/برداشتی که در کیف پول دیده شود)":""));
+  return `<div class="card kpi"${id}${tip?` title="${esc(tip)}"`:""}><h3>${label}</h3>
+  <div class="v ${color||""}">${val}</div><div class="s">${sub||""}</div></div>`}
+
+function renderKpis(s){
+  const p=s.portfolio||{},r=p.risk||{},sn=s.snapshot||{},perf=s.performance||{};
+  const dd=r.drawdown||{};const hp=(s.holdings_pnl||{});
+  const faRegime={STRONG_UPTREND:"صعودی قوی ⬆",WEAK_UPTREND:"صعودی ضعیف ↗",SIDEWAYS:"رنج ↔",WEAK_DOWNTREND:"نزولی ضعیف ↘",STRONG_DOWNTREND:"نزولی قوی ⬇",HIGH_VOLATILITY:"نوسان شدید ⚡"};
+  const blocked=(s.regime_blocked||[]);
+  /* Two anchor numbers, each derived from the Toman equity when it exists
+     (the SAME number «سود کل» adds up to: سود سرمایه + سرمایه واریزی ==
+     جمع == ارزش حساب). Showing the portfolio's own dollar equity made the
+     card disagree with its own تومان line by a cent. */
+  const eqIrt=(p.account?(p.account.equity_irt!=null?p.account.equity_irt:null):null);
+  const eqUsd=(eqIrt!=null&&!isNaN(eqIrt))?usd(eqIrt,2):"$"+fmt(r.total_equity);
+  $("#kpis").innerHTML=
+    kpi("ارزش کل حساب",eqUsd,fmt(eqIrt)+" تومان")+
+    kpi("ارزش کل (تومان)",fmt(eqIrt)+" تومان","≈ "+eqUsd)+
+    kpi(displayUsd()?"موجودی نقد ($)":"موجودی نقد (تومان)",
+      displayUsd()?usd(p.account?(p.account.irt_available!=null?p.account.irt_available:p.account.available_irt):null,2)
+                  :fmt(p.account?(p.account.irt_available!=null?p.account.irt_available:p.account.available_irt):null)+" تومان",
+      p.account?(displayUsd()?"≈ "+fmt(p.account.irt_available!=null?p.account.irt_available:p.account.available_irt,0)+" تومان":"پول قابل استفاده برای خرید"):"")+
+    (()=>{/* «سود ۲۴ساعت» — the CHANGE of «میزان سود سرمایه» over the last
+      24h (or, when this account's history is younger than that, from the
+      moment it started). سود سرمایه = ارزش حساب − کل سرمایه واریزی: the
+      very line the «سود کل» card prints under its amount, so the two boxes
+      can never disagree. SERVER-computed; a point recorded on the demo
+      ledger and one from the real wallet are DIFFERENT accounts and are
+      never mixed into one comparison. */
+      const p24=s.profit_24h||{};
+      /* فقط ۲۴ ساعت: تا وقتی نقطهٔ ۲۴ ساعت پیشِ همین حساب نباشد عددی
+         چاپ نمی‌شود — هیچ بازهٔ کوتاه‌تری جانشین نمی‌شود */
+      if(p24.coverage!=="exact"||p24.pnl_irt==null||p24.basis!=="capital"){
+        const why=(p24.waiting_reason==="MISSING_DEPOSIT_DATA")
+          ?"دیتای «کل سرمایه واریزی» در یکی از دو سر بازه کامل نیست، پس «سود سرمایه» ساخته نمی‌شود"
+          :(p24.waiting_reason==="HISTORY_SHORTER_THAN_24H")
+          ?("تاریخچهٔ این حساب "+(p24.start_age_h<1?Math.max(1,Math.round((p24.start_age_h||0)*60))+" دقیقه":Math.round(p24.start_age_h||0)+" ساعت")+" است — باکس فقط از تغییر «میزان سود سرمایه» در ۲۴ ساعت حساب می‌شود")
+          :"هنوز نقطهٔ تاریخچه‌ای برای این حساب ثبت نشده — اولین چرخه ثبت می‌شود";
+        return kpi("سود ۲۴ساعت","—",
+          why+(p24.needs_h?(" | تا نقطهٔ ۲۴ ساعت پیش حدود "+p24.needs_h+" ساعت مانده"):"")
+          +(p24.skipped_other_source?" | نقطه‌های حساب دیگر (دمو/واقعی) نادیده گرفته شدند":""));
+      }
+      const money=v=>displayUsd()?usd(v,2):fmt(v,0)+" تومان";
+      const sgn=v=>(v>=0?"+":"");
+      const main=(displayUsd()?usd(p24.pnl_irt,2):sgn(p24.pnl_irt)+fmt(p24.pnl_irt,0)+" تومان");
+      const line=(label,val)=>`<div class="s">${label}: <span class="num">${val}</span></div>`;
+      const src=p24.real?"حساب واقعی نوبیتکس":"حساب آزمایشی";
+      const pctDen=(p24.pct_base==="deposited")?"سرمایه واریزی":"ارزش حساب";
+      /* کاربر: تیتر کارت «مبلغ سود سرمایه در ۲۴ ساعت» باشد و مبنایش هم
+         فقط همین «میزان سود سرمایه» (ارزش حساب − کل سرمایه واریزی) — پس
+         عدد بزرگ همان `pnl_irt` سرور است و زیرش یک دیتیل ریز از دو سر
+         بازهٔ ۲۴ساعته می‌آید. این متن کامل را هم در tooltip کارت نگه
+         می‌داریم تا با یک hover همه‌چیز در دسترس باشد. */
+      let tip=("میزان سود سرمایه در ۲۴ ساعت: "+main+" ("+sgn(p24.pct)+p24.pct.toFixed(2)+"٪ از "+pctDen+")");
+      if(p24.capital_now_irt!=null)
+        tip+=" | میزان سود سرمایه الان: "+money(p24.capital_now_irt)+" | میزان سود سرمایه ۲۴ ساعت پیش: "+money(p24.capital_ref_irt);
+      else
+        tip+=" | ارزش حساب الان (واریزی + سود): "+money(p24.total_irt)+" | ارزش حساب ۲۴ ساعت پیش: "+money(p24.base_irt);
+      if(p24.flow_irt)tip+=" | واریز/برداشت خارجی این بازه (انتقال، نه سود؛ دیتای صرافی): "+money(p24.flow_irt);
+      tip+=" | مبنا: همین ساعت، ۲۴ ساعت پیش ("+src+")";
+      /* دیتیل ریز زیر عدد، از خود «میزان سود سرمایه»: دو سر بازهٔ ۲۴ساعته
+         و تفاوتشان (با درصد)، آن هم با همان واحد نمایش کارت. مبنا و
+         منبع حساب هم در یک ردیف ریزِ کم‌رنگ می‌آید. */
+      let sub=((p24.capital_now_irt!=null)
+        ? line("میزان سود سرمایه الان",money(p24.capital_now_irt))
+          +line("میزان سود سرمایه ۲۴ ساعت پیش",money(p24.capital_ref_irt))
+          +line("تغییر ۲۴ساعته",main+(p24.pct!=null?" ("+sgn(p24.pct)+p24.pct.toFixed(2)+"٪ از "+pctDen+")":""))
+        : line("ارزش حساب الان (واریزی + سود)",money(p24.total_irt))
+          +line("ارزش حساب ۲۴ ساعت پیش",money(p24.base_irt)));
+      if(p24.flow_irt)sub+=line("واریز/برداشت خارجی این بازه (انتقال، نه سود)",money(p24.flow_irt));
+      sub+=`<div class="mut" style="font-size:11px">مبنا: همین ساعت، ۲۴ ساعت پیش (${src})</div>`;
+      return kpi("سود ۲۴ساعت",main,sub,p24.pct==null?"mut":cls(p24.pnl_irt),{title:tip})})()+
+    (()=>{/* LIVE total profit — the REAL growth of the deposited
+      capital: (equity_irt − deposited) / deposited. The old headline
+      (Σ of the rows' «سود از خرید» percents) was NOT this: it ignores
+      realized losses/fees and weighs every coin equally, so it could
+      disagree with the تومان lines below. The growth percent now
+      ALWAYS matches them: growth% == سود سرمایه / سرمایه واریزی. */
+      if(hp.pnl_irt==null)return kpi("سود کل","—","");
+      const g=hp.growth_pct;
+      const sign=(hp.pnl_irt>=0?"+":"");
+      const main=(g!=null?(g>=0?"+":"")+g.toFixed(2)+"%":displayUsd()?usd(hp.profit_capital_irt,2):sign+fmt(hp.profit_capital_irt,0)+" تومان");
+      const profitCap=(hp.profit_capital_irt!=null?hp.profit_capital_irt:hp.pnl_irt);
+      const dep=(hp.deposited_irt!=null?hp.deposited_irt:0);
+      const line=(label,val)=>`<div class="s">${label}: <span class="num">${val}</span></div>`;
+      /* deposit AUTO-refreshes from the exchange turnover: at most hourly
+         (net_deposit_refresh_s) AND immediately whenever the wallet sync
+         sees money enter/leave the account — a withdrawal is debited the
+         moment it is submitted, so the capital must follow it right away
+         (otherwise سود سرمایه drops by the withdrawn amount). No manual
+         button. جمع سادهٔ سودهای باز = Σ(value−invested) of the open rows
+         only — not shown any more. */
+      /* فقط سه ردیف: میزان سود سرمایه / کل سرمایه واریزی / جمع — «جمع»
+         همان جمع این دو عددِ چاپ‌شده است (ارزش حساب ≈ همین تا یک واحد
+         گردکردن؛ عدد دقیقش در کارت «ارزش کل» است). */
+      const money=v=>displayUsd()?usd(v,2):fmt(v,0);
+      /* سه خط کارت باید با خودشان جور باشند: «جمع» دقیقاً جمع همان دو
+         عددِ چاپ‌شده است (نه گردکردن دوبارهٔ مجموع خام) — همان قراری که
+         سرِ بخش‌های دارایی هم دارد؛ وگرنه در نمایش دلاری یک سنت و در
+         تومانی یک تومان با هم اختلاف پیدا می‌کنند. واحد گردکردن، واحد
+         نمایش است: سنت در حالت دلاری، یک تومان در حالت تومانی. */
+      const rate=usdtPerIrt();
+      const step=displayUsd()?100:1;
+      const shown=v=>{const x=(displayUsd()&&rate)?toUsd(v):v;
+        return (x==null||isNaN(x))?null:Math.round(x*step)/step;};
+      const show3=v=>(v==null?money(null)
+        :(displayUsd()&&rate)?usd(v*rate,2):fmt(v,0));
+      const pShown=shown(profitCap), dShown=shown(dep);
+      const tShown=(pShown==null||dShown==null)?null:pShown+dShown;
+      /* برداشتِ در جریان (وضعیت «Bank processing»): پول همان لحظهٔ ثبت
+         از کیف پول کم شده، پس از «کل سرمایه واریزی» هم کم می‌شود؛ یعنی
+         سود سرمایه دست‌نخورده می‌ماند — این خط فقط توضیح می‌دهد که چرا
+         سرمایه واریزی کم شده و سود کم نشده است. */
+      const dtail=(hp.deposited_detail||{});
+      const pending=Number(dtail.pending_withdraws_irt||0);
+      const sub=(line("میزان سود سرمایه",show3(pShown))
+        +line("کل سرمایه واریزی",show3(dShown))
+        +line("جمع",show3(tShown))
+        +(pending>0?`<div class="mut" style="font-size:11px">برداشت در جریان (از حساب رفته، بانک در حال تسویه): <span class="num">${show3(shown(pending))}</span> — از سرمایه واریزی کم شده تا سود سرمایه اشتباه منفی نشود</div>`:""));
+      return kpi("سود کل",main,sub,cls(hp.profit_capital_irt),{kpiId:"kpiTotalProfit"})})()+
+    kpi("وضعیت ریسك",r.risk_status||"—","exposure "+pct(r.exposure_ratio||0)+(blocked.length?" | رژیم‌بلاک: "+blocked.map(b=>((b.symbol||"").replace(/IRT$|USDT$/,"")+" "+(faRegime[b.regime_blocked]||b.regime_blocked))).join("، "):""),r.risk_status==="NORMAL"?"pos":r.risk_status?"neg":"mut")+
+    kpi("کیفیت داده",sn.data_quality_score!=null?(sn.data_quality_score*100).toFixed(0)+"%":"—",sn.status||"", sn.data_quality_score>=0.75?"pos":"neg")+
+    kpi("چرخه‌ها",s.cycles_run,"برد: "+(perf.win_rate!=null?(perf.win_rate*100).toFixed(0)+"%":"—"));
+}
+
+function drawChart(cv,series,color,fill){
+  const c=cv.getContext("2d"),W=cv.width=cv.clientWidth*2,H=cv.height=cv.clientHeight*2;
+  if(!series||series.length<2){c.fillStyle="#8b9bb4";c.font="24px sans-serif";c.textAlign="center";c.fillText("داده کافی نیست",W/2,H/2);return}
+  const min=Math.min(...series),max=Math.max(...series),pad=(max-min)||max||1;
+  const lo=min-pad*0.08,hi=max+pad*0.08;
+  const X=i=>20+(W-40)*i/(series.length-1),Y=v=>H-20-(H-40)*(v-lo)/(hi-lo);
+  c.clearRect(0,0,W,H);c.beginPath();
+  series.forEach((v,i)=>i?c.lineTo(X(i),Y(v)):c.moveTo(X(0),Y(v)));
+  c.strokeStyle=color;c.lineWidth=3;c.stroke();
+  if(fill){c.lineTo(X(series.length-1),H);c.lineTo(X(0),H);c.closePath();
+    const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,color+"55");g.addColorStop(1,color+"00");
+    c.fillStyle=g;c.fill()}
+  c.fillStyle="#8b9bb4";c.font="22px sans-serif";
+  c.fillText(fmt(max,max<10?4:0),10,28);c.fillText(fmt(lo,lo<10?4:0),10,H-8);
+}
+
+/* -------- generic column sorting: every box's headers are clickable --------
+   state persists per table across the 2.5s re-render; click toggles asc/desc.
+   Symbols sort alphabetically; numeric/value/percent columns sort by value. */
+const uiSort={};
+const sortArrow=(t,k)=>{const st=uiSort[t];return st&&st.col===k?(st.dir==="desc"?" ▼":" ▲"):""};
+const sortRows=(arr,t,getters,defK,defDir)=>{
+  const st=uiSort[t]||{col:defK,dir:defDir};
+  const g=getters[st.col]||getters[defK];
+  const d=st.dir==="desc"?-1:1;
+  return arr.slice().sort((a,b)=>{const va=g(a),vb=g(b);
+    if(typeof va==="string"||typeof vb==="string")
+      return String(va).localeCompare(String(vb),"en",{numeric:true,sensitivity:"base"})*d;
+    return ((va==null?-Infinity:va)-(vb==null?-Infinity:vb))*d;});
+};
+/* numeric columns: first click = descending (biggest first) via data-dir */
+const thS=(t,k,label,dir)=>`<th class="sortable" data-t="${t}" data-k="${k}" data-dir="${dir||"asc"}">${label}${sortArrow(t,k)}</th>`;
+document.addEventListener("click",e=>{
+  const el=e.target.closest(".sortable[data-k]");if(!el)return;
+  const t=el.dataset.t,k=el.dataset.k,st=uiSort[t];
+  if(st&&st.col===k)st.dir=st.dir==="asc"?"desc":"asc";
+  else uiSort[t]={col:k,dir:el.dataset.dir||"asc"};
+  poll();
+});
+
+function ageStr(s){if(s==null||isNaN(s))return "—";s=Number(s);
+  if(s<60)return Math.max(1,Math.round(s))+" ثانیه";
+  if(s<3600)return Math.round(s/60)+" دقیقه";
+  const h=Math.floor(s/3600),m=Math.round((s%3600)/60);
+  return h+" ساعت"+(m?(" و "+m+" دقیقه"):"");}
+/* «سفارش‌های در جریان» — server truth (engine.in_flight_orders): every
+   order still working at the exchange/ledger with the detail of what is
+   INSIDE it — the item (market + side), order type, price, requested
+   size, filled amount (and percent), the remaining amount, the order's
+   value, its age and who placed it (bot/manual). Replaces the old Quant
+   Scanner ranking box; a resting BUY shows exactly how much cash it
+   still locks. */
+function openOrdersTable(os){
+  const list=os||[];
+  if(!list.length)return `<div class="empty">سفارش در جریانی نیست — هیچ سفارش بازی روی بازارها باقی نمانده</div>`;
+  const money=(v,market)=>{const x=dispPrice(v,market);
+    return x==null?"—":(displayUsd()?"$":"")+fmt(x,x>100?0:2);};
+  const rows=sortRows(list,"orders",{age:o=>o.age_s,market:o=>o.market,side:o=>o.side,
+    price:o=>o.price,amount:o=>o.amount,filled:o=>o.filled_pct,left:o=>o.unmatched_amount,
+    value:o=>o.value_quote,status:o=>o.status,
+    /* bot orders first (0) — same order the server sends, so the table
+       and the API never disagree on the default view */
+    origin:o=>o.origin==="bot"?0:1},"origin","asc");
+  const bots=list.filter(o=>o.origin==="bot").length;
+  return `<div class="muted" style="margin-bottom:6px">${list.length} سفارش باز در جریان`+
+    (bots?` — ${bots} سفارش از ربات`:"")+(list.length-bots?` — ${list.length-bots} سفارش دستی`:"")+`</div>`+
+    `<table><thead><tr>${thS("orders","market","نماد")}${thS("orders","side","سمت")}<th>نوع</th>`+
+    `${thS("orders","price","قیمت سفارش")}${thS("orders","amount","حجم درخواستی")}${thS("orders","filled","پرشده","desc")}`+
+    `${thS("orders","left","باقی‌مانده")}${thS("orders","value","ارزش سفارش","desc")}${thS("orders","status","وضعیت")}`+
+    `${thS("orders","origin","ثبت‌کننده","asc")}${thS("orders","age","سن","asc")}</tr></thead><tbody>`+
+    rows.map(o=>{
+      const d=(o.live_price&&o.price)?((o.live_price-o.price)/o.price*100):null;
+      const dist=d==null?`<span class="mut">—</span>`:`<span class="${d>=0?"pos":"neg"}">${(d>=0?"+":"")+d.toFixed(2)}%</span>`;
+      const title=`شناسهٔ سفارش: ${o.exchange_order_id||o.order_id||"—"}`+
+        (o.client_order_id?` | شناسهٔ ربات: ${o.client_order_id}`:"")+
+        ` | ثبت: ${tehranFull(o.created_at)}`+
+        (o.live_price?` | قیمت بازار: ${fmtD(o.live_price,o.market)}`:"")+
+        (o.decision_id?` | تصمیم: ${o.decision_id}`:"");
+      return `<tr title="${esc(title)}">
+        <td class="num">${esc(o.market)}</td>
+        <td>${pill(o.side)}</td>
+        <td class="muted">${esc(o.order_type||"LIMIT")}</td>
+        <td class="num">${fmtD(o.price,o.market)}</td>
+        <td class="num">${fmt(o.amount,8)}</td>
+        <td class="num">${fmt(o.matched_amount,8)} <span class="mut">(${(o.filled_pct||0).toFixed(1)}%)</span></td>
+        <td class="num">${fmt(o.unmatched_amount,8)}</td>
+        <td class="num">${money(o.value_quote,o.market)}</td>
+        <td>${pill(o.status)}</td>
+        <td>${o.origin==="bot"?"ربات":"دستی"}</td>
+        <td class="num muted">${ageStr(o.age_s)}<br>${dist}</td>
+      </tr>`}).join("")+"</tbody></table>"}
+
+function decTable(ds){if(!ds||!ds.length)return `<div class="empty">تصمیمی ثبت نشده</div>`;
+  const rows=sortRows(ds,"decs",{time:d=>Date.parse(d.created_at),symbol:d=>d.symbol,
+    action:d=>d.action,confidence:d=>d.confidence},"time","desc");
+  return `<table><thead><tr>${thS("decs","time","زمان","desc")}${thS("decs","symbol","نماد")}${thS("decs","action","اقدام")}${thS("decs","confidence","اطمینان","desc")}<th>جزئیات</th><th>اجرا</th></tr></thead><tbody>`+
+  rows.map(d=>{let det="—";
+    if(d.action==="BUY"||d.action==="SELL"){const e=d.entry||{},sl=d.stop_loss||{},ps=d.position_size||{};
+      det=`ورود ${fmtD(e.price,d.symbol)} | حد ضرر ${fmtD(sl.price,d.symbol)} | حجم ${fmt(ps.amount,6)}`}
+    const canExec=(d.action==="BUY"||d.action==="SELL")&&d.decision_id;
+    return `<tr><td class="num muted">${tehran(d.created_at)}</td>
+      <td class="num">${esc(d.symbol)}</td><td>${pill(d.action)}</td>
+      <td class="num">${d.confidence!=null?(d.confidence*100).toFixed(0)+"%":"—"}</td>
+      <td class="muted" style="white-space:normal">${det}</td>
+      <td>${canExec?`<button class="btn-ex" data-did="${esc(d.decision_id)}" data-sym="${esc(d.symbol)}">اجرای این</button>`:"—"}</td></tr>`}).join("")+"</tbody></table>"}
+async function execDecision(did,sym){if(!confirm("اجرای دستی تصمیم "+sym+" با سفارش واقعی؟"))return;
+  toast("در حال اجرای تصمیم…");
+  try{const r=await jpost("/api/control/execute_decision",{decision_id:did});
+    if(r.ok)toast("سفارش ثبت شد: "+sym+" — "+((r.execution||{}).status||""));
+    else toast(r.error||"?"+(r.rejection_reasons?" | "+r.rejection_reasons.map(c=>REJECT_FA(c)).join("، "):""));
+  }catch(e){toast("خطا: "+e)}
+  poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}}
+document.addEventListener("click",e=>{const b=e.target.closest(".btn-ex");if(b)execDecision(b.dataset.did,b.dataset.sym)});
+
+function marketsTable(ms){if(!ms||!ms.length)return `<div class="empty">داده بازار موجود نیست — موتور را شروع کنید</div>`;
+  const rows=sortRows(ms,"mkts",{symbol:m=>m.symbol,price:m=>m.last_price,chg:m=>m.change_24h,
+    spread:m=>m.spread_percent,volume:m=>m.volume_24h,rsi:m=>m.rsi,score:m=>m.score},"score","desc");
+  return `<table><thead><tr>${thS("mkts","symbol","نماد")}${thS("mkts","price","قیمت","desc")}${thS("mkts","chg","تغییر ۲۴س","desc")}${thS("mkts","spread","اسپرد%","desc")}${thS("mkts","volume","حجم ۲۴س","desc")}
+    <th>نقدینگی</th><th>نوسان</th>${thS("mkts","rsi","RSI","desc")}<th>روند</th><th>رژیم</th>${thS("mkts","score","امتیاز","desc")}<th>کیفیت</th></tr></thead><tbody>`+
+  rows.map(m=>`<tr><td class="num">${esc(m.symbol)}</td>
+    <td class="num">${fmtD(m.last_price,m.symbol)}</td>
+    <td class="num ${cls(m.change_24h)}">${m.change_24h!=null?m.change_24h.toFixed(2)+"%":"—"}</td>
+    <td class="num">${fmt(m.spread_percent,4)}</td>
+    <td class="num">${fmt(m.volume_24h,0)}</td>
+    <td>${pill(m.liquidity)}</td><td>${esc(m.volatility_regime||"—")}</td>
+    <td class="num">${m.rsi!=null?m.rsi.toFixed(1):"—"}</td>
+    <td>${esc(m.trend||"—")}</td><td>${esc(m.regime||"—")}</td>
+    <td class="num">${m.score!=null?(m.score*100).toFixed(0):"—"}</td>
+    <td>${pill(m.data_quality_status)}</td></tr>`).join("")+"</tbody></table>"}
+
+function riskTable(rs){if(!rs||!rs.length)return `<div class="empty">موردی نیست</div>`;
+  const rows=sortRows(rs,"risk",{time:r=>Date.parse(r.created_at),status:r=>r.status},"time","desc");
+  return `<table><thead><tr>${thS("risk","time","زمان")}<th>تصمیم</th>${thS("risk","status","وضعیت")}<th>حجم تأییدی</th><th>دلایل رد</th></tr></thead><tbody>`+
+  rows.map(r=>`<tr><td class="num muted">${tehran(r.created_at)}</td>
+    <td class="num muted" style="direction:ltr">${esc((r.decision_id||"").slice(0,22))}</td>
+    <td>${pill(r.status)}</td>
+    <td class="num">${fmt(r.approved_position_size,8)}</td>
+    <td class="muted">${esc((r.rejection_reasons||[]).map(c=>REJECT_FA(c)).join("، "))||"—"}</td></tr>`).join("")+"</tbody></table>"}
+
+function execTable(xs){if(!xs||!xs.length)return `<div class="empty">اجرایی ثبت نشده</div>`;
+  const rows=sortRows(xs,"exec",{time:x=>Date.parse(x.created_at),market:x=>x.market,side:x=>x.side,
+    price:x=>x.fill_price||x.price,amount:x=>x.amount},"time","desc");
+  return `<table><thead><tr>${thS("exec","time","زمان","desc")}${thS("exec","market","نماد")}${thS("exec","side","سمت")}${thS("exec","price","قیمت","desc")}${thS("exec","amount","حجم","desc")}<th>وضعیت</th></tr></thead><tbody>`+
+  rows.map(x=>`<tr><td class="num muted">${tehran(x.created_at)}</td>
+    <td class="num">${esc(x.market)}</td><td>${pill(x.side)}</td>
+    <td class="num">${fmtD(x.fill_price||x.price,x.market)}</td>
+    <td class="num">${fmt(x.amount,8)}</td><td>${pill(x.status)}</td></tr>`).join("")+"</tbody></table>"}
+
+function positionsTable(ps){if(!ps||!ps.length)return `<div class="empty">موقعیت بازی وجود ندارد</div>`;
+  const rows=sortRows(ps,"pos",{market:p=>p.market,amount:p=>p.amount,entry:p=>p.avg_entry,
+    pnl:p=>parseFloat(p.realized_pnl),opened:p=>Date.parse(p.opened_at)},"market","asc");
+  return `<table><thead><tr>${thS("pos","market","نماد")}${thS("pos","amount","حجم","desc")}${thS("pos","entry","میانگین ورود","desc")}${thS("pos","pnl","سود تحقق‌یافته","desc")}${thS("pos","opened","باز شدن","desc")}</tr></thead><tbody>`+
+  rows.map(p=>`<tr><td class="num">${esc(p.market)}</td><td class="num">${fmt(p.amount,8)}</td>
+    <td class="num">${fmtD(p.avg_entry,p.market)}</td>
+    <td class="num ${cls(parseFloat(p.realized_pnl))}">${displayUsd()?usd(parseFloat(p.realized_pnl),2):fmt(p.realized_pnl)}</td>
+    <td class="num muted">${tehranFull(p.opened_at)}</td></tr>`).join("")+"</tbody></table>"}
+
+function sellsPlanTable(ps,plans,s){/* per-holding SELL plan: stop + TP ladder + current distance */
+  if(!ps||!ps.length)return `<div class="empty">سکه‌ای برای فروش وجود ندارد</div>`;
+  const prices={};(s.markets_view||[]).forEach(m=>prices[m.symbol]=m.last_price);
+  const rows=sortRows(ps.filter(p=>(p.amount||0)>0),"splan",{market:p=>p.market,amount:p=>p.amount,
+    entry:p=>p.avg_entry,cur:p=>prices[p.market]||p.avg_entry,
+    pnl:p=>{const e=p.avg_entry||0,c=prices[p.market]||e;return e>0&&c>0?(c-e)/e*100:null},
+    stop:p=>{const pl=(plans||{})[p.market];return pl?parseFloat(pl.stop):null}},"market","asc").map(p=>{
+    const plan=(plans||{})[p.market];
+    const cur=prices[p.market]||p.avg_entry||0;
+    const entry=p.avg_entry||0;
+    const pnlPct=entry>0&&cur>0?((cur-entry)/entry*100):null;
+    const stop=plan?parseFloat(plan.stop):null;
+    const stage=plan?parseInt(plan.stage||0):null;
+    const tps=plan?(plan.tps||[]).map(t=>({p:parseFloat(t.price),c:t.close_percent})):[];
+    const stopDist=stop>0&&cur>0?((cur-stop)/cur*100):null;
+    const tpsHtml=tps.length?tps.map((t,i)=>
+      `<span class="muted" style="${i<(stage||0)?"text-decoration:line-through;opacity:.5":""}">TP${i+1}: ${fmtD(t.p,p.market)} (${t.c}%)</span>`).join(" | "):"—";
+    return `<tr><td class="num">${esc(p.market)}</td>
+      <td class="num">${fmt(p.amount,8)}</td>
+      <td class="num">${fmtD(entry,p.market)}</td>
+      <td class="num">${fmtD(cur,p.market)}</td>
+      <td class="num ${pnlPct==null?"":pnlPct>=0?"pos":"neg"}">${pnlPct==null?"—":pnlPct.toFixed(2)+"%"}</td>
+      <td class="num neg">${stop?fmtD(stop,p.market)+" (−"+(stopDist==null?"?":stopDist.toFixed(1))+"%)":"—"}</td>
+      <td>${tpsHtml}</td>
+      <td>${plan?`<button class="btn-sellnow" data-sym="${esc(p.market)}" data-amt="${p.amount}">فروش فوری</button>`:`<span class="muted">بدون پلن — خرید قدیمی</span>`}</td></tr>`;
+  });
+  return `<table><thead><tr>${thS("splan","market","نماد")}${thS("splan","amount","حجم","desc")}${thS("splan","entry","ورود","desc")}${thS("splan","cur","قیمت فعلی","desc")}${thS("splan","pnl","سود/ضرر","desc")}
+    ${thS("splan","stop","حد ضرر","desc")}<th>پلن حد سود</th><th>فروش</th></tr></thead><tbody>${rows.join("")}</tbody></table>`}
+
+async function sellNow(sym,amt){if(!confirm("فروش فوری کل "+sym+" ("+amt+") با سفارش واقعی؟"))return;
+  toast("در حال ثبت سفارش فروش…");
+  try{const r=await jpost("/api/control/sell_now",{symbol:sym});
+    if(r.ok)toast("سفارش فروش ثبت شد: "+((r.market)||sym)+" — "+((r.execution||{}).status||"")+(r.note?" | "+r.note:""));
+    else toast(r.error||"خطا"+(r.rejection_reasons?" | "+r.rejection_reasons.map(c=>REJECT_FA(c)).join("، "):""));
+  }catch(e){toast("خطا: "+e)}
+  poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}}
+document.addEventListener("click",e=>{const b=e.target.closest(".btn-sellnow");if(b)sellNow(b.dataset.sym,b.dataset.amt)});
+
+/* -------- manual BUY from the holdings box (SS100c) -------- */
+async function buyNow(sym){
+  toast("در حال گرفتن مبلغ پیشنهادی…");
+  let sug=null;
+  try{sug=await jget("/api/buy_suggestion?symbol="+encodeURIComponent(sym))}
+  catch(e){}
+  /* بازارِ واقعیِ این کلیک: انتخاب «بازار معاملات» در تنظیمات تعیین می‌کند
+     با تتر بخرد یا تومان — در حالت تتری، کلیک روی یک ردیف تومانی همان
+     سکه را در بازار تتری می‌خرد و خرید تازه زیر بخش تتری می‌نشیند */
+  const mkt=(sug&&sug.market)||sym;
+  const qUsdt=((sug&&sug.quote)||(/USDT$/.test(String(mkt))?"USDT":"IRT"))==="USDT";
+  const cash=(sug&&sug.cash_quote!=null)?sug.cash_quote:(sug?sug.cash_irt:null);
+  const minO=(sug&&sug.min_order_quote!=null)?sug.min_order_quote:((sug&&sug.min_order_irt)||0);
+  /* فیلد مبلغ و موجودی نقد در واحد پول همین بازار: خرید تتری با تتر ($)،
+     خرید تومانی با تومان — عدد تومانی هرگز دلاری نمایش داده نمی‌شود
+     (پشتیبانی API هم همین واحد بازار را می‌گیرد) */
+  const toToman=v=>qUsdt?(usdtPerIrt()?v*usdtPerIrt():v):v; /* API تومانی */
+  const sh=v=>qUsdt?("$"+fmt(v,2)):fmt(v,0)+" تومان";
+  const disp=v=>v;
+  const defRaw=(sug&&sug.ok&&sug.amount_quote!=null)?sug.amount_quote:
+    (cash?Math.min(cash*0.95,Math.max(cash*0.9,minO)):null);
+  const def=(defRaw!=null&&isFinite(defRaw))?(qUsdt?String(Math.round(disp(defRaw)*100)/100):String(Math.round(disp(defRaw)))):"";
+  const msg="خرید "+mkt+(sug&&sug.note?"\n"+sug.note:"")+"\n"+
+    (cash!=null?"موجودی نقد "+(qUsdt?"تتری":"تومانی")+": "+sh(cash)+"\n":"")+
+    (qUsdt?"مبلغ خرید (تتر/$) — پیشنهاد ربات، قابل تغییر:"
+          :"مبلغ خرید (تومان) — پیشنهاد ربات، قابل تغییر:");
+  const v=prompt(msg,def);
+  if(v==null)return; /* cancelled */
+  const amt0=parseFloat(String(v).replace(/[٫,]/g,"."));
+  if(isNaN(amt0)||amt0<=0){toast("مبلغ نامعتبر است");return}
+  const amt=toToman(amt0); /* API stays Toman — the UI converts */
+  const cashShown=cash==null?"—":sh(cash);
+  /* موجودی نقد مقایسه‌شده در واحد همان بازار: تتر با تتر، تومان با تومان */
+  const cashCompare=cash;
+  if(cashCompare!=null&&amt>cashCompare){if(!confirm("مبلغ بزرگ‌تر از موجودی نقد ("+cashShown+") است — موتور ریسک آن را به اندازه‌ی موجودی محدود می‌کند. ادامه؟"))return}
+  toast("در حال ثبت سفارش خرید "+mkt+"…");
+  try{const r=await jpost("/api/control/buy_now",{symbol:sym,amount_irt:amt});
+    if(r.ok)toast("سفارش خرید ثبت شد: "+((r.market)||mkt)+" — "+((r.execution||{}).status||"")+(r.note?" | "+r.note:""));
+    else toast(r.error||"خطا"+(r.rejected?" | "+r.rejected.map(c=>REJECT_FA(c)).join("، "):"")+(r.note?" | "+r.note:""));
+  }catch(e){toast("خطا: "+e)}
+  poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}}
+document.addEventListener("click",e=>{const b=e.target.closest(".btn-buynow");if(b)buyNow(b.dataset.sym)});
+
+function assetsTable(as){if(!as||!as.length)return `<div class="empty">—</div>`;
+  const rows=sortRows(as,"assets",{asset:a=>a.asset,available:a=>a.available,locked:a=>a.locked,
+    value:a=>a.market_value,weight:a=>a.portfolio_weight},"asset","asc");
+  return `<table><thead><tr>${thS("assets","asset","دارایی")}${thS("assets","available","آزاد","desc")}${thS("assets","locked","قفل","desc")}${thS("assets","value","ارزش($)","desc")}${thS("assets","weight","وزن","desc")}</tr></thead><tbody>`+
+  rows.map(a=>`<tr><td class="num">${esc(a.asset)}</td><td class="num">${fmt(a.available,8)}</td>
+    <td class="num">${fmt(a.locked,8)}</td><td class="num">${fmt(a.market_value,2)}</td>
+    <td class="num">${pct(a.portfolio_weight)}</td></tr>`).join("")+"</tbody></table>"}
+
+function fillsTable(fs){if(!fs||!fs.length)return `<div class="empty">معامله‌ای انجام نشده</div>`;
+  const rows=sortRows(fs,"fills",{time:f=>Date.parse(f.timestamp),market:f=>f.market,side:f=>f.side,
+    price:f=>f.price,amount:f=>f.amount},"time","desc");
+  return `<table><thead><tr>${thS("fills","time","زمان","desc")}${thS("fills","market","نماد")}${thS("fills","side","سمت")}${thS("fills","price","قیمت","desc")}${thS("fills","amount","حجم","desc")}<th>کارمزد</th></tr></thead><tbody>`+
+  rows.map(f=>`<tr><td class="num muted">${tehran(f.timestamp)}</td>
+    <td class="num">${esc(f.market)}</td><td>${pill(f.side)}</td>
+    <td class="num">${fmtD(f.price,f.market)}</td><td class="num">${fmt(f.amount,8)}</td>
+    <td class="num">${fmt(f.fee_amount,4)} ${esc(f.fee_asset)}</td></tr>`).join("")+"</tbody></table>"}
+
+function renderEvents(evs){if(!evs||!evs.length){$("#evBox").innerHTML='<div class="empty">رویدادی نیست</div>';return}
+  const col=t=>t.startsWith("SNAPSHOT")?"evtype-snapshot":t.startsWith("AI_")?"evtype-ai":
+    t.startsWith("RISK")?"evtype-risk":t.startsWith("ORDER")?"evtype-order":
+    t.startsWith("SAFE")?"evtype-safe":t.startsWith("SYSTEM")?"evtype-system":
+    t.startsWith("MARKET")?"evtype-market":"evtype-position";
+  $("#evBox").innerHTML=evs.slice().reverse().map(e=>{
+    const pl=JSON.stringify(e.payload||{});
+    return `<div class="evline"><span class="t">${tehran(e.timestamp)}</span>
+      <span class="ty ${col(e.event_type)}">${esc(e.event_type)}</span>
+      <span class="muted" style="white-space:normal;direction:ltr">${esc(pl.slice(0,140))}</span></div>`}).join("")}
+
+/* ---------------- settings form ---------------- */
+function renderCfg(c){
+  const labels={engine:"موتور",exchange:"صرافی و اتصال",fee:"کارمزد",quality:"کیفیت داده",risk:"ریسک و مدیریت سرمایه",ai:"هوش مصنوعی"};
+  const hints={
+    engine:"تنظیمات موتور و سرور — معمولاً نیازی به تغییر نیست",
+    exchange:"اتصال به نوبیتکس و انتخاب بازارها — ورود/خروج و اینکه ربات با تتر بخرد یا تومان از این‌جا کنترل می‌شود",
+    fee:"کارمزد معاملات (نوبیتکس: ۰٫۲۵٪ تیکر) — فقط برای محاسبهٔ دقیق سود",
+    quality:"فیلترهای کیفیت داده — با دقت بیشتر، ریسک تصمیم اشتباه کم می‌شود",
+    risk:"میزان ریسک و مدیریت خرید/فروش — حد ضرر، حد سود و حالت ریسک",
+    ai:"انتخاب استراتژی و تعداد بازارهای تحلیلی"};
+  const faLabels={cycle_seconds:"فاصله چرخه (ثانیه)",analyze_every:"تحلیل هر چند چرخه",max_cycles:"حداکثر چرخه",server_host:"هاست",server_port:"پورت",data_dir:"پوشه داده",max_markets:"حداکثر بازار در چرخه",max_snapshots:"حداکثر تعداد اسنپ‌شات (۰=نامحدود)",events_retention_mb:"سقف حجم فایل رویدادها (مگابایت، ۰=نامحدود)",mode:"حالت اتصال",demo_seed:"بذر دمو",nobitex_base_url:"آدرس API نوبیتکس",nobitex_api_key:"کلید API",nobitex_username:"ایمیل نوبیتکس",nobitex_password:"رمز عبور",nobitex_totp_secret:"رمز مخفی 2FA",nobitex_remember:"طول عمر توکن",live_trading:"معامله واقعی",live_by_default:"معامله واقعی خودکار پس از ورود",prefer_usdt_markets:"بازارهای تتری",include_irt_markets:"بازارهای تومانی",trade_quote_markets:"بازار معاملات (خرید و فروش با تتر یا تومان — دکمه‌های خرید/فروش نمای کلی هم با همین بازار کار می‌کنند)",trade_market_interaction:"تعامل دو بازار در حالت «هر دو» (Both) — تعامل بین بازارها = تبدیل/جابه‌جایی مجاز؛ بازارهای مستقل = بدون هیچ انتقالی",min_quote_volume_usdt:"حداقل حجم روزانه بازار ($)",min_order_usdt:"حداقل مبلغ هر سفارش ($)",wallet_sync:"همگام‌سازی موجودی واقعی",rls_to_irt_divisor:"تقسیم ریال به تومان",rest_timeout:"تایم‌اوت اتصال (ثانیه)",orderbook_depth:"عمق دفتر سفارش",book_levels:"سطح دفتر سفارش",maker_rate:"کارمزد میکر",taker_rate:"کارمزد تیکر",source:"منبع کارمزد",min_ai_quality:"حداقل کیفیت برای AI",min_trade_quality:"حداقل کیفیت برای معامله",ticker_freshness_s:"تازگی تیکر (ثانیه)",orderbook_freshness_s:"تازگی دفتر سفارش (ثانیه)",max_stale_before_no_ai:"حد تازگی قبل از توقف AI (ثانیه)",max_risk_per_trade:"ریسک هر معامله",max_position_fraction:"حداکثر حجم هر موقعیت",max_total_exposure:"حداکثر کل سرمایه در معرض",max_drawdown:"حداکثر افت سرمایه",min_net_expected_return:"حداقل سود خالص مورد انتظار",max_open_positions:"حداکثر موقعیت باز",allow_topup:"افزودن پول به سکه‌های نگه‌داری‌شده (خرید مجدد)",auto_stop_min_pct:"حد ضرر خودکار (حالت ATR) — کمترین درصد",auto_stop_max_pct:"حد ضرر خودکار (حالت ATR) — بیشترین درصد",default_stop_loss_pct:"حد ضرر پیش‌فرض خرید — درصد از قیمت خرید (منفی مثل ‎-2؛ ۰=حالت ATR)",default_take_profit_pct:"حد سود پیش‌فرض خرید — درصد از قیمت خرید (مثبت مثل 20؛ ۰=خاموش)",topup_profit_pct:"خرید مجدد خودکار وقتی سود از خرید به این درصد رسید (۰=خاموش)",stale_order_cancel_min:"لغو خودکار سفارش پرنشده بعد از چند دقیقه (آزاد شدن تومان، ۰=خاموش)",dust_convert_threshold_irt:"تبدیل خودکار دارایی‌های خرد — آستانه تومان (زیر این مقدار به تومان تبدیل می‌شود، ۰=خاموش)",dust_convert_exclude:"سکه‌های مستثنی از تبدیل (با کاما جدا کنید)",dust_convert_max_per_cycle:"حداکثر تعداد تبدیل در هر چرخه",risk_mode:"حالت ریسک — چرخش روی پرسودترین‌های ۲۴ساعته",risk_mode_stop_loss_pct:"حالت ریسک — حد ضرر خرید (درصد منفی از خرید)",risk_mode_take_profit_pct:"حالت ریسک — حد سود خرید (درصد مثبت از خرید)",risk_mode_drop_exit_pct:"حالت ریسک — خروج هنگام افت از سقف قیمت (درصد منفی؛ ۰=خاموش)",risk_mode_buy_cooldown_s:"حالت ریسک — فاصله خرید تکراری از یک بازار (ثانیه)",risk_mode_chase_pct:"حالت ریسک — فاصله سفارش خرید از قیمت لحظه‌ای (درصد؛ ۰=خرید فوری)",risk_mode_require_uptrend:"حالت ریسک — خرید فقط در رژیم صعودی (گیت رژیم بازار)",risk_mode_regime_atr_crash_pct:"آستانه ATR٪ برای رژیم نوسان شدید (درصد؛ بالاتر از این = غیرقابل معامله)",risk_mode_atr_stop_floor_pct:"حالت ریسک — کف حد ضرر ATR-محور (درصد منفی)",risk_mode_atr_stop_mult:"حالت ریسک — ضریب ATR در حد ضرر (مثلاً ۱٫۵ = ۱٫۵ برابر نوسان روزانه)",risk_mode_atr_stop_cap_pct:"حالت ریسک — سقف مطلق حد ضرر ATR-محور (درصد منفی)",max_slippage:"حداکثر لغزش",decision_ttl_s:"اعتبار تصمیم (ثانیه)",buy_cooldown_s:"فاصله خرید تکراری از یک بازار (ثانیه)",revalidate_price_tolerance:"تلورانس بازبینی قیمت",min_stop_distance_pct:"حداقل فاصله حد ضرر از ورود",engine:"موتور تصمیم",top_n_markets:"تعداد بازار برتر",llm_base_url:"آدرس LLM",llm_api_key:"کلید LLM",llm_model:"مدل LLM",max_context_tokens:"حداکثر توکن زمینه",max_output_tokens:"حداکثر توکن خروجی",max_candles_per_market:"حداکثر کندل هر بازار",min_confidence:"حداقل اطمینان",buy_best:"خرید بهترین گزینه",entry_pullback_pct:"فاصله خرید از قیمت لحظه‌ای (درصد؛ ۰=خرید فوری در همان قیمت)"};
+  // fraction fields are shown as PERCENT (value×100) and saved back as fraction
+  const pctFields=new Set(["maker_rate","taker_rate","min_ai_quality","min_trade_quality","max_risk_per_trade","max_position_fraction","max_total_exposure","max_drawdown","min_net_expected_return","max_slippage","revalidate_price_tolerance","min_stop_distance_pct","min_confidence","entry_pullback_pct","risk_mode_chase_pct"]);
+  const boolFields=new Set(["buy_best","wallet_sync","live_trading","live_by_default","allow_topup","risk_mode"]);
+  // انتخاب بازار معاملات: تتری / تومانی / هر دو — دراپ‌داون ساده (بدون تیک)
+  const quoteModeLabels={both:"هر دو (تتری + تومانی)",usdt:"فقط تتری (USDT)",irt:"فقط تومانی (IRT)"};
+  let html="";
+  const hidden={nobitex_username:1,nobitex_password:1,nobitex_totp_secret:1};
+  for(const sec of ["engine","exchange","fee","quality","risk","ai"]){
+    html+=`<fieldset><legend>${labels[sec]}</legend>`
+      +(hints[sec]?`<div class="muted" style="font-size:12px;margin:2px 0 8px">${hints[sec]}</div>`:"")
+      +`<div class="row">`;
+    for(const[k,v]of Object.entries(c[sec]||{})){
+      if(typeof v==="object")continue;
+      if(sec==="exchange"&&hidden[k]){continue;}
+      const masked=(k.endsWith("api_key"))&&v;
+      const isPct=pctFields.has(k);
+      const lbl=(faLabels[k]||k)+(isPct?" (%)":"");
+      html+=`<div><label>${lbl}</label>`;
+      if(k==="mode"||k==="engine"&&sec==="ai"){
+        const opts=k==="mode"?["demo","nobitex"]:["heuristic","llm"];
+        html+=`<select data-sec="${sec}" data-k="${k}">`+opts.map(o=>
+          `<option ${o===v?"selected":""}>${o}</option>`).join("")+"</select>";
+      }else if(sec==="exchange"&&k==="trade_quote_markets"){
+        /* SS36: simple dropdown only — no checkboxes under it.
+           هر مقدار یک value مستقل دارد (برچسب فارسی، مقدار ماشینی) */
+        const opts=["both","usdt","irt"];
+        const cur=["both","usdt","irt"].includes(String(v).trim().toLowerCase())
+          ?String(v).trim().toLowerCase():"both";
+        html+=`<select id="quoteModeSel" data-sec="${sec}" data-k="${k}">`
+          +opts.map(o=>`<option value="${o}" ${o===cur?"selected":""}>${quoteModeLabels[o]||o}</option>`).join("")+"</select>";
+        /* انتخاب Both یک پاپ‌آپ جدا دارد (تعامل ⇄ مستقل)؛ با این چیپ
+           می‌توان هر وقت خواست همان پاپ‌آپ را باز کرد و حالت را عوض کرد */
+        html+=`<span id="quoteModePick" title="انتخاب نحوه عملکرد دو بازار: تعامل بین بازارها (تبدیل/جابه‌جایی مجاز) یا بازارهای مستقل (بدون هیچ انتقالی)" style="margin-top:6px;display:inline-block;cursor:pointer;font-size:12px;font-weight:700;color:var(--cyan);border:1px solid var(--border);border-radius:8px;padding:4px 10px;background:var(--panel2)">انتخاب نحوهٔ عملکرد دو بازار (Both)</span>`;
+      }else if(sec==="exchange"&&k==="trade_market_interaction"){
+        /* پاسخ همان پاپ‌آپ — یک تنظیم مستقل از انتخاب بازار */
+        const iopts=[["linked","تعامل بین بازارها (تبدیل/جابه‌جایی دارایی مجاز)"],["independent","بازارهای مستقل (بدون هیچ انتقال/تبدیلی)"]];
+        const icur=String(v).trim().toLowerCase()==="linked"?"linked":"independent";
+        html+=`<select id="mktInteractSel" data-sec="${sec}" data-k="${k}">`
+          +iopts.map(o=>`<option value="${o[0]}" ${o[0]===icur?"selected":""}>${o[1]}</option>`).join("")+"</select>";
+      }else if(boolFields.has(k)){
+        html+=`<select data-sec="${sec}" data-k="${k}">`+["true","false"].map(o=>
+          `<option ${String(v)===o?"selected":""}>${o}</option>`).join("")+"</select>";
+      }else{
+        const shown=isPct?(Number(v)*100).toFixed(Number(v)<0.01?3:2):String(v);
+        html+=`<input data-sec="${sec}" data-k="${k}" value="${masked?"***":esc(shown)}" ${masked?"data-masked='1'":""} ${isPct?'data-pct="1"':''}>`;
+      }
+      html+=`</div>`;
+    }
+    html+="</div></fieldset>";
+  }
+  $("#cfgForm").innerHTML=html;
+  const pickBtn=$("#quoteModePick");
+  if(pickBtn)pickBtn.onclick=()=>{const out=collectCfg();
+    out.exchange=out.exchange||{};out.exchange.trade_quote_markets="both";
+    openMarketModeModal(out);};
+}
+/* مقدار فعلی فرم تنظیمات به‌صورت یک کپی از cfg (با همان قواعد تبدیل
+   درصد/بولین/عدد) — هم دکمهٔ ذخیره و هم پاپ‌آپ Both از همین می‌خوانند */
+function collectCfg(){
+  const out=JSON.parse(JSON.stringify(cfg));
+  document.querySelectorAll("#cfgForm [data-sec]").forEach(el=>{
+    const sec=el.dataset.sec,k=el.dataset.k;let v=el.value;
+    if(el.tagName==="INPUT"&&el.dataset.masked)return;
+    if(el.dataset.pct){out[sec][k]=Number(v)/100;return;}
+    if(cfg[sec][k]===true||cfg[sec][k]===false)v=v==="true";
+    else if(typeof cfg[sec][k]==="number")v=Number(v);
+    else if(typeof cfg[sec][k]==="object")return;
+    out[sec][k]=v});
+  return out;
+}
+/* حالت مؤثر بازارها/تعامل از پاسخ ذخیره — برای تأیید کاربر */
+function gateFa(mt){
+  mt=mt||{}; const qm=mt.quote_markets||{};
+  /* موتور قدیمی (قبل از ری‌استارت) این فیلد را نمی‌فرستد → متن اضافه نشود */
+  if(mt.interaction===undefined||qm.usdt===undefined)return "";
+  const both=qm.usdt==="on"&&qm.irt==="on";
+  const mode=both?"هر دو بازار فعال":(qm.usdt==="on"?"فقط تتری (USDT)":"فقط تومانی (IRT)");
+  const inter=both?(mt.interaction==="linked"?" — تعامل بین بازارها":" — بازارهای مستقل (بدون انتقال)"):"";
+  return mode+inter;
+}
+async function submitCfg(out){
+  const r=await jpost("/api/control/config",out);
+  if(r.ok){
+    const n=(r.applied_live||[]).length;
+    const f=(r.failed||[]);
+    if(f.length){
+      toast("ذخیره شد، اما "+f.length+" مورد اعمال نشد: "+f.map(x=>x.field).join(", "));
+    }else{
+      toast("تنظیمات ذخیره و درجا اعمال شد ("+n+" فیلد"+(r.exchange_reattached?" + اتصال مجدد صرافی":"")+") — "+gateFa(r.market_transfer));
+    }
+    cfg=await jget("/api/config");renderCfg(cfg);
+  }
+  else toast("خطا: "+(r.error||"?"));
+  poll();
+}
+$("#btnSaveCfg").onclick=()=>{
+  const out=collectCfg();
+  const picked=String((out.exchange||{}).trade_quote_markets||"").trim().toLowerCase();
+  const saved=String((cfg.exchange||{}).trade_quote_markets||"").trim().toLowerCase();
+  /* انتخاب Both پیش از اعمال، پاپ‌آپ «نحوهٔ عملکرد دو بازار» می‌خواهد */
+  if(picked==="both"&&picked!==saved){ openMarketModeModal(out); return; }
+  submitCfg(out);
+};
+
+/* ---- Both popup: انتخاب نحوه عملکرد بازارهای IRT و USDT ----
+   پاسخ این پنجره یک تنظیم مستقل (exchange.trade_market_interaction) را
+   ثبت می‌کند؛ از «Both روشن است» چیزی درباره اجازهٔ انتقال برداشت نمی‌شود */
+let mktModeModal=null;
+function closeMarketModeModal(){ if(mktModeModal){mktModeModal.remove(); mktModeModal=null;} }
+function openMarketModeModal(out){
+  closeMarketModeModal();
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center";
+  ov.innerHTML=`<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:580px;width:94%;max-height:86vh;overflow:auto" dir="rtl">
+    <div style="font-weight:800;font-size:15px;margin-bottom:8px">انتخاب نحوه عملکرد بازارهای IRT و USDT</div>
+    <div class="mut" style="font-size:12.5px;line-height:1.9;margin-bottom:12px">با انتخاب حالت Both، هر دو بازار IRT و USDT به‌صورت هم‌زمان فعال خواهند شد. لطفاً نحوه مدیریت موجودی و تعامل بین این دو بازار را انتخاب کنید.</div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div style="font-weight:700;color:var(--green);margin-bottom:4px">گزینه اول: فعال‌سازی تعامل بین بازارها</div>
+      <div class="mut" style="font-size:12px;line-height:1.9">در این حالت، ربات می‌تواند علاوه بر انجام معاملات در هر دو بازار، در صورت نیاز و امکان‌پذیر بودن، موجودی و دارایی‌ها را بین بخش‌های IRT و USDT تبدیل یا جابه‌جا کند. ربات مجاز خواهد بود برای مدیریت معاملات، از منابع هر دو بازار استفاده کند.</div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px">
+      <div style="font-weight:700;color:var(--cyan);margin-bottom:4px">گزینه دوم: فعال‌سازی مستقل هر دو بازار</div>
+      <div class="mut" style="font-size:12px;line-height:1.9">در این حالت، هر دو بازار IRT و USDT به‌صورت هم‌زمان فعال خواهند بود و ربات می‌تواند در هر دو بازار معاملات خرید و فروش انجام دهد؛ اما موجودی دو بازار کاملاً مستقل باقی می‌ماند:
+        <ul style="margin:6px 0 0 0;padding-inline-start:18px">
+          <li>بازار IRT فقط از موجودی تومانی خودش استفاده می‌کند.</li>
+          <li>بازار USDT فقط از موجودی تتری خودش استفاده می‌کند.</li>
+          <li>هیچ‌گونه انتقال، تبدیل یا جابه‌جایی دارایی بین دو بازار انجام نمی‌شود.</li>
+          <li>در صورت کافی نبودن موجودی یک بازار، ربات اجازه ندارد از موجودی بازار دیگر برای تکمیل سفارش استفاده کند.</li>
+          <li>موجودی، ارزش دارایی‌ها و سود و زیان هر بازار به‌صورت مستقل محاسبه می‌شوند.</li>
+        </ul>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <button id="mktModeCancel" style="padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer">انصراف</button>
+      <button id="mktModeLinked" style="padding:7px 14px;border-radius:8px;border:none;background:var(--green);color:#04150a;font-weight:800;cursor:pointer">Both + تعامل بین بازارها</button>
+      <button id="mktModeIndep" style="padding:7px 14px;border-radius:8px;border:none;background:var(--cyan);color:#041a1f;font-weight:800;cursor:pointer">Both + بازارهای مستقل</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov); mktModeModal=ov;
+  ov.addEventListener("click",e=>{ if(e.target===ov) closeMarketModeModal(); });
+  const pick=mode=>{
+    closeMarketModeModal();
+    out.exchange=out.exchange||{};
+    out.exchange.trade_quote_markets="both";
+    out.exchange.trade_market_interaction=mode;
+    toast(mode==="linked"?"Both + تعامل بین بازارها — در حال ذخیره…":"Both + بازارهای مستقل — در حال ذخیره…");
+    submitCfg(out);
+  };
+  ov.querySelector("#mktModeLinked").onclick=()=>pick("linked");
+  ov.querySelector("#mktModeIndep").onclick=()=>pick("independent");
+  ov.querySelector("#mktModeCancel").onclick=()=>{
+    closeMarketModeModal();
+    toast("هیچ تنظیمی ذخیره نشد — حالت Both اعمال نشد");
+  };
+}
+
+/* ---------------- nobitex real account ---------------- */
+function showExchangeTab(on){ document.getElementById('tabExchangeBtn').style.display = on ? '' : 'none'; }
+
+async function refreshAccountStatus(){
+  try{
+    const st = await jget('/api/login_status');
+    showExchangeTab(st.available !== false);
+    const box = document.getElementById('accStatus');
+    if(st.connected){
+      box.innerHTML = `<span class="pill APPROVED">متصل</span>
+        کاربر: <b dir="ltr">${esc(st.username)}</b> | دستگاه: <span dir="ltr">${esc(st.device||'—')}</span>
+        <br>ورود در: <span dir="ltr">${esc(st.logged_in_at||'—')}</span>
+        | توکن: <span dir="ltr">${esc(st.remember==='yes'?'۳۰ روزه':'۴ ساعته')}</span>
+        ${st.has_totp_secret?'| <span class="pill GOOD">2FA خودکار فعال</span>':''}
+        ${st.real_attached?'| <span class="pill GOOD">موتور به حساب واقعی وصل است</span>':''}`;
+    } else {
+      box.innerHTML = `<span class="pill UNKNOWN">وصل نیست</span> — برای مشاهده موجودی واقعی و معامله، وارد شوید.`;
+    }
+  }catch(e){}
+}
+
+async function refreshRealWallet(){
+  try{
+    const st = await jget('/api/login_status');
+    const box = document.getElementById('realWalletBox');
+    if(!st.connected){
+      box.innerHTML = '<div class="empty">ابتدا وارد شوید — موجودی واقعی پس از ورود نمایش داده می‌شود</div>';
+      return;
+    }
+    const doc = await jget('/api/exchange_portfolio');
+    if(doc.error){ box.innerHTML = `<div class="empty">${esc(doc.error)}</div>`; return; }
+    const assets = doc.assets||[];
+    if(!assets.length){ box.innerHTML = '<div class="empty">کیف پولی یافت نشد</div>'; return; }
+    box.innerHTML = '<table><thead><tr><th>دارایی</th><th>آزاد</th><th>قفل</th><th>کل</th></tr></thead><tbody>' +
+      assets.map(a=>`<tr><td class="num">${esc(a.asset)}</td><td class="num">${fmt(a.available,8)}</td><td class="num">${fmt(a.locked,8)}</td><td class="num">${fmt(a.total,8)}</td></tr>`).join('') + '</tbody></table>';
+  }catch(e){}
+}
+
+async function refreshRealOrders(){
+  try{
+    const st = await jget('/api/login_status');
+    const box = document.getElementById('realOrdersBox');
+    if(!st.connected){ box.innerHTML = '<div class="empty">پس از ورود نمایش داده می‌شود</div>'; return; }
+    const doc = await jget('/api/real_orders');
+    if(doc.error){ box.innerHTML = `<div class="empty">${esc(doc.error)}</div>`; return; }
+    const row = (o, done) => {
+      const amt = Number(o.amount||0), pr = Number(o.price||0), m = Number(o.matchedAmount||o.matched_amount||0);
+      return `<tr><td class="num">${esc(o.srcCurrency? (String(o.srcCurrency).toUpperCase()+(String(o.dstCurrency||'').toLowerCase().includes('usdt')?'USDT':'IRT')) : (o.market||''))}</td>
+        <td>${String(o.type||o.side||'').toUpperCase()==='BUY'?'<span class="pill GOOD">خرید</span>':'<span class="pill REJECTED">فروش</span>'}</td>
+        <td class="num">${fmt(pr,0)}</td><td class="num">${fmt(amt,8)}</td>
+        <td class="num">${fmt(m,8)}</td><td>${pill(done?'FILLED':String(o.status||'ACTIVE').toUpperCase())}</td></tr>`;
+    };
+    const open = (doc.open||[]).map(o=>row(o,false));
+    const recent = (doc.recent||[]).map(o=>row(o,true));
+    box.innerHTML = (open.length? '<b class="muted">باز:</b><table><thead><tr><th>بازار</th><th>سمت</th><th>قیمت</th><th>حجم</th><th>پرشده</th><th>وضعیت</th></tr></thead><tbody>'+open.join('')+'</tbody></table>'+
+      '<button class="btn" id="btnCancelBots" style="margin-top:8px">لغو سفارش‌های باز ربات</button>':'') +
+      (recent.length? '<b class="muted" style="display:block;margin-top:8px">انجام‌شده (آخرین ۲۰):</b><table><thead><tr><th>بازار</th><th>سمت</th><th>قیمت</th><th>حجم</th><th>پرشده</th><th>وضعیت</th></tr></thead><tbody>'+recent.join('')+'</tbody></table>':'') +
+      (!open.length&&!recent.length? '<div class="empty">سفارش بازی وجود ندارد</div>':'');
+    const cb=document.getElementById('btnCancelBots');
+    if(cb)cb.onclick=async()=>{if(!confirm('لغو همه سفارش‌های بازِ ثبت‌شده توسط ربات؟'))return;
+      try{const r=await jpost('/api/control/cancel_bot_orders');
+        toast(r.ok?('لغو شد: '+((r.cancelled||[]).length)+' سفارش'+((r.failed||[]).length?(' — خطا: '+r.failed.length):'')):('خطا: '+(r.error||'?')));}catch(e){toast('خطا: '+e)}
+      refreshRealOrders();};
+  }catch(e){}
+}
+
+document.getElementById('btnLogin').onclick = async () => {
+  const msg = document.getElementById('loginMsg');
+  const payload = {
+    username: document.getElementById('nbUser').value.trim(),
+    password: document.getElementById('nbPass').value,
+    otp: document.getElementById('nbOtp').value.trim(),
+    totp_secret: document.getElementById('nbSecret').value.trim(),
+    remember: document.getElementById('nbRemember').value,
+  };
+  if(!payload.username || !payload.password){ msg.textContent = 'ایمیل و رمز عبور الزامی است.'; return; }
+  if(!payload.otp && !payload.totp_secret){ msg.textContent = 'کد 2FA یا رمز مخفی 2FA لازم است (نوبیتکس بدون دوعاملی اجازه ورود API نمی‌دهد).'; return; }
+  msg.textContent = 'در حال ورود...';
+  const r = await jpost('/api/control/login', payload);
+  if(r.ok){
+    const ws = r.wallet_sync||{};
+    msg.innerHTML = '<span class="pill APPROVED">ورود موفق</span> توکن ذخیره شد.' +
+      (ws.ok ? ' موجودی واقعی همگام‌سازی شد (' + (ws.assets||[]).length + ' دارایی).' :
+              ' <span class="muted">همگام‌سازی موجودی: ' + esc(ws.error||'—') + '</span>');
+    document.getElementById('nbPass').value=''; document.getElementById('nbOtp').value='';
+    if(r.live_trading){ toast('معامله واقعی فعال است — ربات روی حساب واقعی معامله می‌کند'); }
+    refreshAccountStatus(); refreshRealWallet(); refreshRealOrders();
+  } else {
+    msg.innerHTML = '<span class="pill REJECTED">خطا</span> ' + esc(r.error||'?');
+  }
+};
+
+document.getElementById('btnLogout').onclick = async () => {
+  if(!confirm('توکن پاک و از حساب خارج شود؟')) return;
+  await jpost('/api/control/logout', {});
+  document.getElementById('loginMsg').textContent = 'خارج شدید.';
+  refreshAccountStatus(); document.getElementById('realWalletBox').innerHTML='<div class="empty">ابتدا وارد شوید</div>';
+};
+
+document.getElementById('btnSyncWallet').onclick = async () => {
+  const msg = document.getElementById('loginMsg');
+  msg.textContent = 'در حال همگام‌سازی موجودی واقعی...';
+  const r = await jpost('/api/control/sync_wallet', {});
+  if(r.ok){
+    msg.innerHTML = '<span class="pill GOOD">همگام شد</span> ' +
+      (r.assets||[]).map(a=>esc(a)).join('، ') +
+      (r.positions_seeded ? ' | ' + r.positions_seeded + ' موقعیت از کیف پول ثبت شد' : '');
+    refreshRealWallet();
+  } else {
+    msg.innerHTML = '<span class="pill REJECTED">خطا</span> ' + esc(r.error||'?');
+  }
+};
+
+document.getElementById('btnLiveTrading').onclick = async () => {
+  const cur = state && state.live_trading;
+  if(!cur && !confirm('ثبت سفارش‌های واقعی در نوبیتکس فعال شود؟\nبا فعال بودن، ربات سفارش خرید/فروش واقعی ثبت می‌کند.')) return;
+  if(cur && !confirm('معامله واقعی خاموش شود؟ (فقط ناظر)')) return;
+  const r = await jpost('/api/control/live_trading', {enabled: !cur});
+  if(r.ok){ toast('معامله واقعی: ' + (r.live_trading?'روشن':'خاموش')); }
+  else toast('خطا: ' + (r.error||'?'));
+  poll();
+};
+
+/* ---------------- holdings box (overview) ---------------- */
+function holdingsBox(s){
+  const p=s.portfolio||{};
+  /* server-computed rows: profit since MY purchase, holding timer since
+     the LAST buy (restarts on every top-up), dual stop/TP triggers */
+  const holdings=s.holdings||[];
+  const irt=(p.assets||[]).find(a=>a.asset==="IRT");
+  /* SS36: the USDT (Tether) cash row — shown beside IRT whenever the
+     trading market includes USDT markets */
+  const usdtRowAsset=(p.assets||[]).find(a=>a.asset==="USDT");
+  const plans=s.exit_plans||{};
+  const chg24={};
+  (s.markets_view||[]).forEach(m=>{chg24[m.symbol]=m.change_24h});
+  const p24For=h=>{
+    /* MY holding's 24h profit. Bought <24h ago -> the honest reference is
+       MY cost (profit since purchase). Older -> I owned the same amount
+       24h ago, so my 24h P&L IS the coin's 24h move applied to MY amount. */
+    const age=h.last_buy_at?(Date.now()-new Date(h.last_buy_at).getTime())/3600000:null;
+    if(age!=null&&age<24&&h.value_irt&&h.invested_irt&&h.invested_irt>0){
+      const g=(h.value_irt/h.invested_irt-1)*100;
+      return (g>=0?"+":"")+g.toFixed(2)+"%"}
+    const chg=chg24[h.symbol];
+    if(chg==null)return null;
+    /* change_24h arrives already in percent (0.42 = +0.42%) */
+    const g=chg;
+    return (g>=0?"+":"")+g.toFixed(2)+"%"};
+  /* clickable column sorting (persists across the 2.5s re-render):
+     نماد = alphabetical, everything else = numeric value/percent */
+  const hget={sym:h=>h.coin,amount:h=>h.amount,invested:h=>h.invested_irt,
+    value:h=>h.value_irt,price:h=>h.price,
+    entry:h=>(h.last_buy_price!=null?h.last_buy_price:h.avg_entry),
+    hadd:h=>(h.hadd!=null?h.hadd:(h.last_buy_price!=null?h.last_buy_price:h.avg_entry)),
+    lastbuy:h=>h.last_buy_at?Date.parse(h.last_buy_at):-Infinity,
+    p:h=>h.profit_pct,
+    p24:h=>{const v=p24For(h);return v==null?-Infinity:parseFloat(v)},
+    stop:h=>h.stop,tp:h=>h.take_profit};
+  const sorted=sortRows(holdings,"holdings",hget,"value","desc");
+  const hA=(k,l,d)=>`<span class="sortable" data-t="holdings" data-k="${k}" data-dir="${d||"asc"}">${l}${sortArrow("holdings",k)}</span>`;
+  const head=`<div class="hhead"><span class="sym">${hA("sym","نماد")}</span>${hA("amount","مقدار","desc")}${hA("invested","مبلغ خرید","desc")}${hA("value","ارزش","desc")}${hA("price","قیمت","desc")}${hA("entry","قیمت خرید","desc")}${hA("hadd","قیمت حد","desc")}${hA("p","سود از خرید","desc")}${hA("p24","سود ۲۴ساعت","desc")}${hA("stop","حد","desc")}<span style="flex:1"></span><span>عملیات</span></div>`;
+  /* مبلغ هر ردیف در واحد پول بازار خودش: دلار برای بازارهای تتری،
+     تومان برای بازارهای تومانی — دو بخش هیچ‌وقت واحد پول هم را
+     قرض نمی‌گیرند (نه در حالت نمایش دلاری، نه هیچ‌جای دیگر).
+     قبلاً در حالت دلاری مبالغ تومانی هم دلار می‌شدند و دو بازار
+     در یک جدول قاطی می‌شدند. */
+  const moneyCell=(v,sym)=>{if(v==null||isNaN(v))return "—";
+    return /USDT$/.test(String(sym))?("$"+fmt(v,2)):(fmt(v,0)+" ت");};
+  /* مبلغ سود/زیان همین ردیف = ارزش منهای مبلغ خرید (هر دو در واحد پول
+     همان بازار). «سود و زیان این بازار» بالای هر بخش دقیقاً جمع همین
+     عددها روی ردیف‌های همان بخش است، پس کاربر می‌تواند جمع را با چشم
+     چک کند؛ درصد «سود از خرید» فقط همان پول را نسبت به مبلغ خرید
+     نشان می‌دهد، نه مبنای دیگری. */
+  const pnlCell=(v,sym)=>{if(v==null||isNaN(v))
+    return `<span class="num mut">—</span>`;
+    const s=v>0?"+":v<0?"-":"";
+    return `<span class="num ${v>0?"pos":v<0?"neg":"mut"}" title="ارزش منهای مبلغ خرید همین ردیف (واحد پول همین بازار) — جمع این عددها روی همهٔ ردیف‌های یک بخش، «سود و زیان این بازار» بالای همان بخش است">${s}${moneyCell(Math.abs(v),sym)}</span>`;};
+  /* اعدادِ نمایشی هر ردیف، همان‌هایی که روی صفحه چاپ می‌شوند (سرور آنها
+     را با دقتِ نمایش همان بازار می‌فرستد: دلار ۲ رقم اعشار، تومان بدون
+     اعشار). سرِ هر بخش هم دقیقاً همین اعداد را جمع می‌زند، پس
+     «ارزش − مبلغ خرید» سرِ بخش عیناً جمع ردیف‌هاست و با چشم چک‌شدنی است
+     (قبلاً جمع خام گرد می‌شد و سرِ بخش یک سنت/یک تومان با ردیف‌ها فرق
+     داشت). */
+  const rowVal=h=>(h.value_disp!=null?h.value_disp:h.value_irt);
+  const rowCost=h=>(h.invested_disp!=null?h.invested_disp:h.invested_irt);
+  const rowMoney=h=>(h.pnl_money!=null&&!isNaN(h.pnl_money))?Number(h.pnl_money)
+    :((rowVal(h)!=null&&rowCost(h)!=null&&!isNaN(rowVal(h))&&!isNaN(rowCost(h)))
+      ?(Number(rowVal(h))-Number(rowCost(h))):null);
+  /* قیمت (قیمت لحظه‌ای/خرید/حد) هم در واحد همان بازار */
+  const mfmt=fmtMkt;
+  /* دو بخش: هر خرید زیر بخش بازار خودش (تتری زیر «موجودی تتر»،
+     تومانی زیر «موجودی و جزئیات تومان») — دکمه‌های خرید/فروش و
+     جزئیات هر سکه هم داخل همان بخش */
+  const rowsUsdt=[],rowsIrt=[],holdUsdt=[],holdIrt=[];
+  for(const h of sorted){
+    const sym=h.symbol;
+    /* SS100d: after a new buy the «قیمت خرید» shows the LAST buy price
+       (and سود از خرید resets against it); the server already decided
+       that — it sends avg_entry as the weighted mean and profit_pct
+       computed against last_buy_price. Here we just display it. */
+    const entry=(h.last_buy_price!=null?h.last_buy_price:h.avg_entry);
+    /* HADD badge: (n) next to the strike price — n = number of strikes
+       reached (0 = still equal to the last buy price); ALWAYS shown —
+       the ratchet is always on: every time the price reaches the
+       take-profit the hadd moves to that price and stop/TP re-derive
+       from it */
+    const haddShown=(h.hadd!=null?h.hadd:entry);
+    /* the (n) bracket is CLICKABLE: edit the strike counter and/or the
+       hadd price; a hadd equal to the buy price is always stage 0 */
+    const haddBadge=`<span class="lockb hadd-edit" data-hadd-sym="${esc(sym)}" data-hadd-stage="${h.stage||0}" data-hadd-price="${haddShown||""}" data-hadd-buy="${entry||""}" style="cursor:pointer" title="کلیک: تغییر پله و قیمت حد — حد برابر قیمت خرید یعنی پله ۰ | نردبان: هر پله حد ضرر را روی پلهٔ قبلی می‌برد و سرمایهٔ افزوده روی همان سکه می‌گذارد">(<span class="num">${h.stage||0}</span>)</span>`;
+    /* percent base for BOTH triggers = the HADD (قیمت حد — the strike
+       base shown as «قیمت حد (n)»). Per the user: «حد ضرر از قیمت حد
+       محاسبه شود». The BUY anchor stays the base of «مبلغ» (قفل
+       سود/ریسک) — that is the money actually paid for the coins. */
+    const stopBaseVal=(h.avg_entry!=null?h.avg_entry:h.last_buy_price);
+    const profitBaseVal=haddShown;
+    const haddBaseVal=(haddShown!=null?haddShown:stopBaseVal);
+    const stopCell=(kind,val,pctVal,money,pctEdit)=>{
+      /* val arrives in the ENGINE unit (Toman for IRT markets, $ for USDT
+         ones); only the SHOWN text is converted for dollar mode, while
+         data-val keeps the engine unit for the editor.
+         money (حد ضرر نردبانی، در واحد پول همان بازار): مثبت = سودی که
+         با فعال شدن حد ضرر قفل می‌شود، منفی = پولی که هنوز در ریسک است.
+         pctEdit = درصد ذخیره‌شده که ویرایشگر با آن باز می‌شود — با پله‌ها
+         حد ضرر بالای قیمت خرید می‌نشیند و درصد نمایش‌داده‌شده مثبت
+         می‌شود، ولی ویرایشگر همچنان درصد منفی طراحی را نشان می‌دهد */
+      const dv=(val!=null&&!isNaN(val))?Number(val):null;
+      const up=(kind==="profit"||(pctVal!=null&&pctVal>0));
+      /* قیمت سطح در واحد پول همان بازار (تومان/دلار) — نه تبدیل‌شده */
+      const shown=val?`<span class='num ${up?"pos":"neg"}'>${mfmt(dv,sym)}</span>${pctVal!=null?` <span class='mut' style='font-size:11px'>(${pctVal>0?"+":""}${pctVal}٪)</span>`:""}`:"<span class='mut'>— تعیین —</span>";
+      const tip=kind==="profit"
+        ?"کلیک: قیمت و درصد — درصد نسبت به «قیمت حد» (پله ۰ = آخرین خرید)"
+        :"کلیک: سه فیلد — مبلغ (سود قفل‌شده یا ریسک، نسبت به قیمت خرید)، قیمت حد ضرر و درصد نسبت به «قیمت حد» | نردبان: با هر strike حد ضرر روی پلهٔ قبلی بالا می‌رود و هرگز پایین نمی‌آید";
+      /* data-entry = the SAME base the tip promises, in ENGINE units:
+         percent reads vs the HADD (حد) for both kinds. data-buy +
+         data-amount let the editor derive «مبلغ» (قفل سود/ریسک).
+         Passing an undefined variable here used to kill the whole
+         holdings box with a silent ReferenceError (the box stayed at
+         «در حال بارگذاری…»). */
+      const base=(kind==="profit"?profitBaseVal:haddBaseVal);
+      const editPct=(pctEdit!=null&&pctEdit!=="")?pctEdit:(pctVal!=null?pctVal:"");
+      const buyAttr=(kind==="stop"&&stopBaseVal!=null)?stopBaseVal:"";
+      /* data-money stays in the ENGINE unit like data-val/data-entry;
+         the editor converts it once with fromMkt() */
+      const moneyAttr=(kind==="stop"&&money!=null)?money:"";
+      return `<span class="stop-edit ${kind==="profit"?"stop-profit":"stop-sell"}" data-stop-sym="${esc(sym)}" data-stop-kind="${kind}" data-val="${val||""}" data-pct="${editPct}" data-entry="${base==null?"":base}" data-buy="${buyAttr}" data-amount="${kind==="stop"?(h.amount||""):""}" data-money="${moneyAttr}" title="${tip}">${shown}</span>`;
+    };
+    /* one call per trigger kind: the PERCENT the cell prints IS the
+       percent the editor opens with (both read vs the same «قیمت حد»),
+       so merely opening + confirming never shifts the level */
+    const stopPctCell=(h,kind)=>kind==="profit"
+      ? stopCell("profit",h.take_profit,
+                 h.hadd_tp_pct!=null?h.hadd_tp_pct:h.take_profit_pct)
+      : stopCell("stop",h.stop,
+                 h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct,
+                 h.stop_money,
+                 h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct);
+    const p24=p24For(h);
+    /* last-buy as RELATIVE time in parentheses: (۵ دقیقه) / (۳ ساعت) /
+       (۲ روز) / (۱ ماه) — no «ago» word. The exact Tehran timestamp
+       stays available as the hover tooltip. */
+    const relFa=iso=>{
+      if(!iso)return "";
+      const mins=(Date.now()-new Date(iso).getTime())/60000;
+      if(!isFinite(mins))return "";
+      if(mins<1)return "همین حالا";
+      if(mins<60)return Math.max(1,Math.round(mins))+" دقیقه";
+      const hrs=mins/60;
+      if(hrs<24)return Math.round(hrs)+" ساعت";
+      const days=hrs/24;
+      if(days<30)return Math.round(days)+" روز";
+      const months=days/30;
+      if(months<12)return Math.max(1,Math.round(months))+" ماه";
+      return Math.max(1,Math.round(months/12))+" سال";
+    };
+    const buyAge=h.last_buy_at?` <span class="mut" style="font-size:11px" title="آخرین خرید به وقت تهران: ${tehranFull(h.last_buy_at)}">(${relFa(h.last_buy_at)})</span>`:"";
+    const _u=/USDT$/.test(sym);
+    (_u?holdUsdt:holdIrt).push(h);   /* for the section's value total */
+    /* symbol + the market it was REALLY bought in — a coin held on both
+       sides shows once under each box, so the row names its own market */
+    (_u?rowsUsdt:rowsIrt).push(`<div class="hrow">
+      <span class="sym">${esc(h.coin)} <span class="mut" style="font-size:10px">${esc(sym)}</span></span>
+      <span>مقدار: <b class="num">${fmt(h.amount,6)}</b></span>
+      <span>مبلغ خرید: <b class="num">${moneyCell(rowCost(h),sym)}</b></span>
+      <span>ارزش: <b class="num">${moneyCell(rowVal(h),sym)}</b></span>
+      <span class="muted">قیمت: <span class="num">${h.price?mfmt(h.price,h.symbol):"—"}</span></span>
+      <span class="muted">قیمت خرید: <span class="num">${entry?mfmt(entry,h.symbol):"—"}</span></span>
+      <span class="muted">قیمت حد: <span class="num">${haddShown?mfmt(haddShown,h.symbol):"—"}</span>${haddBadge}</span>
+      <span>سود از خرید:${buyAge} <b class="num ${h.profit_pct==null?"mut":h.profit_pct>=0?"pos":"neg"}">${h.profit_pct==null?"—":(h.profit_pct>=0?"+":"")+h.profit_pct.toFixed(2)+"%"}</b> ${pnlCell(rowMoney(h),sym)}</span>
+      <span>سود ۲۴ساعت: <b class="num ${p24==null?"mut":parseFloat(p24)>=0?"pos":"neg"}">${p24==null?"—":p24}</b></span>
+      <span>حد: ${stopPctCell(h,"stop")} ${stopPctCell(h,"profit")}</span>
+      <span style="flex:1"></span>
+      <button class="btn-buynow" data-sym="${esc(sym)}" title="خرید همین سکه در بازار «بازار معاملات» انتخاب‌شده (تتری یا تومانی) — مبلغ پیشنهادی از موجودی نقد همان بازار، قابل تغییر">خرید</button>
+      <button class="btn-sellnow" data-sym="${esc(sym)}" data-amt="${h.amount}" title="فروش کل موقعیت همین بازار (تتر یا تومان همان بخش)">فروش</button>
+    </div>`);
+  }
+  /* ردیف نقدی هر بخش در واحد پول خودش: تومان برای IRT (همیشه، حتی در
+     حالت نمایش دلاری) و تتر برای USDT. عدد تومانی هرگز دلاری نمایش
+     داده نمی‌شود تا دو بخش قابل جمع/مقایسهٔ اشتباهی نباشند. */
+  /* موجودی و جزئیات تومان — بالای بخش تومانی (خریدهای تومانی زیر همین) */
+  const irtRow=irt?`<div class="hrow" style="background:#0d1420">
+    <span class="sym">IRT (تومان)</span>
+    <span>موجودی: <b class="num">${fmt(irt.total,0)} ت</b></span>
+    <span class="muted">آزاد: <span class="num">${fmt(irt.available,0)} ت</span></span>
+    ${irt.locked?`<span class="muted">قفل در سفارش: <span class="num">${fmt(irt.locked,0)} ت</span></span>`:""}
+    <span style="flex:1"></span>
+    <span class="muted" style="font-size:11px">دکمه «خرید» روی هر سکهٔ همین بخش: از همین موجودی تومانی — مبلغ پیشنهادی قابل تغییر و تایید</span>
+  </div>`:"";
+  /* بخش تتری: موجودی تتر + خریدهای تتری. وقتی بازار معاملات تتری را
+     شامل میشود یا هنوز سکهٔ تتری داریم نمایش داده میشود (حالت
+     «فقط تومانی» بدون سکهٔ تتری مثل قبل بدون این بخش میماند) */
+  const showUsdtGroup=!!(usdtRowAsset&&(displayUsd()||rowsUsdt.length));
+  const usdtCashRow=showUsdtGroup?`<div class="hrow" style="background:#0d1420">
+    <span class="sym">USDT (تتر)</span>
+    <span>موجودی: <b class="num">${fmt(usdtRowAsset.total,2)}$</b></span>
+    <span class="muted">آزاد: <span class="num">${fmt(usdtRowAsset.available,2)}$</span></span>
+    ${usdtRowAsset.locked?`<span class="muted">قفل در سفارش: <span class="num">${fmt(usdtRowAsset.locked,2)}$</span></span>`:""}
+    <span style="flex:1"></span>
+    <span class="muted" style="font-size:11px">دکمه «خرید» روی هر سکهٔ همین بخش: با همین موجودی تتری</span>
+  </div>`:"";
+  /* uniform stop/TP for EVERY coin at once: one percent, each coin's
+     trigger = its «قیمت خرید» (avg entry, updated to the LAST buy price
+     after every re-buy) x (1 ± pct/100). Endpoint /api/control/set_all_stops.
+     Editing a single coin stays possible on its own row. */
+  const allChip=`<div style="padding:7px 4px; border-bottom:1px solid #16202f;
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+    <span style="font-weight:700; color:var(--orange)">حد ضرر همه (یکجا):</span>
+    <span class="stop-edit stop-all" data-stop-kind="stop-all" title="یک درصد برای همه‌ی سکه‌ها — حد ضرر هر سکه = «قیمت حد» همان سکه × (۱ − درصد)؛ پله‌های بالاتر از این حد خودشان جلو می‌روند">یکجا تنظیم کن</span>
+    <span style="font-weight:700; color:var(--green)">حد سود همه (یکجا):</span>
+    <span class="stop-edit stop-all-profit" data-stop-kind="stop-all-profit" title="یک درصد برای همه‌ی سکه‌ها — حد سود هر سکه = قیمت حد همان سکه × (۱ + درصد)">یکجا تنظیم کن</span>
+    <span style="font-weight:700; color:var(--cyan)">تبدیل دارایی‌های خرد:</span>
+    <span class="dust-convert-btn" title="سکه‌هایی که ارزششان زیر آستانه‌ی تنظیم‌شده است، از طریق بازار تبدیل نوبیتکس به تومان تبدیل می‌شوند تا پول نقد قابل استفاده شود">تبدیل کن</span>
+    <span class="mut" style="font-size:11px">مبنای درصد (هر دو حد): «قیمت حد» همان سکه (پله ۰ = آخرین خرید) — مبلغ حد ضرر (سود قفل‌شده یا ریسک) نسبت به قیمت خرید. نردبان: هر پله (strike) حد ضرر را روی «پلهٔ قبلی» بالا می‌برد (پله ۱ = سربه‌سر) و هرگز پایین نمی‌آید؛ سرمایهٔ افزودهٔ هر پله هم همان سودِ آن پله است (قیمت پله − میانگین خرید). خرید/فروش هر سکه در بازار همان بخش (تتری/تومانی) ثبت می‌شود</span>
+  </div>`;
+  /* فعال‌سازی بخش تومانی (IRT): فقط با فعالیت واقعی بازار IRT — سکهٔ
+     تومانی نگه‌داری‌شده، سفارش/معاملهٔ واقعی تومانی یا پلن حد ضرر/سود
+     روی یک بازار تومانی (payload موتور: market_sections). بدون این،
+     بخش تومانی فعال نیست و هیچ ارز/موجودی‌ای داخلش نمایش داده نمی‌شود
+     — ارزی که با تتر خریده شده باشد هرگز در این بخش نمی‌آید. */
+  const sec=(s.market_sections||{});
+  const irtActive=!!(rowsIrt.length||(sec.IRT&&sec.IRT.active));
+  const quoteMode=String((cfg&&cfg.exchange&&cfg.exchange.trade_quote_markets)||"both").trim().toLowerCase();
+  const irtAllowed=quoteMode!=="usdt";
+  /* تأیید بصری همان چیزی که موتور واقعاً اجرا می‌کند: بازار معاملات +
+     نحوهٔ تعامل دو بازار (پاسخ پاپ‌آپ Both) */
+  const mi=(s.market_interaction||{});
+  const qmFa=quoteMode==="usdt"?"فقط تتری (USDT)":quoteMode==="irt"?"فقط تومانی (IRT)":"هر دو بازار";
+  const miFa=(quoteMode==="both")?(mi.interaction==="linked"?"تعامل بین بازارها (تبدیل/جابه‌جایی مجاز)":"بازارهای مستقل (هر بازار فقط از موجودی خودش)"):"";
+  const modeHint=`<div style="padding:6px 4px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="mut" style="font-size:11px">بازار معاملات: <b>${qmFa}</b>${miFa?(" — "+miFa):""}</span>
+      <span class="mut" style="font-size:11px">(تنظیمات ← صرافی و اتصال)</span></div>`;
+  if(!rowsUsdt.length&&!rowsIrt.length&&!usdtCashRow&&!irtActive)
+    return '<div class="empty">دارایی‌ای ثبت نشده — «همگام‌سازی موجودی واقعی» را بزنید</div>';
+  /* فقط ردیف‌هایی که هم «ارزش» و هم «مبلغ خرید» دارند در جمع بخش می‌آیند
+     (همان قاعدهٔ موتور): یک ردیف با مبلغ خرید نامعلوم هیچ (ارزش − مبلغ
+     خرید) ندارد و اگر ارزشش تنها جمع شود، سرِ بخش با جمع ردیف‌ها یکی
+     نمی‌شود. جمع روی همان اعدادِ نمایشی ردیف‌ها است (rowVal/rowCost)، پس
+     «ارزش − مبلغ خرید» سرِ بخش عیناً جمع ردیف‌های روی صفحه است. */
+  const grpRows=arr=>(arr||[]).filter(h=>rowVal(h)!=null&&rowCost(h)!=null&&
+    !isNaN(rowVal(h))&&!isNaN(rowCost(h)));
+  const grpSum=arr=>grpRows(arr).reduce((s,h)=>s+Number(rowVal(h)),0);
+  /* مجموع ارزش هر بخش در واحد همان بخش (ارزش بازارهای تتری دلاری است و
+     ارزش بازارهای تومانی تومانی — پس هیچ‌وقت قاطی نمی‌شود) */
+  const grpVal=(arr,isUsdt)=>isUsdt?"$"+fmt(grpSum(arr),2)
+    :fmt(grpSum(arr),0)+" ت";
+  const grpCostSum=arr=>grpRows(arr).reduce((s,h)=>s+Number(rowCost(h)),0);
+  /* مجموع «مبلغ خرید» همان بخش — با همان مبنایی که خود هر ردیف نشان
+     می‌دهد، تا «ارزش منهای مبلغ خرید» دقیقاً جمع اعداد روی صفحه باشد */
+  const grpCost=(arr,isUsdt)=>{const s=grpCostSum(arr);
+    return isUsdt?("$"+fmt(s,2)):(fmt(s,0)+" ت");};
+  /* سود و زیان همین بخش = Σ(ارزش − مبلغ خرید) فقط روی ردیف‌های همین
+     بازار و در واحد پول خودش (تومانی تومان، تتری دلار). دو بازار هیچ‌وقت
+     با هم جمع نمی‌شوند؛ بخشی که خریدی در آن نشده عدد نمی‌سازد. */
+  const grpPnlHas=arr=>grpRows(arr).length>0;
+  const grpPnl=arr=>grpRows(arr).reduce((s,h)=>s+(Number(rowMoney(h))||0),0);
+  const grpPnlTxt=(arr,isUsdt)=>{if(!grpPnlHas(arr))return "";
+    const v=grpPnl(arr);
+    return `<span class="num ${v>0?"pos":v<0?"neg":"mut"}">${v>0?"+":v<0?"-":""}${isUsdt?("$"+fmt(Math.abs(v),2)):(fmt(Math.abs(v),0)+" ت")}</span>`;};
+  const grp=({title,sub,cash,list,holds,emptyNote,isUsdt})=>`<div class="hgroup">
+      <div class="hgroup-head"><span>${title}</span>
+        <span class="mut" style="font-size:11px">${sub}</span>
+        <span style="flex:1"></span>
+        <span class="mut" style="font-size:11px" title="ارزش، مبلغ خرید و سود و زیان این بازار = جمع همان اعدادی که ردیف‌های همین بخش نشان می‌دهند (واحد پول همین بازار) — سود و زیان = Σ(ارزش − مبلغ خرید) سکه به سکه؛ ردیفی که مبلغ خریدش نامعلوم باشد در این جمع نمی‌آید">${list.length?list.length+" سکه — ارزش: "+grpVal(holds||[],isUsdt)+" — مبلغ خرید: "+grpCost(holds||[],isUsdt)+" — سود و زیان این بازار: "+grpPnlTxt(holds||[],isUsdt):""}</span>
+      </div>
+      ${cash||""}
+      ${list.length?head+list.join(""):`<div class="empty" style="padding:10px">${emptyNote}</div>`}
+    </div>`;
+  const usdtGroup=showUsdtGroup||rowsUsdt.length?grp({
+      title:"بخش تتری (USDT)",
+      sub:"موجودی تتر + خریدها و فروشهای همان بازار — سکه‌های خریداری‌شده با تتر زیر همین بخش",
+      cash:usdtCashRow,list:rowsUsdt,holds:holdUsdt,isUsdt:true,
+      emptyNote:"سکهٔ تتری نگه داشته نشده — با «بازار معاملات: تتری» دکمهٔ خرید همین‌جا می‌خرد"}):"";
+  /* بخش تومانی فقط وقتی فعال است: بدون فعالیت بازار IRT، این بخش
+     غیرفعال نمایش داده می‌شود (بدون سکه، بدون ردیف موجودی تومان) */
+  const irtGroup=irtActive?grp({
+      title:"بخش تومانی (IRT)",
+      sub:"موجودی و جزئیات تومان + خریدها و فروشهای همان بازار — سکه‌های خریداری‌شده با تومان زیر همین بخش",
+      cash:irtRow,list:rowsIrt,holds:holdIrt,isUsdt:false,
+      emptyNote:"سکهٔ تومانی نگه داشته نشده"}):"";
+  const irtOffGroup=(!irtActive&&irtAllowed)?`<div class="hgroup">
+      <div class="hgroup-head"><span style="opacity:.6">بخش تومانی (IRT)</span>
+        <span class="mut" style="font-size:11px">غیرفعال — هنوز خرید/سفارشی در بازار تومانی (IRT) ثبت نشده؛ با اولین خرید تومانی فعال می‌شود و سکه‌ها و موجودی تومان داخلش می‌آید. خریدهای تتری هیچ‌وقت در این بخش نمی‌آیند.</span>
+      </div></div>`:"";
+  return allChip+modeHint+usdtGroup+irtGroup+irtOffGroup;
+}
+
+document.addEventListener("click",e=>{
+  /* the dust-convert chip is NOT a .stop-edit — check it FIRST, before
+     the el.dataset access below (el is null for this button and touching
+     el.dataset used to throw, killing the handler silently = «nothing
+     happens» on click) */
+  if(e.target.closest(".dust-convert-btn")){
+    openDustModal();   /* list + values + selection -> explicit confirm */
+    return;
+  }
+  /* the (n) strike-counter bracket: click -> edit stage + hadd price */
+  const he=e.target.closest(".hadd-edit");
+  if(he){
+    const sym=he.dataset.haddSym;
+    const curStage=parseInt(he.dataset.haddStage||"0",10)||0;
+    const curPrice=he.dataset.haddPrice||"";
+    const buyPrice=he.dataset.haddBuy||"";
+    const sv=prompt("پله (strike) برای "+sym+" — عدد صحیح (۰ = حد برابر قیمت خرید):",String(curStage));
+    if(sv==null)return;
+    const st=parseInt(String(sv).trim(),10);
+    if(isNaN(st)||st<0){toast("پله را عدد صحیح نامنفی بده");return}
+    let hv=null;
+    /* واحد ورودی = واحد پول همان بازار: تتری $، تومانی تومان
+       (حالت نمایش دلاری کل داشبورد اینجا دخالت نمی‌کند) */
+    const usdMode=/USDT$/.test(String(sym))&&!!usdtPerIrt();
+    const mkt=v=>v; /* ورودی کاربر همیشه در واحد همان بازار است */
+    if(st>0){
+      const curNum=parseFloat(curPrice);
+      const shownCur=curPrice===""||isNaN(curNum)?curPrice:String(curNum);
+      const pv=prompt(usdMode?"قیمت حد جدید ($) — حد سود جدید از همین محاسبه می‌شود:"
+                             :"قیمت حد جدید (تومان) — حد سود جدید از همین محاسبه می‌شود:",shownCur);
+      if(pv==null)return;
+      const pvNum=parseFloat(String(pv).replace(/[٫,]/g,"."));
+      if(isNaN(pvNum)||pvNum<=0){toast("قیمت حد نامعتبر است");return}
+      hv=mkt(pvNum);
+    }
+    const hint=(st===0&&buyPrice)?("پله ۰ = حد برابر قیمت خرید ("+fmtMkt(parseFloat(buyPrice),sym)+")"):("پله "+st);
+    if(!confirm("پله " + sym + " روی "+st+" تنظیم شود؟ ("+hint+")"))return;
+    toast("در حال ثبت پله…");
+    jpost("/api/control/set_hadd",{symbol:sym,stage:st,hadd:hv}).then(r=>{
+      if(r.ok)toast((r.notice?r.notice+" — ":"")+"پله "+sym+" = "+r.stage+" ثبت شد"+(r.hadd?(" | حد: "+fmtMkt(r.hadd,sym)):""));
+      else toast(r.error||"خطا");
+    }).catch(err=>toast("خطا: "+err)).finally(()=>poll());
+    return;
+  }
+  const el=e.target.closest(".stop-edit");
+  if(!el||el.querySelector("input"))return;
+  /* the «حد ضرر همه» / «حد سود همه» chips: ONE percent -> every coin's
+     trigger = its «قیمت خرید» x (1 ∓ pct). Per-coin fine-tuning stays on
+     each row. */
+  const allKind=el.dataset.stopKind||"stop";
+  if(allKind==="stop-all"||allKind==="stop-all-profit"){
+    const isProfit=allKind==="stop-all-profit";
+    const v=prompt(
+      (isProfit?"حد سود یکجا برای همه‌ی سکه‌ها — درصد (مثبت، مثلاً ‎+5):\nحد سود هر سکه = قیمت حد همان سکه × (۱ + درصد)"
+               :"حد ضرر یکجا برای همه‌ی سکه‌ها — درصد (منفی، مثلاً ‎-3):\nحد ضرر هر سکه = «قیمت حد» همان سکه × (۱ − درصد)\n(پله ۰ = آخرین خرید؛ نردبان: در ادامه هر strike حد ضرر را روی پلهٔ قبلی بالا می‌برد)"),"");
+    if(v==null)return;
+    const p=parseFloat(String(v).replace(/[٫,]/g,"."));
+    if(isNaN(p)||p===0||(isProfit?p<0:p>0)){toast(isProfit?"درصد را مثبت بده (مثلاً ‎+5)":"درصد را منفی بده (مثلاً ‎-3)");return}
+    if(!confirm((isProfit?"حد سود همه‌ی سکه‌ها با درصد "+p+"٪ از قیمت حد هر سکه تنظیم شود؟"
+                         :"حد ضرر همه‌ی سکه‌ها با درصد "+p+"٪ از «قیمت حد» هر سکه تنظیم شود؟ (پله‌های بالاتر خودشان حد را بالا می‌برند)")))return;
+    toast("در حال اعمال روی همه‌ی سکه‌ها…");
+    /* base="hadd": هر دو حد درصد را از «قیمت حد» همان سکه می‌خوانند */
+    jpost("/api/control/set_all_stops",{pct:p,kind:isProfit?"profit":"stop",base:"hadd"}).then(r=>{
+      if(r.ok&&r.count>0)toast((isProfit?"حد سود روی ":"حد ضرر روی ")+r.count+" سکه اعمال شد"+(r.skipped&&r.skipped.length?(" | رد‌شده: "+r.skipped.map(s=>s.symbol).join("، ")):""));
+      else if(r.ok)toast("هیچ سکه‌ای اعمال نشد"+(r.skipped&&r.skipped.length?(" | "+r.skipped.map(s=>s.symbol+": "+s.reason).join(" | ")):""));
+      else toast(r.error||"خطا");
+    }).catch(err=>toast("خطا: "+err)).finally(()=>poll());
+    return;
+  }
+  const sym=el.dataset.stopSym, kind=el.dataset.stopKind||"stop";
+  const kindFa=kind==="profit"?"حد سود":"حد ضرر";
+  const mktUsdt=/USDT$/.test(String(sym));
+  /* واحد این ویرایشگر = واحد پول همان بازار (تتری $، تومانی تومان)؛
+     حالت نمایش دلاری کل داشبورد اینجا دخالت نمی‌کند تا قیمت تومانی
+     هرگز با نرخ دلار قاطی نشود */
+  const usdMode=mktUsdt&&!!usdtPerIrt();
+  const dispUsd=mktUsdt;
+  /* dataset.val is ALWAYS the engine unit (Toman for IRT markets, $ for
+     USDT ones) — and that IS this row's display unit, so no conversion */
+  const val0=el.dataset.val===""?"":String(parseFloat(el.dataset.val));
+  const unit=dispUsd?"$":"تومان";
+  const pct0=el.dataset.pct||"";
+  /* «مبلغ» حد ضرر (قفل سود/ریسک نسبت به قیمت خرید) — فقط برای حد ضرر */
+  const money0=(kind==="stop"&&el.dataset.money!=="")
+    ?String(Math.round(parseFloat(el.dataset.money)*100)/100):"";
+  const moneyOn=(kind==="stop");
+  el.innerHTML=`<span class="stop-pair">
+    <input class="stop-num" value="${esc(val0)}" placeholder="${unit}" title="قیمت ${unit} حد — درصد (نسبت به قیمت حد) خودکار از همین محاسبه می‌شود">
+    <input class="stop-pct" value="${esc(pct0)}" placeholder="درصد" title="درصد نسبت به «قیمت حد» (‎-3 = ۳٪ زیر قیمت حد) — قیمت خودکار محاسبه می‌شود">
+    ${moneyOn?`<input class="stop-money" value="${esc(money0)}" placeholder="مبلغ" title="مبلغ قفل‌شده نسبت به قیمت خرید (در واحد پول همان بازار): مثبت = سود قفل‌شده، منفی = پول در ریسک — با تایپ همان مبلغ، قیمت حد ضرر تنظیم می‌شود">`:''}
+  </span>`;
+  const inpNum=el.querySelector(".stop-num"), inpPct=el.querySelector(".stop-pct"), inpMoney=el.querySelector(".stop-money");
+  inpNum.focus(); inpNum.select();
+  /* live sync: percent <-> absolute <-> مبلغ.
+     BASE: the HADD («قیمت حد») for the percent of BOTH kinds — the very
+     number the row prints as «قیمت حد (n)». «مبلغ» reads vs the BUY
+     price (قفل سود/ریسک = what my coins actually paid) and is only
+     editable for the STOP. */
+  /* bases arrive in the ENGINE unit — which IS this row's own currency
+     (Toman for *IRT, $ for *USDT), so the live sync needs no conversion */
+  const base=parseFloat(el.dataset.entry)||0;
+  const buyBase=parseFloat(el.dataset.buy||"")||0;
+  const amt=parseFloat(el.dataset.amount||"0")||0;
+  const stopSign=kind==="profit"?1:-1;
+  const numOf=t=>parseFloat(String(t).replace(/[٫,]/g,"."));
+  const pctOf=v=>{const p=(v-base)/base*100; return p>0?"+"+(Math.round(p*100)/100):(Math.round(p*100)/100)+""};
+  const absOf=p=>base*(1+stopSign*Math.abs(p)/100);
+  const moneyOf=v=>(amt>0&&buyBase>0)?(v-buyBase)*amt:null;
+  const absOfMoney=m=>(amt>0&&buyBase>0)?buyBase+m/amt:null;
+  const fillFromNum=v=>{if(!(base>0))return;inpPct.value=pctOf(v);
+    const m=moneyOf(v);if(inpMoney&&m!=null)inpMoney.value=Math.round(m*100)/100;};
+  const fillFromPct=p=>{if(!(base>0))return;const v=absOf(p);
+    inpNum.value=Math.round(v);fillFromNum(v);};
+  let lastField="num";   /* فیلدی که کاربر آخرین بار تایپ کرده */
+  inpPct.addEventListener("input",()=>{
+    lastField="pct";
+    const p=numOf(inpPct.value.replace(/%|٪|\s/g,""));
+    if(!isNaN(p)&&base>0)fillFromPct(p);
+  });
+  inpNum.addEventListener("input",()=>{
+    lastField="num";
+    const v=numOf(inpNum.value);
+    if(!isNaN(v)&&base>0)fillFromNum(v);
+  });
+  if(inpMoney)inpMoney.addEventListener("input",()=>{
+    lastField="money";
+    const m=numOf(inpMoney.value);
+    if(!isNaN(m)&&buyBase>0&&amt>0){const v=absOfMoney(m);
+      if(v>0){inpNum.value=Math.round(v);if(base>0)inpPct.value=pctOf(v);}}
+  });
+  const commit=async()=>{
+    /* take the field the user last touched: prefer an edited percent,
+       else the absolute number; 0/empty in BOTH = remove */
+    const numV=numOf(inpNum.value);
+    const pctV=numOf(inpPct.value.replace(/%|٪|\s/g,""));
+    const moneyV=inpMoney?numOf(inpMoney.value):NaN;
+    const numSet=!isNaN(numV)&&inpNum.value.trim()!=="";
+    const pctSet=!isNaN(pctV)&&inpPct.value.trim()!=="";
+    const moneySet=!!inpMoney&&!isNaN(moneyV)&&inpMoney.value.trim()!=="";
+    if(!numSet&&!pctSet&&!moneySet){el.innerHTML="<span class='mut'>…</span>"; poll(); return}
+    /* «مبلغ» = نقطهی سربه‌سر نیست: صفر یا هر عددی در این فیلد یک سطح
+       واقعی است (قفل سود/ریسک نسبت به قیمت خرید) */
+    const byMoney=(lastField==="money"&&moneySet&&amt>0&&buyBase>0);
+    if(!byMoney&&((numV===0)||(pctV===0&&pctSet))){ /* 0 = remove the trigger */
+      try{const r=await jpost("/api/control/set_stop",{symbol:sym,kind,stop:0});
+        if(r.ok)toast(kindFa+" "+sym+" حذف شد");else toast(r.error||"خطا");
+      }catch(err){toast("خطا: "+err)}
+      el.innerHTML="<span class='mut'>…</span>"; poll(); return;
+    }
+    /* فیلد آخر تایپ‌شده تعیین می‌کند چه چیزی فرستاده شود:
+       - «مبلغ» → قیمت = قیمت خرید + مبلغ/تعداد سکه
+       - «درصد» → درصد نسبت به «قیمت حد» (base=hadd)
+       - «قیمت» → همان رقم مطلق (در واحد پول همان بازار)
+       SS36: in dollar mode the typed number is $ — convert to the market
+       unit (Toman for IRT markets, raw $ for USDT ones) before POST. */
+    let body;
+    if(byMoney){
+      const abs=absOfMoney(moneyV);
+      if(!(abs>0)){toast("مبلغ نامعتبر است");el.innerHTML="<span class='mut'>…</span>";poll();return}
+      body={symbol:sym,kind,stop:abs};
+    }else if(lastField==="pct"&&pctSet){
+      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"hadd"};
+    }else if(numSet){
+      body={symbol:sym,kind,stop:numV};
+    }else{
+      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"hadd"};
+    }
+    toast("در حال ثبت "+kindFa+"…");
+    try{const r=await jpost("/api/control/set_stop",body);
+      if(r.ok)toast((r.notice?r.notice+" — ":"")+kindFa+" "+sym+" ثبت شد: "+fmtMkt(r.stop,sym)+(r.pct!=null?" ("+(r.pct>0?"+":"")+r.pct+"٪)":"")+(r.base==="hadd"?" — نسبت به قیمت حد":""));
+      else toast(r.error||"خطا");
+    }catch(err){toast("خطا: "+err)}
+    el.innerHTML="<span class='mut'>…</span>"; /* force re-render by poll */
+    poll();
+  };
+  /* delayed commit: blur fires when the user clicks the SIBLING field —
+     committing right there destroyed the editor. Schedule it instead and
+     cancel when focus lands anywhere inside the editor; it only runs when
+     focus truly leaves (Enter, outside click, Tab away). */
+  let commitTimer=null;
+  const cancelCommit=()=>{if(commitTimer){clearTimeout(commitTimer);commitTimer=null}};
+  const scheduleCommit=()=>{cancelCommit();commitTimer=setTimeout(()=>{commitTimer=null;commit()},140)};
+  el.addEventListener("focusin",cancelCommit);
+  const fields=[inpNum,inpPct].concat(inpMoney?[inpMoney]:[]);
+  fields.forEach(i=>i.addEventListener("keydown",ev=>{
+    if(ev.key==="Enter"){cancelCommit();i.blur()}
+    /* cancel EVERY field so blur cannot commit a sibling */
+    if(ev.key==="Escape"){cancelCommit();fields.forEach(f=>f.value="");i.blur()}
+  }));
+  fields.forEach(i=>i.addEventListener("blur",scheduleCommit));
+});
+
+/* ---------------- polling ---------------- */
+async function poll(){
+  try{
+    state=await jget("/api/status");
+    const s=state;
+    $("#engineBadge").textContent="موتور: "+(s.running?"در حال اجرا":"متوقف");
+    $("#engineBadge").className="badge "+(s.running?"ok":"off");
+    $("#btnEngine").textContent=s.running?"توقف موتور":"شروع موتور";
+    $("#btnEngine").className=s.running?"danger":"primary";
+    $("#modeBadge").textContent=s.mode==="demo"?"حالت آزمایشی (Paper)":
+      (s.trading_real?"نوبیتکس واقعی — معامله زنده ⚠":(s.real_attached?"نوبیتکس واقعی (فقط ناظر)":"حالت آزمایشی (Paper)"));
+    $("#modeBadge").className="badge "+(s.trading_real?"demo":(s.real_attached?"warn":"demo"));
+    /* REAL connection badge: token present + engine attached to the real
+       adapter. No token = وصل نیست (visible from every tab). */
+    const cb=document.getElementById("connBadge");
+    if(cb){
+      if(s.nobitex_connected){
+        cb.textContent="نوبیتکس: متصل ✓";
+        cb.className="badge ok";
+      }else if(s.real_account&&s.real_account.login&&s.real_account.login.username){
+        cb.textContent="نوبیتکس: وصل نیست ✕ — وارد شوید";
+        cb.className="badge err";
+      }else{
+        cb.textContent="نوبیتکس: وصل نیست ✕";
+        cb.className="badge err";
+      }
+    }
+    const lt=document.getElementById("btnLiveTrading");
+    if(lt){ lt.textContent="معامله واقعی: "+(s.live_trading?"روشن ⚠":"خاموش");
+            lt.className=s.live_trading?"danger":""; }
+    /* profiles: ONE switch — «حالت امن» is SHOWN whenever risk mode is
+       off; the single button shows the active state and flips it. The
+       engine's own safety HALT has no header control (API-only, off by
+       default) and only surfaces in the button's tooltip. */
+    $("#safeBadge").style.display=s.risk_mode?"none":"";
+    const rm=document.getElementById("riskModeBadge");
+    if(rm)rm.style.display=s.risk_mode?"":"none";
+    const bp=document.getElementById("btnProfile");
+    if(bp){
+      bp.textContent=s.risk_mode
+        ?"⚡ حالت ریسک — روشن (کلیک: حالت امن)"
+        :"🛡 حالت امن — روشن (کلیک: حالت ریسک)";
+      bp.className=s.risk_mode?"danger":"primary";
+    }
+    /* «توقف ایمنی» عمداً در هدر نیست (فقط سوئیچ امن/ریسک می‌ماند).
+       اگر روزی از API روشن شود، فقط در tooltip همین دکمه دیده می‌شود. */
+    const bp2=document.getElementById("btnProfile");
+    if(bp2)bp2.title="حالت امن و حالت ریسک دو حالت یک سوئیچ‌اند: کلیک = رفتن به حالت دیگر"
+      +(s.safe_mode?" — توجه: توقف ایمنی موتور فعال است، تا خاموش نشود سفارش جدیدی ثبت نمی‌شود":"");
+    $("#btnAuto").textContent="معامله خودکار: "+(s.auto_trading?"روشن":"خاموش");
+    $("#btnAuto").className=s.auto_trading?"primary":"";
+    const bb=document.getElementById("btnBuyBest");
+    if(bb){ bb.textContent="بهترین گزینه: "+(s.buy_best?"روشن":"خاموش"); bb.className=s.buy_best?"primary":""; }
+    renderKpis(s);
+    if(activeTab==="overview"){
+      setBox("#openOrdersBox",()=>openOrdersTable(s.open_orders),"سفارش‌های در جریان");
+      setBox("#decBox",()=>decTable(s.decisions),"تصمیم‌ها");
+      /* don't wipe an open stop-loss editor mid-typing */
+      if(!document.querySelector("#holdingsBox input")) setBox("#holdingsBox",()=>holdingsBox(s),"دارایی‌های من");
+    }else if(activeTab==="markets"){
+      setBox("#marketsBox",()=>marketsTable(s.markets_view),"بازارها");
+    }else if(activeTab==="risk"){
+      setBox("#riskBox",()=>riskTable(s.risk),"ریسک");
+      setBox("#execBox",()=>execTable(s.executions),"اجراها");
+    }else if(activeTab==="portfolio"){
+      const p=s.portfolio||{};
+      setBox("#posBox",()=>positionsTable(p.positions||[]),"موقعیت‌ها");
+      setBox("#sellPlanBox",()=>sellsPlanTable(p.positions||[],s.exit_plans,s),"برنامه فروش");
+      setBox("#assetBox",()=>assetsTable(p.assets||[]),"دارایی‌ها");
+      /* a failed history call must not blank the other portfolio boxes */
+      try{const fills=await jget("/api/history?kind=fills&limit=50");
+        setBox("#fillsBox",()=>fillsTable(fills),"معاملات انجام‌شده");}
+      catch(e){console.error("[poll] fills:",e)}
+    }
+  }catch(e){console.error("[poll] status failed:",e)}
+}
+async function refreshSlow(){
+  try{
+    if(activeTab==="exchange"){ refreshAccountStatus(); refreshRealWallet(); refreshRealOrders(); }
+    if(activeTab==="events"){renderEvents(await jget("/api/events?limit=150"))}
+    if(activeTab==="decisions"){const h=await jget("/api/history?kind=decisions&limit=60");$("#histBox").innerHTML=decTable(h)}
+    if(activeTab==="risk"){const r=await jget("/api/history?kind=risk&limit=60");const x=await jget("/api/history?kind=executions&limit=60");
+      $("#riskBox").innerHTML=riskTable(r);$("#execBox").innerHTML=execTable(x)}
+    if(activeTab==="overview"){
+      /* BTCUSDT chart card was replaced by the holdings box */
+    }
+  }catch(e){}
+}
+setInterval(poll,2500);
+setInterval(refreshSlow,8000);
+jget("/api/config").then(c=>{cfg=c;renderCfg(c)}).catch(()=>{});
+poll();refreshSlow();
+refreshAccountStatus();
+setInterval(()=>{ if(activeTab==="exchange"){ refreshAccountStatus(); refreshRealWallet(); refreshRealOrders(); } }, 5000);
+</script>
+</body>
+</html>

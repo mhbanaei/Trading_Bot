@@ -1,0 +1,20 @@
+================================================================================================
+ Nobitex bot - pre-flight check (python run.py --doctor)
+================================================================================================
+[OK  ] runtime            python 3.14.6 | Windows-2022Server-10.0.20348-SP0 | cwd C:\Users\Administrator\Desktop\MAIN\Trading_Bot
+[OK  ] trust store        131 CA certificates from operating-system trust store + certifi (C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\site-packages\certifi\cacert.pem)
+[OK  ] exchange https     https://apiv2.nobitex.ir verified | TLS TLSv1.3 | cert CN=*.nobitex.ir by TrustAsia Technologies, Inc. | HTTP 200
+[OK  ] host clock         +0 s vs the exchange clock
+[OK  ] egress ip          185.165.30.181 (Iran)
+[OK  ] exchange account   mode=nobitex | live_trading=True | token file present (data\real\credentials.json)
+[OK  ] dashboard bind     0.0.0.0:9999 with the password gate ON
+[OK  ] dashboard port     9999 on 0.0.0.0 is already served by this bot's dashboard
+[WARN] remote reachability direct exposure is ON (0.0.0.0): http://<public-ip>:9999/ is served by the bot itself, behind the password gate and without TLS (deploy/ has the TLS proxy path)
+                        if it does not open from your PC while this report says the bind is OK,
+                        the drop is outside the bot: allow 9999/tcp in the OS firewall (Windows:
+                        netsh advfirewall firewall add rule name="nobitex dashboard 9999" dir=in
+                        action=allow protocol=TCP localport=9999 profile=any / Linux: ufw allow
+                        9999/tcp) AND in the provider's panel - and make sure no other service
+                        (IIS http.sys, Caddy) holds 9999/tcp
+------------------------------------------------------------------------------------------------
+verdict: 0 FAIL, 1 WARN, 9 OK

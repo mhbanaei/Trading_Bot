@@ -1,0 +1,8 @@
+[warn] exchange.mode=nobitex but no credentials/api_key configured — running DEMO simulator instead (login from the dashboard to attach the real account).
+==============================================================
+ Nobitex Smart Trading Bot v1.0.0
+ mode: nobitex | data: data
+==============================================================
+[web] dashboard on http://0.0.0.0:8787
+[web] password gate: ON | max 3 wrong tries | session 12.0 h
+[web] locked out or forgot the password? change web.password in config.json — it applies instantly, no restart (helper: python -m nobitex_bot.webauth --hash)
