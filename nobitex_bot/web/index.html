@@ -7,7 +7,13 @@
 <style>
 :root{
   --bg:#0b0f17; --panel:#111827; --panel2:#0e1522; --border:#1f2a3a;
-  --text:#e5edf8; --muted:#8b9bb4; --accent:#3b82f6; --green:#22c55e;
+  --text:#e5edf8; --muted:#8b9bb4;
+  /* رنگ اصلی برنامه (Theme): سبز-فیروزه‌ای برند — همان رنگی که در پنل
+     پرتفوی نوبیتکس دیده می‌شود. --green همان accent است تا سود/رشد هم
+     با همین رنگ برند خوانده شود (قرمز فقط برای زیان می‌ماند). */
+  --accent:#10cf89; --green:#10cf89;
+  --accent-dark:#0ba86f; --accent-soft:rgba(16,207,137,.14);
+  --on-accent:#04231a;
   --red:#ef4444; --orange:#f59e0b; --purple:#a78bfa; --cyan:#22d3ee;
 }
 *{box-sizing:border-box; margin:0; padding:0}
@@ -27,7 +33,9 @@ header .spacer{flex:1}
 button{background:var(--panel2); color:var(--text); border:1px solid var(--border);
   border-radius:8px; padding:7px 14px; cursor:pointer; font-family:inherit; font-size:13px}
 button:hover{border-color:var(--accent)}
-button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+/* متن روی رنگ برند تیره است تا کنتراست کافی بماند (سفید روی سبز روشن
+   خوانا نبود) */
+button.primary{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:700}
 button.danger{background:#7f1d1d; border-color:#b91c1c; color:#fff}
 button:disabled{opacity:.45; cursor:not-allowed}
 nav{display:flex; gap:4px; padding:8px 18px 0; background:var(--panel);
@@ -172,6 +180,42 @@ canvas{width:100%; height:220px; display:block}
 .empty{color:var(--muted); text-align:center; padding:26px; font-size:13px}
 .legend{display:flex; gap:14px; font-size:11px; color:var(--muted); margin-top:6px}
 .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:4px}
+/* ---- پورتفوی نوبیتکسی (نمای کلی + تب «پرتفوی نوبیتکس») ----------------
+   کارت‌های خلاصه، نوار و دوناتِ «ترکیب دارایی» و جدول دارایی‌ها — همان
+   چیزهایی که پنل portfolio-v2 نوبیتکس نشان می‌دهد، با دادهٔ خودِ ربات
+   (portfolio_v2 سرور: همهٔ اعداد به تومان، سود ۲۴ساعت از کاتالوگ زنده). */
+.pvHero{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(205px,1fr))}
+.pvCard{position:relative; background:var(--panel); border:1px solid var(--border);
+  border-radius:14px; padding:13px 14px}
+.pvCard.main{background:linear-gradient(150deg,var(--accent-soft),rgba(16,207,137,0) 62%),var(--panel);
+  border-color:rgba(16,207,137,.45)}
+.pvCard h3{font-size:12px; color:var(--muted); font-weight:600; margin-bottom:6px;
+  display:flex; align-items:center; gap:6px}
+.pvCard .big{font-size:23px; font-weight:800; direction:ltr; text-align:right;
+  font-variant-numeric:tabular-nums; line-height:1.3}
+.pvCard .big.pos{color:var(--accent)} .pvCard .big.neg{color:var(--red)}
+.pvCard .s{font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.75}
+.pvCard .s .num{font-variant-numeric:tabular-nums}
+.pvEye{margin-inline-start:auto; cursor:pointer; background:transparent; border:none;
+  color:var(--muted); font-size:15px; padding:0 3px; line-height:1}
+.pvEye:hover{color:var(--accent)}
+.pvBar{display:flex; height:12px; border-radius:99px; overflow:hidden;
+  background:var(--panel2); border:1px solid var(--border)}
+.pvBar i{display:block; height:100%}
+.pvLegend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:12px}
+.pvLegend .lg{display:inline-flex; align-items:center; gap:6px; cursor:default}
+.pvLegend .sw{width:10px; height:10px; border-radius:3px; display:inline-block}
+.pvBarH{display:flex; justify-content:space-between; align-items:baseline;
+  gap:10px; flex-wrap:wrap; margin-bottom:8px}
+.pvBarH h3{margin:0; font-size:13px; color:var(--muted); font-weight:600}
+.pvSeg{display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden}
+.pvSeg button{border:none; border-radius:0; background:transparent; color:var(--muted);
+  padding:5px 12px; font-size:12px}
+.pvSeg button.on{background:var(--accent-soft); color:var(--accent); font-weight:700}
+.pvKv{display:grid; grid-template-columns:1fr auto; gap:5px 12px; font-size:12.5px}
+.pvKv .k{color:var(--muted)} .pvKv .v{direction:ltr; text-align:right; font-weight:700;
+  font-variant-numeric:tabular-nums}
+#pvDonut{height:236px}
 </style>
 </head>
 <body>
@@ -185,7 +229,7 @@ canvas{width:100%; height:220px; display:block}
 
   <div class="spacer"></div>
   <button id="btnEngine" class="primary">شروع موتور</button>
-  <button id="btnCycle" class="primary" style="background:var(--green);border-color:var(--green)">⚡ اجرای فوری چرخه</button>
+  <button id="btnCycle" class="primary" style="background:var(--green);border-color:var(--green);color:var(--on-accent)">⚡ اجرای فوری چرخه</button>
   <button id="btnBest" class="primary" style="background:var(--orange);border-color:var(--orange)">🎯 اجرای بهترین معامله</button>
   <button id="btnCycleQuiet">اجرای چرخه</button>
   <button id="btnAuto">معامله خودکار: خاموش</button>
@@ -196,6 +240,7 @@ canvas{width:100%; height:220px; display:block}
 </header>
 <nav id="tabs">
   <button data-tab="overview" class="active">نمای کلی</button>
+  <button data-tab="netport">پرتفوی نوبیتکس</button>
   <button data-tab="markets">بازارها</button>
   <button data-tab="decisions">تصمیم‌های AI</button>
   <button data-tab="risk">ریسک و اجرا</button>
@@ -206,11 +251,38 @@ canvas{width:100%; height:220px; display:block}
 </nav>
 <main>
   <section id="tab-overview" class="tabs active">
-    <div class="grid g5" id="kpis"></div>
+    <div class="pvHero" id="kpis"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="pvBarH"><h3>🧩 ترکیب دارایی <span class="mut">(سهم هر سکه از کل پرتفوی — تومان؛ جزئیات کامل در تب «پرتفوی نوبیتکس»)</span></h3>
+        <button id="pvGoTab" class="primary" style="padding:5px 12px;font-size:12px">پرتفوی کامل نوبیتکس ←</button></div>
+      <div class="pvBar" id="pvBarMini"></div>
+      <div class="pvLegend" id="pvLegendMini"></div>
+    </div>
     <div class="card" style="margin-top:12px"><h3>💼 دارایی‌های من <span class="muted">(دو بخش تتری/تومانی — خریدها زیر بخش بازار خودشان، با خرید/فروش + سود از خرید و سود ۲۴ساعت + حد ضرر و حد سود قابل ویرایش)</span></h3><div id="holdingsBox"><div class="empty">در حال بارگذاری…</div></div></div>
     <div class="grid g2" style="margin-top:12px">
       <div class="card"><h3>سفارش‌های در جریان <span class="muted">(هر سفارش باز/نیمه‌پُر و آیتم‌هایی که داخلش هست)</span></h3><div id="openOrdersBox"></div></div>
       <div class="card"><h3>آخرین تصمیم‌ها</h3><div id="decBox"></div></div>
+    </div>
+  </section>
+
+  <section id="tab-netport" class="tabs">
+    <div class="pvHero" id="pvHero"></div>
+    <div class="grid g2" style="margin-top:12px">
+      <div class="card"><h3>🧩 ترکیب دارایی <span class="muted">(سهم هر دارایی از کل پرتفوی — تومان)</span></h3>
+        <canvas id="pvDonut"></canvas><div class="pvLegend" id="pvLegend"></div></div>
+      <div class="card"><h3>📌 خلاصه پرتفوی <span class="muted">(ارزش، سود و زیان، نقد و پوشش داده)</span></h3><div id="pvSummary"></div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="pvBarH">
+        <h3>💼 دارایی‌ها <span class="mut">(یک ردیف برای هر سکه — مقدار، میانگین خرید، قیمت، ارزش، سود/زیان خرید، سود/زیان ۲۴ساعت و سهم از پرتفوی، همه به تومان)
+          <span id="pvMeta"></span></span></h3>
+        <span class="pvSeg"><button data-pvunit="irt">تومان</button><button data-pvunit="usd">دلار</button></span>
+      </div>
+      <div id="pvTable"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>⚙️ وضعیت موتور و ریسک <span class="muted">(کارت‌هایی که قبلاً بالای «نمای کلی» بودند)</span></h3>
+      <div class="pvHero" id="pvHealth"></div>
     </div>
   </section>
 
@@ -600,135 +672,325 @@ document.addEventListener("click",e=>{
 });
 $("#btnResetPaper").onclick=async()=>{if(!confirm("پرتفوی آزمایشی به ۱۰۰۰۰ USDT برگردد؟"))return;
   await jpost("/api/control/reset_paper",{starting_balance:10000});toast("پرتفوی ریست شد");poll()};
+/* کنترل‌های خود پرتفوی (روی همهٔ کارت‌ها یکی است): چشمِ مخفی‌کردن موجودی،
+   واحد نمایش تومان/دلار و دکمهٔ رفتن به تب کامل. با delegation وصل
+   می‌شوند تا با هر رندر مجدد (هر ۲.۵ ثانیه) از دست نروند. */
+document.addEventListener("click",e=>{
+  if(e.target.closest("[data-pv-hidden]")){pvSetHidden(!pvHidden);return}
+  const u=e.target.closest("[data-pvunit]");
+  if(u){pvSetUnit(u.dataset.pvunit);return}
+  if(e.target.closest("#pvGoTab")){
+    const t=document.querySelector('#tabs button[data-tab="netport"]');
+    if(t)t.click();}
+});
 
 /* ---------------- renderers ---------------- */
-function kpi(label,val,sub,color,opts){const o=opts||{};
-  /* o.title = tooltip آزاد — برای کارت‌هایی که بدنه‌شان باید فقط یک عدد
-     بماند؛ کارتِ kpiId همان راهنمای کلیک را نگه می‌دارد مگر عوض شود. */
-  const id=o.kpiId?` id="${o.kpiId}" style="cursor:pointer"`:"";
-  const tip=(o.title!=null?o.title:(o.kpiId?"کلیک: تغییر کل سرمایه واریزی | درصد تیتر: رشد واقعی کل حساب نسبت به کل سرمایه واریزی (سود سرمایه ÷ سرمایه واریزی) — همیشه با خطوط تومانی زیر کارت هم‌خوان است | پیش‌فرض: جمع واقعی واریزی‌ها منهای برداشت‌های صرافی (هر ساعت خودکار، و بلافاصله بعد از هر واریز/برداشتی که در کیف پول دیده شود)":""));
-  return `<div class="card kpi"${id}${tip?` title="${esc(tip)}"`:""}><h3>${label}</h3>
-  <div class="v ${color||""}">${val}</div><div class="s">${sub||""}</div></div>`}
+/* ---- پورتفوی نوبیتکسی (نمای کلی + تب «پرتفوی نوبیتکس») ---------------
+   همهٔ محاسبه‌ها به تومان است (همان کاری که سرور در portfolio_v2 می‌کند)
+   و فقط لحظهٔ چاپ به واحد نمایش تبدیل می‌شود. دو تنظیم کاربر روی همین
+   پرتفوی می‌نشیند و در هر دو نما یکی است:
+     • چشم  = مخفی/نمایش موجودی
+     • واحد = تومان یا دلار
+   قاعدهٔ گردکردن (همان قاعدهٔ قدیمی خطوط تومانی): اول در واحد نمایش
+   گرد می‌شود، بعد جمع بسته می‌شود — پس «جمع» دقیقاً جمع دو عدد چاپ‌شده
+   است (یک سنت در دلاری، یک تومان در تومانی). */
+let pvHidden=false, pvUnit="irt";
+try{
+  pvHidden=localStorage.getItem("pvHidden")==="1";
+  pvUnit=(localStorage.getItem("pvUnit")==="usd")?"usd":"irt";
+}catch(_){}
+function pvSetHidden(v){pvHidden=!!v;
+  try{localStorage.setItem("pvHidden",pvHidden?"1":"0")}catch(_){}
+  poll();}
+function pvSetUnit(u){pvUnit=(u==="usd")?"usd":"irt";
+  try{localStorage.setItem("pvUnit",pvUnit)}catch(_){}
+  poll();}
+const PV_COLORS=["#10cf89","#22d3ee","#a78bfa","#f59e0b","#ef4444","#6366f1","#84cc16","#ec4899","#14b8a6","#eab308"];
+/* تومان -> عددِ واحد نمایش (گردشدهٔ همان واحد) */
+const pvRound=v=>{if(v==null||isNaN(v))return null;
+  const x=(pvUnit==="usd")?toUsd(v):Number(v);
+  if(x==null||isNaN(x))return null;
+  return (pvUnit==="usd")?Math.round(x*100)/100:Math.round(x);};
+const pvNum=x=>(x==null?"—":pvHidden?"••••••":(pvUnit==="usd")?("$"+fmt(x,2)):fmt(x,0));
+const pvMoney=v=>pvNum(pvRound(v));
+const pvMoneySigned=v=>{if(v==null||isNaN(v))return "—";
+  if(pvHidden)return "••••••";
+  const s=v>0?"+":v<0?"−":"";
+  return s+pvNum(pvRound(Math.abs(v)));};
+const pvPct=v=>(v==null||isNaN(v))?"—":((v>=0?"+":"")+Number(v).toFixed(2)+"٪");
+/* قیمت (تومان در واحد تومان، دلار در واحد دلار) — دقت بر اساس بزرگی عدد */
+const pvPrice=v=>{if(v==null||isNaN(v))return "—";
+  if(pvUnit==="usd")return "$"+fmt(toUsd(v),v>=1?2:8);
+  return fmt(v,v>=1000?0:(v>=1?2:8));};
+function pvCard(label,big,sub,color,opts){const o=opts||{};
+  const id=o.cardId?` id="${o.cardId}" style="cursor:pointer"`:"";
+  const eye=o.eye?`<button class="pvEye" data-pv-hidden="1" title="${pvHidden?"نمایش موجودی":"مخفی کردن موجودی"}">${pvHidden?"🙈":"👁"}</button>`:"";
+  return `<div class="pvCard${o.main?" main":""}"${id}${o.title?` title="${esc(o.title)}"`:""}>
+  <h3>${label}${eye}</h3><div class="big ${color||""}">${big}</div>
+  <div class="s">${sub||""}</div></div>`}
 
-function renderKpis(s){
+/* «سود سرمایه در ۲۴ ساعت» — مبنای سرمایه (ارزش حساب − کل سرمایه واریزی)،
+   همان عددی که زیر کارت «سود/زیان کل» هم می‌آید. سرور محاسبه‌اش می‌کند
+   و تا وقتی نقطهٔ ۲۴ ساعت پیشِ همین حساب نباشد عددی چاپ نمی‌شود (هیچ
+   بازهٔ کوتاه‌تری جانشین نمی‌شود). */
+function pvProfit24Card(p24){p24=p24||{};
+  if(p24.coverage!=="exact"||p24.pnl_irt==null||p24.basis!=="capital"){
+    const why=(p24.waiting_reason==="MISSING_DEPOSIT_DATA")
+      ?"دیتای «کل سرمایه واریزی» در یکی از دو سر بازه کامل نیست، پس «سود سرمایه» ساخته نمی‌شود"
+      :(p24.waiting_reason==="HISTORY_SHORTER_THAN_24H")
+      ?("تاریخچهٔ این حساب "+(p24.start_age_h<1?Math.max(1,Math.round((p24.start_age_h||0)*60))+" دقیقه":Math.round(p24.start_age_h||0)+" ساعت")+" است — باکس فقط از تغییر «میزان سود سرمایه» در ۲۴ ساعت حساب می‌شود")
+      :"هنوز نقطهٔ تاریخچه‌ای برای این حساب ثبت نشده — اولین چرخه ثبت می‌شود";
+    return pvCard("سود ۲۴ساعت کل حساب (مبنای سرمایه)","—",
+      why+(p24.needs_h?(" | تا نقطهٔ ۲۴ ساعت پیش حدود "+p24.needs_h+" ساعت مانده"):"")
+      +(p24.skipped_other_source?" | نقطه‌های حساب دیگر (دمو/واقعی) نادیده گرفته شدند":""));}
+  const line=(l,v)=>`<div class="s">${l}: <span class="num">${v}</span></div>`;
+  const src=p24.real?"حساب واقعی نوبیتکس":"حساب آزمایشی";
+  const pctDen=(p24.pct_base==="deposited")?"سرمایه واریزی":"ارزش حساب";
+  const main=pvMoneySigned(p24.pnl_irt);
+  let tip=("میزان سود سرمایه در ۲۴ ساعت: "+main+" ("+pvPct(p24.pct)+" از "+pctDen+")");
+  if(p24.capital_now_irt!=null)
+    tip+=" | میزان سود سرمایه الان: "+pvMoney(p24.capital_now_irt)+" | میزان سود سرمایه ۲۴ ساعت پیش: "+pvMoney(p24.capital_ref_irt);
+  else
+    tip+=" | ارزش حساب الان (واریزی + سود): "+pvMoney(p24.total_irt)+" | ارزش حساب ۲۴ ساعت پیش: "+pvMoney(p24.base_irt);
+  if(p24.flow_irt)tip+=" | واریز/برداشت خارجی این بازه (انتقال، نه سود؛ دیتای صرافی): "+pvMoney(p24.flow_irt);
+  tip+=" | مبنا: همین ساعت، ۲۴ ساعت پیش ("+src+")";
+  let sub=((p24.capital_now_irt!=null)
+    ? line("میزان سود سرمایه الان",pvMoney(p24.capital_now_irt))
+      +line("میزان سود سرمایه ۲۴ ساعت پیش",pvMoney(p24.capital_ref_irt))
+      +line("تغییر ۲۴ساعته",main+(p24.pct!=null?" ("+pvPct(p24.pct)+" از "+pctDen+")":""))
+    : line("ارزش حساب الان (واریزی + سود)",pvMoney(p24.total_irt))
+      +line("ارزش حساب ۲۴ ساعت پیش",pvMoney(p24.base_irt)));
+  if(p24.flow_irt)sub+=line("واریز/برداشت خارجی این بازه (انتقال، نه سود)",pvMoney(p24.flow_irt));
+  sub+=`<div class="mut" style="font-size:11px">مبنا: همین ساعت، ۲۴ ساعت پیش (${src})</div>`;
+  return pvCard("سود ۲۴ساعت کل حساب (مبنای سرمایه)",main,sub,
+    p24.pct==null?"mut":cls(p24.pnl_irt),{title:tip});
+}
+
+/* «سود/زیان کل» — رشد واقعی سرمایهٔ واریزی: (ارزش حساب − سرمایهٔ واریزی)
+   ÷ سرمایهٔ واریزی. همان سه خط قدیمی (سود سرمایه / سرمایهٔ واریزی / جمع)
+   با همان قاعدهٔ جمع‌شدن اعداد چاپ‌شده. */
+function pvTotalProfitCard(hp){hp=hp||{};
+  if(hp.pnl_irt==null)return pvCard("سود/زیان کل (رشد کل حساب)","—","");
+  const g=hp.growth_pct;
+  const main=(g!=null?((g>=0?"+":"")+g.toFixed(2)+"٪"):pvMoneySigned(hp.profit_capital_irt));
+  const profitCap=(hp.profit_capital_irt!=null?hp.profit_capital_irt:hp.pnl_irt);
+  const dep=(hp.deposited_irt!=null?hp.deposited_irt:0);
+  const line=(l,v)=>`<div class="s">${l}: <span class="num">${v}</span></div>`;
+  const pS=pvRound(profitCap), dS=pvRound(dep);
+  const tS=(pS==null||dS==null)?null:pS+dS;
+  const dtail=(hp.deposited_detail||{});
+  const pending=Number(dtail.pending_withdraws_irt||0);
+  const sub=(line("میزان سود سرمایه",pvNum(pS))
+    +line("کل سرمایه واریزی",pvNum(dS))
+    +line("جمع",pvNum(tS))
+    +(pending>0?`<div class="mut" style="font-size:11px">برداشت در جریان (از حساب رفته، بانک در حال تسویه): <span class="num">${pvMoney(pending)}</span> — از سرمایه واریزی کم شده تا سود سرمایه اشتباه منفی نشود</div>`:""));
+  return pvCard("سود/زیان کل (رشد کل حساب)",main,sub,cls(hp.profit_capital_irt),
+    {cardId:"kpiTotalProfit",title:"کلیک: تغییر کل سرمایه واریزی | درصد تیتر: رشد واقعی کل حساب نسبت به کل سرمایه واریزی (سود سرمایه ÷ سرمایه واریزی) — همیشه با خطوط تومانی زیر کارت هم‌خوان است | پیش‌فرض: جمع واقعی واریزی‌ها منهای برداشت‌های صرافی (هر ساعت خودکار، و بلافاصله بعد از هر واریز/برداشتی که در کیف پول دیده شود)"});
+}
+
+/* کارت‌های خلاصهٔ پرتفوی — نمای کلی چهار کارت می‌گیرد، تب اختصاصی همه. */
+function pvHeroCards(s,full){
+  const pv=s.portfolio_v2||{},hp=s.holdings_pnl||{};
+  const rows=pv.rows||[];
+  const cashToman=Number(pv.cash_irt||0)+Number(pv.cash_usdt_irt||0);
+  const rate=(pv.toman_per_usdt||usdtPerIrt()||0);
+  const cards=[];
+  /* ۱) ارزش کل حساب (کارت اصلی) */
+  cards.push(pvCard("ارزش کل حساب",
+    (pv.total_irt==null?"—":pvMoney(pv.total_irt)),
+    ("معادل "+(pvHidden?"••••":"$"+fmt(toUsd(pv.total_irt),2)))
+    +" | دارایی دیجیتال: "+pvMoney(pv.coins_value_irt)
+    +" | نقد: "+pvMoney(cashToman),
+    "",{main:true,eye:true}));
+  /* ۲) سود/زیان ۲۴ساعت دارایی‌ها (تغییر قیمت ۲۴ساعتِ همان سکه‌ها) */
+  if(!rows.length){
+    cards.push(pvCard("سود/زیان ۲۴ساعت دارایی‌ها","—",
+      "هنوز دارایی‌ای در کیف پول نیست — عدد ۲۴ساعت از تغییر قیمت دارایی‌های خودت ساخته می‌شود"));
+  }else{
+    const cov=((pv.rows_24h!=null?pv.rows_24h:0)+" از "+rows.length);
+    cards.push(pvCard("سود/زیان ۲۴ساعت دارایی‌ها",
+      pvMoneySigned(pv.pnl_24h_irt),
+      "درصد: "+pvPct(pv.pnl_24h_pct)+" | بر پایهٔ تغییر قیمت ۲۴ساعتِ سکه‌ها (کاتالوگ زندهٔ صرافی — بی‌نیاز به اسنپ‌شات)"
+      +" | پوشش داده: "+cov+(pv.rows_24h<rows.length?" (سکه‌های بی‌قیمت ۲۴ساعت در جمع نمی‌آیند)":""),
+      cls(pv.pnl_24h_irt)));
+  }
+  /* ۳) سود/زیان کل (رشد کل حساب) — کلیک: ویرایش سرمایهٔ واریزی */
+  cards.push(pvTotalProfitCard(hp));
+  if(full){
+    /* ۴) ارزش دارایی‌های دیجیتال + سهم */
+    cards.push(pvCard("ارزش دارایی‌های دیجیتال",
+      pvMoney(pv.coins_value_irt),
+      "سهم از کل حساب: "+pvPct((pv.coins_value_pct!=null?pv.coins_value_pct:null))
+      +" | تعداد دارایی: "+rows.length+" سکه"
+      +" | نرخ دلار: "+fmt(rate,0)+" تومان",""));
+    /* ۵) سود/زیان دارایی‌های باز (سود از خرید) */
+    cards.push(pvCard("سود/زیان دارایی‌های باز",
+      pvMoneySigned(pv.open_pnl_irt),
+      "درصد: "+pvPct(pv.open_pnl_pct)+" | مبلغ خریدشان: "+pvMoney(pv.invested_irt)
+      +(pv.open_pnl_irt==null?"":" | معادل "+(pvHidden?"••••":"$"+fmt(toUsd(pv.open_pnl_irt),2))),
+      cls(pv.open_pnl_irt)));
+  }
+  /* ۶) موجودی نقد */
+  cards.push(pvCard("موجودی نقد (قابل خرید)",
+    pvMoney(pv.cash_available_irt),
+    "کل نقد تومانی: "+pvMoney(pv.cash_irt)
+    +" | نقد تتر: "+(pvHidden?"••••":"$"+fmt(pv.cash_usdt,2))+" (≈ "+pvMoney(pv.cash_usdt_irt)+")",""));
+  return cards.join("");
+}
+
+/* کارت‌های «وضعیت موتور» — همان کارت‌هایی که قبلاً بالای نمای کلی بودند. */
+function pvHealthCards(s){
   const p=s.portfolio||{},r=p.risk||{},sn=s.snapshot||{},perf=s.performance||{};
-  const dd=r.drawdown||{};const hp=(s.holdings_pnl||{});
   const faRegime={STRONG_UPTREND:"صعودی قوی ⬆",WEAK_UPTREND:"صعودی ضعیف ↗",SIDEWAYS:"رنج ↔",WEAK_DOWNTREND:"نزولی ضعیف ↘",STRONG_DOWNTREND:"نزولی قوی ⬇",HIGH_VOLATILITY:"نوسان شدید ⚡"};
   const blocked=(s.regime_blocked||[]);
-  /* Two anchor numbers, each derived from the Toman equity when it exists
-     (the SAME number «سود کل» adds up to: سود سرمایه + سرمایه واریزی ==
-     جمع == ارزش حساب). Showing the portfolio's own dollar equity made the
-     card disagree with its own تومان line by a cent. */
-  const eqIrt=(p.account?(p.account.equity_irt!=null?p.account.equity_irt:null):null);
-  const eqUsd=(eqIrt!=null&&!isNaN(eqIrt))?usd(eqIrt,2):"$"+fmt(r.total_equity);
-  $("#kpis").innerHTML=
-    kpi("ارزش کل حساب",eqUsd,fmt(eqIrt)+" تومان")+
-    kpi("ارزش کل (تومان)",fmt(eqIrt)+" تومان","≈ "+eqUsd)+
-    kpi(displayUsd()?"موجودی نقد ($)":"موجودی نقد (تومان)",
-      displayUsd()?usd(p.account?(p.account.irt_available!=null?p.account.irt_available:p.account.available_irt):null,2)
-                  :fmt(p.account?(p.account.irt_available!=null?p.account.irt_available:p.account.available_irt):null)+" تومان",
-      p.account?(displayUsd()?"≈ "+fmt(p.account.irt_available!=null?p.account.irt_available:p.account.available_irt,0)+" تومان":"پول قابل استفاده برای خرید"):"")+
-    (()=>{/* «سود ۲۴ساعت» — the CHANGE of «میزان سود سرمایه» over the last
-      24h (or, when this account's history is younger than that, from the
-      moment it started). سود سرمایه = ارزش حساب − کل سرمایه واریزی: the
-      very line the «سود کل» card prints under its amount, so the two boxes
-      can never disagree. SERVER-computed; a point recorded on the demo
-      ledger and one from the real wallet are DIFFERENT accounts and are
-      never mixed into one comparison. */
-      const p24=s.profit_24h||{};
-      /* فقط ۲۴ ساعت: تا وقتی نقطهٔ ۲۴ ساعت پیشِ همین حساب نباشد عددی
-         چاپ نمی‌شود — هیچ بازهٔ کوتاه‌تری جانشین نمی‌شود */
-      if(p24.coverage!=="exact"||p24.pnl_irt==null||p24.basis!=="capital"){
-        const why=(p24.waiting_reason==="MISSING_DEPOSIT_DATA")
-          ?"دیتای «کل سرمایه واریزی» در یکی از دو سر بازه کامل نیست، پس «سود سرمایه» ساخته نمی‌شود"
-          :(p24.waiting_reason==="HISTORY_SHORTER_THAN_24H")
-          ?("تاریخچهٔ این حساب "+(p24.start_age_h<1?Math.max(1,Math.round((p24.start_age_h||0)*60))+" دقیقه":Math.round(p24.start_age_h||0)+" ساعت")+" است — باکس فقط از تغییر «میزان سود سرمایه» در ۲۴ ساعت حساب می‌شود")
-          :"هنوز نقطهٔ تاریخچه‌ای برای این حساب ثبت نشده — اولین چرخه ثبت می‌شود";
-        return kpi("سود ۲۴ساعت","—",
-          why+(p24.needs_h?(" | تا نقطهٔ ۲۴ ساعت پیش حدود "+p24.needs_h+" ساعت مانده"):"")
-          +(p24.skipped_other_source?" | نقطه‌های حساب دیگر (دمو/واقعی) نادیده گرفته شدند":""));
-      }
-      const money=v=>displayUsd()?usd(v,2):fmt(v,0)+" تومان";
-      const sgn=v=>(v>=0?"+":"");
-      const main=(displayUsd()?usd(p24.pnl_irt,2):sgn(p24.pnl_irt)+fmt(p24.pnl_irt,0)+" تومان");
-      const line=(label,val)=>`<div class="s">${label}: <span class="num">${val}</span></div>`;
-      const src=p24.real?"حساب واقعی نوبیتکس":"حساب آزمایشی";
-      const pctDen=(p24.pct_base==="deposited")?"سرمایه واریزی":"ارزش حساب";
-      /* کاربر: تیتر کارت «مبلغ سود سرمایه در ۲۴ ساعت» باشد و مبنایش هم
-         فقط همین «میزان سود سرمایه» (ارزش حساب − کل سرمایه واریزی) — پس
-         عدد بزرگ همان `pnl_irt` سرور است و زیرش یک دیتیل ریز از دو سر
-         بازهٔ ۲۴ساعته می‌آید. این متن کامل را هم در tooltip کارت نگه
-         می‌داریم تا با یک hover همه‌چیز در دسترس باشد. */
-      let tip=("میزان سود سرمایه در ۲۴ ساعت: "+main+" ("+sgn(p24.pct)+p24.pct.toFixed(2)+"٪ از "+pctDen+")");
-      if(p24.capital_now_irt!=null)
-        tip+=" | میزان سود سرمایه الان: "+money(p24.capital_now_irt)+" | میزان سود سرمایه ۲۴ ساعت پیش: "+money(p24.capital_ref_irt);
-      else
-        tip+=" | ارزش حساب الان (واریزی + سود): "+money(p24.total_irt)+" | ارزش حساب ۲۴ ساعت پیش: "+money(p24.base_irt);
-      if(p24.flow_irt)tip+=" | واریز/برداشت خارجی این بازه (انتقال، نه سود؛ دیتای صرافی): "+money(p24.flow_irt);
-      tip+=" | مبنا: همین ساعت، ۲۴ ساعت پیش ("+src+")";
-      /* دیتیل ریز زیر عدد، از خود «میزان سود سرمایه»: دو سر بازهٔ ۲۴ساعته
-         و تفاوتشان (با درصد)، آن هم با همان واحد نمایش کارت. مبنا و
-         منبع حساب هم در یک ردیف ریزِ کم‌رنگ می‌آید. */
-      let sub=((p24.capital_now_irt!=null)
-        ? line("میزان سود سرمایه الان",money(p24.capital_now_irt))
-          +line("میزان سود سرمایه ۲۴ ساعت پیش",money(p24.capital_ref_irt))
-          +line("تغییر ۲۴ساعته",main+(p24.pct!=null?" ("+sgn(p24.pct)+p24.pct.toFixed(2)+"٪ از "+pctDen+")":""))
-        : line("ارزش حساب الان (واریزی + سود)",money(p24.total_irt))
-          +line("ارزش حساب ۲۴ ساعت پیش",money(p24.base_irt)));
-      if(p24.flow_irt)sub+=line("واریز/برداشت خارجی این بازه (انتقال، نه سود)",money(p24.flow_irt));
-      sub+=`<div class="mut" style="font-size:11px">مبنا: همین ساعت، ۲۴ ساعت پیش (${src})</div>`;
-      return kpi("سود ۲۴ساعت",main,sub,p24.pct==null?"mut":cls(p24.pnl_irt),{title:tip})})()+
-    (()=>{/* LIVE total profit — the REAL growth of the deposited
-      capital: (equity_irt − deposited) / deposited. The old headline
-      (Σ of the rows' «سود از خرید» percents) was NOT this: it ignores
-      realized losses/fees and weighs every coin equally, so it could
-      disagree with the تومان lines below. The growth percent now
-      ALWAYS matches them: growth% == سود سرمایه / سرمایه واریزی. */
-      if(hp.pnl_irt==null)return kpi("سود کل","—","");
-      const g=hp.growth_pct;
-      const sign=(hp.pnl_irt>=0?"+":"");
-      const main=(g!=null?(g>=0?"+":"")+g.toFixed(2)+"%":displayUsd()?usd(hp.profit_capital_irt,2):sign+fmt(hp.profit_capital_irt,0)+" تومان");
-      const profitCap=(hp.profit_capital_irt!=null?hp.profit_capital_irt:hp.pnl_irt);
-      const dep=(hp.deposited_irt!=null?hp.deposited_irt:0);
-      const line=(label,val)=>`<div class="s">${label}: <span class="num">${val}</span></div>`;
-      /* deposit AUTO-refreshes from the exchange turnover: at most hourly
-         (net_deposit_refresh_s) AND immediately whenever the wallet sync
-         sees money enter/leave the account — a withdrawal is debited the
-         moment it is submitted, so the capital must follow it right away
-         (otherwise سود سرمایه drops by the withdrawn amount). No manual
-         button. جمع سادهٔ سودهای باز = Σ(value−invested) of the open rows
-         only — not shown any more. */
-      /* فقط سه ردیف: میزان سود سرمایه / کل سرمایه واریزی / جمع — «جمع»
-         همان جمع این دو عددِ چاپ‌شده است (ارزش حساب ≈ همین تا یک واحد
-         گردکردن؛ عدد دقیقش در کارت «ارزش کل» است). */
-      const money=v=>displayUsd()?usd(v,2):fmt(v,0);
-      /* سه خط کارت باید با خودشان جور باشند: «جمع» دقیقاً جمع همان دو
-         عددِ چاپ‌شده است (نه گردکردن دوبارهٔ مجموع خام) — همان قراری که
-         سرِ بخش‌های دارایی هم دارد؛ وگرنه در نمایش دلاری یک سنت و در
-         تومانی یک تومان با هم اختلاف پیدا می‌کنند. واحد گردکردن، واحد
-         نمایش است: سنت در حالت دلاری، یک تومان در حالت تومانی. */
-      const rate=usdtPerIrt();
-      const step=displayUsd()?100:1;
-      const shown=v=>{const x=(displayUsd()&&rate)?toUsd(v):v;
-        return (x==null||isNaN(x))?null:Math.round(x*step)/step;};
-      const show3=v=>(v==null?money(null)
-        :(displayUsd()&&rate)?usd(v*rate,2):fmt(v,0));
-      const pShown=shown(profitCap), dShown=shown(dep);
-      const tShown=(pShown==null||dShown==null)?null:pShown+dShown;
-      /* برداشتِ در جریان (وضعیت «Bank processing»): پول همان لحظهٔ ثبت
-         از کیف پول کم شده، پس از «کل سرمایه واریزی» هم کم می‌شود؛ یعنی
-         سود سرمایه دست‌نخورده می‌ماند — این خط فقط توضیح می‌دهد که چرا
-         سرمایه واریزی کم شده و سود کم نشده است. */
-      const dtail=(hp.deposited_detail||{});
-      const pending=Number(dtail.pending_withdraws_irt||0);
-      const sub=(line("میزان سود سرمایه",show3(pShown))
-        +line("کل سرمایه واریزی",show3(dShown))
-        +line("جمع",show3(tShown))
-        +(pending>0?`<div class="mut" style="font-size:11px">برداشت در جریان (از حساب رفته، بانک در حال تسویه): <span class="num">${show3(shown(pending))}</span> — از سرمایه واریزی کم شده تا سود سرمایه اشتباه منفی نشود</div>`:""));
-      return kpi("سود کل",main,sub,cls(hp.profit_capital_irt),{kpiId:"kpiTotalProfit"})})()+
-    kpi("وضعیت ریسك",r.risk_status||"—","exposure "+pct(r.exposure_ratio||0)+(blocked.length?" | رژیم‌بلاک: "+blocked.map(b=>((b.symbol||"").replace(/IRT$|USDT$/,"")+" "+(faRegime[b.regime_blocked]||b.regime_blocked))).join("، "):""),r.risk_status==="NORMAL"?"pos":r.risk_status?"neg":"mut")+
-    kpi("کیفیت داده",sn.data_quality_score!=null?(sn.data_quality_score*100).toFixed(0)+"%":"—",sn.status||"", sn.data_quality_score>=0.75?"pos":"neg")+
-    kpi("چرخه‌ها",s.cycles_run,"برد: "+(perf.win_rate!=null?(perf.win_rate*100).toFixed(0)+"%":"—"));
+  const brk=blocked.map(b=>((b.symbol||"").replace(/IRT$|USDT$/,"")+" "+(faRegime[b.regime_blocked]||b.regime_blocked))).join("، ");
+  const dd=r.drawdown||{};
+  return pvProfit24Card(s.profit_24h||{})
+    +pvCard("وضعیت ریسک",r.risk_status||"—",
+      "در معرض (exposure): "+pct(r.exposure_ratio||0)
+      +" | نسبت نقد: "+pct(r.cash_ratio||0)
+      +" | افت از سقف: "+pct(dd.current!=null?dd.current:null)
+      +(brk?(" | رژیم‌بلاک: "+brk):""),
+      r.risk_status==="NORMAL"?"pos":(r.risk_status?"neg":"mut"))
+    +pvCard("کیفیت داده",sn.data_quality_score!=null?((sn.data_quality_score*100).toFixed(0)+"٪"):"—",
+      "وضعیت اسنپ‌شات: "+(sn.status||"—")
+      +(sn.market_count!=null?(" | بازار: "+sn.market_count+(sn.valid_market_count!=null?(" (معتبر "+sn.valid_market_count+")"):"")):"")
+      +(sn.created_at?(" | "+tehranFull(sn.created_at)):"")
+      +(s.snapshot_count!=null?(" | اسنپ‌شات‌های ذخیره‌شده: "+s.snapshot_count):""),
+      sn.data_quality_score>=0.75?"pos":"neg")
+    +pvCard("چرخه‌ها و عملکرد",fmt(s.cycles_run||0,0),
+      "برد: "+(perf.win_rate!=null?((perf.win_rate*100).toFixed(0)+"٪"):"—")
+      +" | تصمیم‌های سنجیده‌شده: "+(perf.measured_decisions!=null?perf.measured_decisions:"—")
+      +" | ضریب سود: "+(perf.profit_factor!=null?fmt(perf.profit_factor,2):"—")
+      +(s.started_at?(" | شروع: "+tehranFull(s.started_at)):""),"mut");
+}
+
+/* ترکیب دارایی: سهم هر دارایی (+ نقد) از کل پرتفوی */
+function pvSlices(s){
+  const pv=s.portfolio_v2||{};
+  const rows=(pv.rows||[]).filter(r=>r.value_irt>0);
+  const items=rows.slice(0,6).map((r,i)=>({label:r.coin,value:r.value_irt,
+    color:PV_COLORS[i%PV_COLORS.length]}));
+  const rest=rows.slice(6).reduce((a,r)=>a+r.value_irt,0);
+  if(rest>0)items.push({label:"سایر سکه‌ها",value:rest,color:"#64748b"});
+  const cash=Number(pv.cash_irt||0)+Number(pv.cash_usdt_irt||0);
+  if(cash>0)items.push({label:"نقد",value:cash,color:"#94a3b8"});
+  const total=items.reduce((a,i)=>a+i.value,0);
+  items.forEach(i=>i.weight=total>0?(i.value/total):0);
+  return {items,total};
+}
+function pvBarHtml(sl){
+  if(!sl.items.length)return `<div class="empty" style="padding:10px">دارایی‌ای برای نمایش نیست — کیف پول خالی است یا هنوز همگام نشده</div>`;
+  return sl.items.map(i=>`<i style="width:${(i.weight*100).toFixed(3)}%;background:${i.color}" title="${esc(i.label)} — ${esc(pvMoney(i.value))} (${(i.weight*100).toFixed(2)}٪)"></i>`).join("");
+}
+function pvLegendHtml(sl){
+  if(!sl.items.length)return "";
+  return sl.items.map(i=>`<span class="lg"><span class="sw" style="background:${i.color}"></span>${esc(i.label)} <span class="num mut">${(i.weight*100).toFixed(2)}٪</span> <span class="num">${pvMoney(i.value)}</span></span>`).join("");
+}
+function drawDonut(cv,sl){
+  if(!cv)return;
+  const c=cv.getContext("2d");
+  const W=cv.width=cv.clientWidth*2,H=cv.height=cv.clientHeight*2;
+  c.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,R=Math.min(W,H)/2-8,r=R*0.6;
+  if(!sl.items.length||sl.total<=0){
+    c.fillStyle="#8b9bb4";c.font="22px sans-serif";c.textAlign="center";
+    c.fillText("دارایی‌ای برای نمایش نیست",cx,cy);return}
+  let a=-Math.PI/2;
+  sl.items.forEach(it=>{
+    const ang=it.weight*Math.PI*2;
+    c.beginPath();c.moveTo(cx,cy);c.arc(cx,cy,R,a,a+ang);c.closePath();
+    c.fillStyle=it.color;c.fill();
+    c.strokeStyle="#0b0f17";c.lineWidth=3;c.stroke();
+    a+=ang;});
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle="#111827";c.fill();
+  c.textAlign="center";
+  c.fillStyle="#e5edf8";c.font="bold 24px sans-serif";
+  c.fillText(pvHidden?"••••":(pvUnit==="usd"?("$"+fmt(toUsd(sl.total),0)):fmt(sl.total,0)),cx,cy-2);
+  c.fillStyle="#8b9bb4";c.font="18px sans-serif";
+  c.fillText(pvHidden?"":(pvUnit==="usd"?"دلار":"تومان"),cx,cy+24);
+}
+
+/* جدول دارایی‌ها — یک ردیف برای هر سکه، همهٔ اعداد به تومان (یا واحد
+   انتخابی کاربر). قیمت هر سکه از ارزش ÷ مقدار ساخته می‌شود تا با ستون
+   ارزش هم‌واحد بماند (قیمت بازار تتری خودش دلار است). */
+function pvTableHtml(s){
+  const pv=s.portfolio_v2||{};
+  const rows=pv.rows||[];
+  if(!rows.length)return `<div class="empty">دارایی‌ای برای نمایش نیست — کیف پول خالی است یا هنوز با صرافی همگام نشده</div>`;
+  const getters={coin:r=>r.coin,amount:r=>r.amount,entry:r=>r.avg_entry,
+    price:r=>r.price,value:r=>r.value_irt,pnl:r=>r.pnl_irt,
+    ch24:r=>r.ch24_irt,weight:r=>r.weight};
+  const list=sortRows(rows,"pv2",getters,"value","desc");
+  const priceIrt=r=>(r.amount>0&&r.value_irt!=null)?(r.value_irt/r.amount):null;
+  const entryIrt=r=>(r.amount>0&&r.invested_irt!=null)?(r.invested_irt/r.amount):null;
+  const cell=(money,pctv)=>(money==null?`<span class="num mut">—</span>`
+    :`<span class="num ${cls(money)}">${pvMoneySigned(money)}</span>`
+      +(pctv!=null?` <span class="mut" style="font-size:11px">(${pvPct(pctv)})</span>`:""));
+  const body=list.map(r=>`<tr>
+    <td class="num" style="font-weight:700">${esc(r.coin||"")}<span class="mut" style="font-size:11px"> ${esc(r.symbol||"")}</span></td>
+    <td class="num">${fmt(r.amount,8)}</td>
+    <td class="num">${pvPrice(entryIrt(r))}</td>
+    <td class="num">${pvPrice(priceIrt(r))}</td>
+    <td class="num">${pvMoney(r.value_irt)}</td>
+    <td>${cell(r.pnl_irt,r.pnl_pct)}</td>
+    <td>${cell(r.ch24_irt,r.ch24_pct)}</td>
+    <td class="num">${r.weight!=null?((r.weight*100).toFixed(2)+"٪"):"—"}</td></tr>`).join("");
+  const tot={value:0,invested:0,pnl:0,ch24:0};
+  list.forEach(r=>{if(r.value_irt!=null)tot.value+=r.value_irt;
+    if(r.invested_irt!=null)tot.invested+=r.invested_irt;
+    if(r.pnl_irt!=null)tot.pnl+=r.pnl_irt;
+    if(r.ch24_irt!=null)tot.ch24+=r.ch24_irt;});
+  const foot=`<tr style="font-weight:800;border-top:2px solid #1c2a3d">
+    <td>جمع ${list.length} دارایی</td><td></td><td></td><td></td>
+    <td class="num">${pvMoney(tot.value)}</td>
+    <td class="num ${cls(tot.pnl)}">${pvMoneySigned(tot.pnl)}</td>
+    <td class="num ${cls(tot.ch24)}">${pvMoneySigned(tot.ch24)}</td><td></td></tr>`;
+  return `<table><thead><tr>${thS("pv2","coin","دارایی")}${thS("pv2","amount","مقدار","desc")}${thS("pv2","entry","میانگین خرید","desc")}${thS("pv2","price","قیمت فعلی","desc")}${thS("pv2","value","ارزش","desc")}${thS("pv2","pnl","سود/زیان خرید","desc")}${thS("pv2","ch24","سود/زیان ۲۴ساعت","desc")}${thS("pv2","weight","سهم","desc")}</tr></thead>
+    <tbody>${body}${foot}</tbody></table>
+    <div class="muted" style="margin-top:8px">«سود/زیان خرید» = ارزش منهای مبلغ خرید (سود از خرید خودت)؛ «سود/زیان ۲۴ساعت» = تغییر قیمت همین سکه در ۲۴ ساعت روی مقدار خودت. جمع هر ستون همان جمع ردیف‌های روی صفحه است.</div>`;
+}
+
+function pvSummaryHtml(s){
+  const pv=s.portfolio_v2||{},hp=s.holdings_pnl||{};
+  const kv=(k,v)=>`<div class="k">${k}</div><div class="v">${v}</div>`;
+  return `<div class="pvKv">`
+    +kv("ارزش کل حساب",pvMoney(pv.total_irt))
+    +kv("دارایی دیجیتال",pvMoney(pv.coins_value_irt))
+    +kv("سهم دارایی دیجیتال",pvPct(pv.coins_value_pct))
+    +kv("نقد تومانی (قابل خرید)",pvMoney(pv.cash_available_irt))
+    +kv("نقد تتر",(pvHidden?"••••":"$"+fmt(pv.cash_usdt,2))+" (≈ "+pvMoney(pv.cash_usdt_irt)+")")
+    +kv("مبلغ خرید دارایی‌ها (سرمایهٔ درگیر)",pvMoney(pv.invested_irt))
+    +kv("سود/زیان دارایی‌های باز",pvMoneySigned(pv.open_pnl_irt)+" ("+pvPct(pv.open_pnl_pct)+")")
+    +kv("سود/زیان کل حساب",pvMoneySigned(hp.profit_capital_irt)+" ("+pvPct(hp.growth_pct)+")")
+    +kv("سرمایهٔ واریزی",pvMoney(pv.deposited_irt))
+    +kv("سود/زیان ۲۴ساعت دارایی‌ها",pvMoneySigned(pv.pnl_24h_irt)+" ("+pvPct(pv.pnl_24h_pct)+")")
+    +kv("تعداد دارایی / پوشش ۲۴ساعت",(pv.row_count||0)+" / "+(pv.rows_24h||0))
+    +kv("نرخ دلار (تومان)",fmt(pv.toman_per_usdt,0))
+    +kv("آخرین محاسبه",tehran(pv.generated_at))
+    +`</div>`;
+}
+
+/* نمای کلی: کارت‌های خلاصهٔ پرتفوی + نوار ترکیب دارایی */
+function renderKpis(s){
+  setBox("#kpis",()=>pvHeroCards(s,false),"کارت‌های پرتفوی");
+  const sl=pvSlices(s);
+  setBox("#pvBarMini",()=>pvBarHtml(sl),"ترکیب دارایی");
+  setBox("#pvLegendMini",()=>pvLegendHtml(sl),"ترکیب دارایی");
+}
+/* تب «پرتفوی نوبیتکس»: همهٔ کارت‌ها + دونات + جدول + وضعیت موتور */
+function renderPortfolioV2(s){
+  setBox("#pvHero",()=>pvHeroCards(s,true),"کارت‌های پرتفوی");
+  setBox("#pvTable",()=>pvTableHtml(s),"دارایی‌ها");
+  setBox("#pvSummary",()=>pvSummaryHtml(s),"خلاصهٔ پرتفوی");
+  setBox("#pvHealth",()=>pvHealthCards(s),"وضعیت موتور");
+  const sl=pvSlices(s);
+  setBox("#pvLegend",()=>pvLegendHtml(sl),"ترکیب دارایی");
+  drawDonut($("#pvDonut"),sl);
+  const meta=$("#pvMeta");
+  if(meta)meta.textContent=(" | "+sl.items.length+" بخش | به‌روزرسانی: "+tehran((s.portfolio_v2||{}).generated_at));
+  document.querySelectorAll("[data-pvunit]").forEach(b=>
+    b.classList.toggle("on",b.dataset.pvunit===pvUnit));
 }
 
 function drawChart(cv,series,color,fill){
@@ -1935,6 +2197,10 @@ async function poll(){
     const bb=document.getElementById("btnBuyBest");
     if(bb){ bb.textContent="بهترین گزینه: "+(s.buy_best?"روشن":"خاموش"); bb.className=s.buy_best?"primary":""; }
     renderKpis(s);
+    if(activeTab==="netport"){
+      /* تب «پرتفوی نوبیتکس» — همهٔ اعداد همان لحظه از payload می‌آید */
+      renderPortfolioV2(s);
+    }
     if(activeTab==="overview"){
       setBox("#openOrdersBox",()=>openOrdersTable(s.open_orders),"سفارش‌های در جریان");
       setBox("#decBox",()=>decTable(s.decisions),"تصمیم‌ها");
@@ -1971,6 +2237,9 @@ async function refreshSlow(){
     if(activeTab==="overview"){
       /* BTCUSDT chart card was replaced by the holdings box */
     }
+    /* تب پرتفوی: با هر سوئیچ تب فوراً از آخرین payload رسم می‌شود (هیچ
+       درخواست تازه‌ای لازم نیست — portfolio_v2 همراه /api/status می‌آید) */
+    if(activeTab==="netport"&&state){renderPortfolioV2(state)}
     /* «همهٔ بازارهای نوبیتکس»: refresh the LIVE catalog on the slow tick
        (the server's own TTL decides whether the exchange is re-asked), so
        the table keeps working even when no cycle/snapshot has run yet */

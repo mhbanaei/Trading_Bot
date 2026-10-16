@@ -863,6 +863,20 @@ class TradingEngine:
                 if p:
                     rates[base] = float(p) / usdtirt
                     continue
+                # Snapshot-free fallback: the LIVE catalog knows this coin's
+                # dollar price even when neither the cycle's top-N snapshot
+                # nor the adapter's stats cache carries it. Without this a
+                # wallet coin bought outside the snapshot was valued at
+                # ZERO, so the account equity quietly under-reported it —
+                # and «ارزش کل حساب» disagreed with the sum of the
+                # portfolio's own rows (the same rows the user can see).
+                try:
+                    px = self.market_universe().price(base + "USDT")
+                except Exception:
+                    px = None
+                if px:
+                    rates[base] = float(px)
+                    continue
                 try:
                     stats = self.exchange._stats_all()
                     st = stats.get(base.lower() + "-rls") or {}
@@ -2376,6 +2390,12 @@ class TradingEngine:
             # revalued every status call (computed above so «سود ۲۴ساعت»
             # reads the same numbers)
             "holdings_pnl": hp_now,
+            # پورتفوی نوبیتکسی (نمای کلی + تب «پرتفوی نوبیتکس»): یک ردیف
+            # برای هر دارایی با ارزش/سود/سهم — همه به تومان، بدون نیاز به
+            # اسنپ‌شات. با همان اعدادِ holdings_pnl ساخته می‌شود تا کارت
+            # «سود کل» و این بخش هرگز با هم اختلاف نداشته باشند.
+            "portfolio_v2": self._portfolio_v2(prices, portfolio_snapshot,
+                                               hp_now, irt_rate),
             # holdings-box rows: per-coin profit since MY purchase, holding
             # timer since the last buy, and the dual stop/TP triggers
             "holdings": [
@@ -4073,6 +4093,174 @@ class TradingEngine:
             # provenance of the deposited number (exchange turnover vs manual)
             "deposited_source": "exchange" if used_exchange else "manual",
             "deposited_detail": nd,
+        }
+
+    # ------------------------------------------------------- portfolio v2
+    def _market_change_24h(self, market: str):
+        """24h change (percent) of a market from the LIVE catalog.
+
+        Snapshot-free by construction: the whole-exchange catalog is one
+        cached public call, so a held wallet coin that sits outside the
+        cycle's top-N universe still gets an honest 24h number instead of
+        an empty cell. When the exact market has no row, the SAME coin's
+        other quote (BTCIRT for BTCUSDT) is a valid measure of the coin's
+        24h move.
+        """
+        try:
+            uni = self.market_universe()
+        except Exception:
+            return None
+        for sym in [market] + MarketUniverse.alternates(market):
+            try:
+                row = uni.row(sym)
+            except Exception:
+                row = None
+            if not row:
+                continue
+            try:
+                chg = float(row.get("change_24h"))
+            except (TypeError, ValueError):
+                continue
+            if chg == chg:                      # skip NaN
+                return chg
+        return None
+
+    def _portfolio_v2(self, prices: dict, ps: dict, hp: dict,
+                      irt_rate: float | None = None) -> dict:
+        """پورتفوی نوبیتکسی — the whole account, every number in TOMAN.
+
+        One row per held coin: مقدار، میانگین خرید، قیمت لحظه‌ای، ارزش،
+        سود/زیان خرید، سود/زیان ۲۴ساعت و سهم از پرتفوی — plus the
+        account-level totals the dashboard's hero cards print.
+
+        Toman is the REPORTING unit (it is the user's own money), so a
+        dollar-quoted (*USDT) row is converted with the live
+        Toman-per-USDT rate while keeping its own market numbers on the
+        row (`value_quote` / `invested_quote`).
+
+        NO SNAPSHOT AND NO CYCLE IS NEEDED: prices come from the same live
+        catalog fallback the holdings box uses and the 24h changes from
+        that catalog too, so a coin the snapshot dropped is still valued
+        and still gets its 24h move.
+
+        Every aggregate is the plain SUM of the very row numbers the UI
+        prints, so «سود/زیان دارایی‌ها» on the page is exactly Σ of its
+        column — nothing is re-rounded behind the user's back.
+        """
+        if irt_rate is None:
+            irt_rate = float(self._usdt_rates(prices).get("IRT") or 0)
+        toman_per_usdt = (1.0 / irt_rate) if irt_rate > 0 else 0.0
+        acc = (ps or {}).get("account") or {}
+        total_irt = float(acc.get("equity_irt") or 0)
+        cash_irt = float(acc.get("irt_total") or 0)
+        cash_avail_irt = float(acc.get("irt_available") or 0)
+        rows: list = []
+        for p in self.storage.positions():
+            mk = p["market"]
+            if d(p["amount"]) <= 0 or mk in ("USDT", "IRT", "USDTIRT"):
+                continue
+            if mk not in prices:
+                px = self._price_fallback(mk)
+                if px:
+                    prices[mk] = px
+            r = self._position_row(p, prices, irt_rate)
+            quote = r.get("quote") or (quote_of_market(mk) or "IRT")
+            mul = 1.0 if quote == "IRT" else toman_per_usdt
+            value_q = r.get("value_disp")
+            invested_q = r.get("invested_disp")
+            value_irt = (float(d(str(value_q)) * d(str(mul)))
+                         if (value_q is not None and mul > 0) else None)
+            invested_irt = (float(d(str(invested_q)) * d(str(mul)))
+                            if (invested_q is not None and mul > 0) else None)
+            pnl_irt = (value_irt - invested_irt
+                       if (value_irt is not None and invested_irt is not None)
+                       else None)
+            pnl_pct = (round(pnl_irt / invested_irt * 100, 2)
+                       if (pnl_irt is not None and invested_irt) else None)
+            # 24h move of THIS coin applied to MY amount (the Nobitex
+            # panel's «سود/زیان ۲۴ساعته»): value 24h ago = value/(1+chg).
+            chg = self._market_change_24h(mk)
+            ch24_irt = None
+            if (chg is not None and value_irt is not None
+                    and (1.0 + chg / 100.0) > 0):
+                ch24_irt = value_irt - (value_irt / (1.0 + chg / 100.0))
+            value_usdt = None
+            if quote == "USDT":
+                value_usdt = value_q
+            elif value_irt is not None and toman_per_usdt > 0:
+                value_usdt = value_irt / toman_per_usdt
+            rows.append({
+                "symbol": mk, "coin": r.get("coin"), "quote": quote,
+                "amount": r.get("amount"),
+                "avg_entry": r.get("avg_entry"),
+                "last_buy_price": r.get("last_buy_price"),
+                "price": r.get("price"), "price_usdt": r.get("price_usdt"),
+                "value_quote": value_q, "invested_quote": invested_q,
+                "value_irt": (round(value_irt, 2)
+                              if value_irt is not None else None),
+                "value_usdt": (round(value_usdt, 2)
+                               if value_usdt is not None else None),
+                "invested_irt": (round(invested_irt, 2)
+                                 if invested_irt is not None else None),
+                "pnl_irt": (round(pnl_irt, 2)
+                            if pnl_irt is not None else None),
+                "pnl_pct": pnl_pct,
+                "ch24_pct": (round(chg, 2) if chg is not None else None),
+                "ch24_irt": (round(ch24_irt, 2)
+                             if ch24_irt is not None else None),
+                "last_buy_at": r.get("last_buy_at"),
+                "holding_fa": r.get("holding_fa"),
+                "stop": r.get("stop"), "take_profit": r.get("take_profit"),
+            })
+        coins_irt = sum(r["value_irt"] for r in rows
+                        if r["value_irt"] is not None)
+        invested_sum = sum(r["invested_irt"] for r in rows
+                           if r["invested_irt"] is not None)
+        open_pnl = sum(r["pnl_irt"] for r in rows
+                       if r["pnl_irt"] is not None)
+        ch24_rows = [r for r in rows if r["ch24_irt"] is not None]
+        ch24_sum = sum(r["ch24_irt"] for r in ch24_rows)
+        ch24_base = sum(r["value_irt"] - r["ch24_irt"] for r in ch24_rows)
+        open_pct = (round(open_pnl / invested_sum * 100, 2)
+                    if invested_sum > 0 else None)
+        ch24_pct = round(ch24_sum / ch24_base * 100, 2) if ch24_base > 0 else None
+        base_irt = total_irt if total_irt > 0 else coins_irt + cash_irt
+        for r in rows:
+            r["weight"] = (round(r["value_irt"] / base_irt, 6)
+                           if (r["value_irt"] is not None and base_irt > 0)
+                           else None)
+        rows.sort(key=lambda r: (-(r["value_irt"] or 0.0), r["coin"] or ""))
+        return {
+            "unit": "IRT",
+            "generated_at": utc_now_iso(),
+            "toman_per_usdt": round(toman_per_usdt, 2),
+            "toman_rate_ok": bool(toman_per_usdt > 0),
+            "total_irt": round(total_irt, 2),
+            "cash_irt": round(cash_irt, 2),
+            "cash_available_irt": round(cash_avail_irt, 2),
+            # Tether cash is real money too — reported separately (never
+            # added into the Toman number) so the UI can show both.
+            "cash_usdt": round(float(acc.get("available_usdt") or 0), 2),
+            "cash_usdt_irt": round(float(acc.get("available_usdt") or 0)
+                                   * toman_per_usdt, 2),
+            "coins_value_irt": round(coins_irt, 2),
+            "coins_value_pct": (round(coins_irt / base_irt * 100, 2)
+                                if base_irt > 0 else None),
+            "cash_weight": (round(cash_irt / base_irt, 6)
+                            if base_irt > 0 else None),
+            "invested_irt": round(invested_sum, 2),
+            "open_pnl_irt": round(open_pnl, 2),
+            "open_pnl_pct": open_pct,
+            # account-level profit (growth of the deposited capital) — the
+            # SAME number the «سود کل» box prints, taken from holdings_pnl
+            "total_pnl_irt": hp.get("profit_capital_irt"),
+            "total_pnl_pct": hp.get("growth_pct"),
+            "deposited_irt": hp.get("deposited_irt"),
+            "pnl_24h_irt": round(ch24_sum, 2),
+            "pnl_24h_pct": ch24_pct,
+            "rows_24h": len(ch24_rows),
+            "row_count": len(rows),
+            "rows": rows,
         }
 
     def _position_row(self, p: dict, prices: dict, usdtirt: float) -> dict:
