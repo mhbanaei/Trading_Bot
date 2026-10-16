@@ -583,6 +583,63 @@ class NobitexAPI(ExchangeAdapter):
             self._stats_ts = now
             return self._stats_cache
 
+    # ------------------------------------------------- whole-market index
+    def all_tickers(self) -> dict:
+        """EVERY listed market in ONE public call (the live universe).
+
+        `GET /market/stats` with no parameters returns all pairs, so the
+        bot can price/scan the whole exchange without a snapshot and with
+        no per-market round trip. Rial-quoted pairs are converted to the
+        bot's Toman unit and Tether pairs stay in USDT (same boundary rule
+        as ticker()); everything is mapped into the canonical symbol space
+        (BTC-RLS -> BTCIRT, BTC-USDT -> BTCUSDT, usdt-rls -> USDTIRT).
+        """
+        stats = self._stats_all()
+        now = utc_now_iso()
+        out: dict = {}
+        for pair, st in (stats or {}).items():
+            src, _, dst = str(pair).partition("-")
+            dst_u = dst.upper()
+            src_u = src.upper()
+            if not src_u or not dst_u:
+                continue
+            if dst_u == "USDT":
+                sym, quote = src_u + "USDT", "USDT"
+                conv = float
+            elif dst_u in ("RLS", "IRT"):
+                sym, quote = src_u + "IRT", "IRT"
+                conv = self._to_irt_price
+            else:
+                continue
+            try:
+                last = conv(st.get("latest") or 0)
+                bid = conv(st.get("bestBuy") or 0)
+                ask = conv(st.get("bestSell") or 0)
+            except Exception:
+                continue
+            if not last or last <= 0:
+                continue
+            spread = (ask - bid) if (ask and bid) else 0.0
+            out[sym] = {
+                "symbol": sym,
+                "base_asset": src_u,
+                "quote_asset": quote,
+                "last_price": last,
+                "best_bid": bid,
+                "best_ask": ask,
+                "spread": spread,
+                "spread_percent": (spread / last * 100) if last else 0.0,
+                "volume_24h": float(st.get("volumeSrc") or 0),
+                "quote_volume_24h": float(st.get("volumeDst") or 0),
+                "change_24h": float(st.get("dayChange") or 0),
+                "high_24h": conv(st.get("dayHigh") or 0),
+                "low_24h": conv(st.get("dayLow") or 0),
+                "tradable": not st.get("isClosed", False),
+                "timestamp": now,
+                "received_at": now,
+            }
+        return out
+
     # --------------------------------------------------------------- ticker
     def ticker(self, symbol: str) -> dict:
         src, dst = split_symbol(symbol)
@@ -797,9 +854,35 @@ class NobitexAPI(ExchangeAdapter):
             "withdraws": data.get("withdraws") or [],
         }
 
+    # ------------------------------------------------------ diagnostic lock
+    @staticmethod
+    def is_read_only() -> bool:
+        """Hard read-only lock for diagnostics (env ``NOBITEX_READ_ONLY=1``).
+
+        WHY THIS EXISTS: a saved login token in data/real hot-attaches the
+        real adapter when the engine is constructed (and live_by_default
+        then turns ``live_trading`` on), so a script whose only intent was
+        to PRINT holdings could still send real orders and conversions.
+        Every wallet-moving call checks this lock at the ADAPTER boundary,
+        so a read-only process cannot move money through ANY engine path
+        (executor, dust sweep, exit conversion, order reaper, cancel).
+
+        Read side (tickers, orderbooks, portfolio, candles) is unaffected.
+        """
+        raw = (os.environ.get("NOBITEX_READ_ONLY") or "").strip().lower()
+        return raw not in ("", "0", "false", "no", "off")
+
+    def _refuse_read_only(self, what: str) -> None:
+        """Raise instead of moving money while NOBITEX_READ_ONLY is set."""
+        if self.is_read_only():
+            raise NobitexError(
+                "READ_ONLY",
+                "NOBITEX_READ_ONLY is set: refusing to %s" % what)
+
     # --------------------------------------------------------------- orders
     def place_limit_order(self, market: str, side: str, price, amount,
                           client_order_id: str) -> dict:
+        self._refuse_read_only("place a real order on %s" % market)
         src, dst = split_symbol(market)
         # the bot's prices are in Toman for IRT markets; Nobitex expects
         # Rials — convert back at the boundary (×divisor)
@@ -910,6 +993,7 @@ class NobitexAPI(ExchangeAdapter):
         return out
 
     def cancel_order(self, order_id: str) -> dict:
+        self._refuse_read_only("cancel order %s" % order_id)
         data = self._post("/market/orders/update-status",
                           {"order": int(order_id), "status": "canceled"})
         return {"order_id": str(order_id),
@@ -938,7 +1022,13 @@ class NobitexAPI(ExchangeAdapter):
         NO minimum-notional floor (verified: XLM worth ~4k toman converted
         fine while the exchange/get-quote market rejects anything below
         25k toman). Response: {'status':'ok','converts':{'xlm':'0.08875'}}.
+
+        SAFETY: the convert market has no minimum and moves the WHOLE
+        balance, so it is the single most destructive call in the adapter —
+        it obeys the NOBITEX_READ_ONLY lock like every other write.
         """
+        self._refuse_read_only("convert the whole %s balance" %
+                              (coin or "").upper())
         data = self.session.authed_request("POST", "/users/wallets/convert",
             {"srcCurrency": (coin or "").strip().lower(),
              "dstCurrency": "rls"})

@@ -25,6 +25,12 @@ class EngineCfg:
     max_markets: int = 30              # SS71 context budget: top-N by volume
     max_snapshots: int = 200           # retention cap for data/markets/snapshots
     events_retention_mb: float = 20.0  # cap for events/events.jsonl
+    # live market universe (universe.py): the WHOLE exchange catalog in one
+    # cached public call, independent of the snapshot. Held coins, exits,
+    # manual orders and the «همه بازارها» table read prices from here, so a
+    # coin outside the cycle's top-N universe still has a working stop-loss.
+    live_universe: bool = True
+    universe_ttl_s: float = 20.0       # cache TTL for that catalog
 
 
 @dataclass
@@ -87,7 +93,10 @@ class ExchangeCfg:
     # ~229k Rial/USDT — Nobitex's historical global minimum order value;
     # tune if Nobitex changes it). The dashboard shows the live Toman
     # equivalent in the settings tab.
-    min_order_usdt: float = 0.44
+    # NOTE (verified live): Nobitex rejects any order below 0.5 USDT with
+    # «SmallOrder: Order value is limited to above 0.5.» — a smaller floor
+    # here means the bot SENDS orders the exchange always rejects.
+    min_order_usdt: float = 0.5
     rls_to_irt_divisor: float = 10.0   # wallet rls balances are in Rial
     rest_timeout: float = 12.0
     orderbook_depth: int = 20
@@ -206,6 +215,13 @@ class RiskCfg:
     dust_convert_exclude: str = "USDT"
     # safety: at most this many conversions per cycle (rate-limit guard)
     dust_convert_max_per_cycle: int = 3
+    # حد ضرر/حد سود موقعیت‌های کوچک‌تر از حداقل سفارش صرافی: سفارش زیر
+    # ۰٫۵ تتر همیشه REJECTED می‌شود (SmallOrder) و حد ضرر هرگز اجرا نمی‌شد؛
+    # با روشن بودن این گزینه، خروجِ تحریک‌شده از مسیر «تبدیل» صرافی (بدون
+    # کمینه) به تومان بسته می‌شود. خروجی تبدیل به تومان می‌نشیند، پس اگر
+    # انحصار بخشی (تتری/مستقل) را می‌خواهید خاموش کنید تا خرده‌ها
+    # دست‌نخورده بمانند.
+    exit_convert_below_min: bool = True
     # ---------------- حالت ریسک (risk mode) — چرخش سریع روی برترین‌ها ----
     # OFF = حالت امن سابق: انتخاب تحلیلی چندعاملی، حد ضرر ‎-3٪، حد سود
     # ‎+25٪، خرید تکراری هر ۳۰ دقیقه و قفل طولانی بعد از حد ضرر.

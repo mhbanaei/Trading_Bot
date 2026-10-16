@@ -37,6 +37,7 @@ from .scanner import rank_markets
 from .regime import gate_candidates
 from .storage import Storage
 from .nobitex_api import NobitexSession
+from .universe import MarketUniverse
 from .utils import canonical_symbol, d, new_id, parse_iso, quote_of_market, \
     split_symbol, utc_iso, utc_now_iso
 
@@ -134,6 +135,13 @@ class TradingEngine:
         self.started_at = utc_now_iso()
         self.auto_trading = True
         self._ticker_cache: dict = {}   # market -> (price, fetched_at)
+        # live market universe (universe.py): EVERY market the exchange
+        # lists, in one cached public call — the snapshot-free price/catalog
+        # source for holdings, exits, manual orders and the scanner. It is
+        # REBOUND automatically when the exchange adapter is swapped
+        # (demo -> real hot attach).
+        self._universe: MarketUniverse | None = None
+        self._universe_exchange = None
         # «سفارشهای در جریان»: the exchange open-order read is TTL-cached
         # so the few-second dashboard poll cannot hammer the API
         self._open_orders_cache = (0.0, [])
@@ -1056,6 +1064,12 @@ class TradingEngine:
             # 5 ---- portfolio snapshot (SS21/22)
             prices = {m["symbol"]: m["last_price"] for m in snap["markets"]
                       if m.get("last_price")}
+            # held coins are priced from the LIVE catalog too: a stop-loss
+            # must be able to fire for a coin the snapshot did not include
+            try:
+                self._augment_prices_with_holdings(prices)
+            except Exception:
+                pass
             portfolio_snapshot = self.portfolio.portfolio_snapshot(
                 prices, self._usdt_rates(prices))
 
@@ -1155,7 +1169,7 @@ class TradingEngine:
             valid_decisions = []
             for dec in decisions:
                 vres = ValidationResult(ok=True)
-                validate_ai_decision(dec, set(market_by_symbol.keys()), vres)
+                validate_ai_decision(dec, self._allowed_symbols(market_by_symbol), vres)
                 ok = vres.ok
                 self.storage.save_ai_decision(dec, ok)
                 if ok:
@@ -1226,20 +1240,327 @@ class TradingEngine:
                 return None
         return None
 
-    def _price_fallback(self, market: str):
-        """Best-effort live price for a held market outside the snapshot
-        universe (60s cache so /api/status polling stays light)."""
-        hit = self._ticker_cache.get(market)
-        if hit and (datetime.now(timezone.utc) - hit[1]).total_seconds() < 60:
-            return hit[0]
+    def market_universe(self, force: bool = False) -> MarketUniverse:
+        """The snapshot-free catalog of EVERY market the exchange lists.
+
+        One cached public call (Nobitex /market/stats returns all pairs) so
+        holdings, stop-loss checks, manual orders and the whole-exchange
+        table never depend on a snapshot file (or on the coin being inside
+        the cycle's top-N trading universe). Rebound automatically when the
+        exchange adapter is replaced (demo -> real hot attach).
+        """
+        ex = self.exchange
+        uni = getattr(self, "_universe", None)
+        if uni is None or self._universe_exchange is not ex:
+            uni = MarketUniverse(
+                ex, data_dir=self.data_dir, events=self.events,
+                ttl=float(getattr(self.cfg.engine, "universe_ttl_s", 20)
+                          or 20))
+            self._universe = uni
+            self._universe_exchange = ex
+        if getattr(self.cfg.engine, "live_universe", True):
+            try:
+                uni.refresh(force=force)
+            except Exception:
+                pass
+        return uni
+
+    def live_universe_status(self) -> dict:
+        """Small health block for /api/status (no exception escapes)."""
         try:
-            t = self.exchange.ticker(market) \
-                if hasattr(self.exchange, "ticker") else None
-            px = t.get("last_price") if t else None
+            return self.market_universe().status()
+        except Exception as exc:
+            return {"count": 0, "error": str(exc)}
+
+    def _price_fallback(self, market: str):
+        """Best-effort live price for a held market outside the snapshot.
+
+        Order: the WHOLE-EXCHANGE universe (one cached call covers ~all
+        markets), then the single-market ticker. A failure is only cached
+        for 15 seconds so one hiccup cannot park a position for a minute.
+        """
+        now = datetime.now(timezone.utc)
+        hit = self._ticker_cache.get(market)
+        if hit and hit[0] and (now - hit[1]).total_seconds() < 60:
+            return hit[0]
+        px = None
+        try:
+            px = self.market_universe().price(market)
         except Exception:
             px = None
-        self._ticker_cache[market] = (px, datetime.now(timezone.utc))
+        if px is None:
+            try:
+                t = self.exchange.ticker(market) \
+                    if hasattr(self.exchange, "ticker") else None
+                px = t.get("last_price") if t else None
+            except Exception:
+                px = None
+        if px:
+            self._ticker_cache[market] = (px, now)
+        else:
+            self._ticker_cache[market] = (None, now - timedelta(seconds=45))
         return px
+
+    def _exit_price(self, market: str, prices: dict | None = None):
+        """Price to judge an exit trigger with — snapshot NOT required.
+
+        A held coin can sit outside the cycle's snapshot universe (held
+        wallets carry coins the top-N volume filter dropped, sections can
+        be switched off, a fresh listing has no history). Judging the stop
+        only against `prices` silently skipped those positions, so a stop
+        that the dashboard showed as hit never sold anything.
+        """
+        if prices:
+            px = prices.get(market)
+            if px:
+                return px
+        return self._price_fallback(market)
+
+    def _min_notional_for(self, market: str, prices: dict | None = None):
+        """Exchange minimum order value expressed in the MARKET'S quote
+        unit (USDT for Tether markets, Toman for Toman markets)."""
+        min_usdt = d(str(getattr(self.cfg.exchange, "min_order_usdt", 0.5)))
+        if market.endswith("USDT"):
+            return min_usdt
+        usdtirt = ZERO
+        if prices:
+            usdtirt = d(str(prices.get("USDTIRT") or 0))
+        if usdtirt <= 0:
+            try:
+                usdtirt = d(str(self._price_fallback("USDTIRT") or 0))
+            except Exception:
+                usdtirt = ZERO
+        return (min_usdt * usdtirt) if usdtirt > 0 else ZERO
+
+    def _free_sell_amount(self, market: str, wanted):
+        """How much of `market` the EXCHANGE says is free to sell right now.
+
+        The wallet is the source of truth: the ledger can be bigger (a
+        convert/sweep or a partial buy between syncs) and our own resting
+        SELL orders LOCK coins — an order for more than the free balance
+        comes back as ``OverValueOrder: Order Validation Failed`` and the
+        stop-loss silently never executes. Cancels our own resting SELL
+        orders for that market (an exit wants the position closed anyway)
+        and returns the free amount. None = paper mode (no exchange truth),
+        the caller keeps its ledger amount.
+        """
+        if not self._real_attached:
+            return None
+        base = (market[:-4] if market.endswith("USDT")
+                else (market[:-3] if market.endswith("IRT") else market))
+        if not base:
+            return None
+
+        def _read():
+            try:
+                doc = self.exchange.portfolio()
+            except Exception:
+                return None
+            for a in (doc.get("assets") or []):
+                if (a.get("asset") or "").upper() == base.upper():
+                    return d(str(a.get("available") or 0))
+            return ZERO
+
+        free = _read()
+        if free is None:
+            return None          # wallet read failed: leave the ledger alone
+        if free < d(str(wanted)):
+            freed = False
+            try:
+                for o in self.exchange.open_orders(market):
+                    if (o.get("side") or "").upper() != "SELL":
+                        continue
+                    try:
+                        self.exchange.cancel_order(o["order_id"])
+                        freed = True
+                    except Exception:
+                        pass
+            except Exception:
+                freed = False
+            if freed:
+                try:
+                    self._sync_after_cancel()
+                except Exception:
+                    pass
+                again = _read()
+                if again is not None:
+                    free = again
+        if free <= 0:
+            return ZERO
+        return min(free, d(str(wanted)))
+
+    def _convert_exit_below_min(self, market: str, reason: str,
+                                notional, min_notional) -> bool:
+        """Close a position the ORDER BOOK cannot accept.
+
+        Nobitex rejects any order below 0.5 USDT (``SmallOrder: Order value
+        is limited to above 0.5.``), so a micro position's stop-loss could
+        never execute — it parked for 30 minutes, forever, while the loss
+        kept growing.        The exchange's own convert market (the «تبدیل
+        موجودی‌های خرد» path) has NO minimum, so the TRIGGERED exit is
+        executed there and the loss is actually cut. Turn it off with
+        risk.exit_convert_below_min=false. Note the proceeds land in Toman
+        (the convert market pays out in Toman only) — that is the price of
+        being able to close a position the order book refuses.
+
+        SAFETY: this is a REAL trade (it moves real coins out of the
+        wallet), so it obeys the SAME gate as every other live order —
+        the real adapter must be attached AND ``exchange.live_trading``
+        must be on. Without that gate a diagnostic script that merely
+        CONSTRUCTED the engine (a saved login token hot-attaches the real
+        adapter) could convert the user's wallet while the dashboard said
+        «معامله واقعی: خاموش». A non-live engine leaves the plan parked
+        for the normal 30-minute retry instead.
+        """
+        if not bool(getattr(self.cfg.risk, "exit_convert_below_min", True)):
+            return False
+        if not self._real_attached:
+            return False
+        if not bool(getattr(self.cfg.exchange, "live_trading", False)):
+            return False
+
+        base = (market[:-4] if market.endswith("USDT")
+                else (market[:-3] if market.endswith("IRT") else ""))
+        if not base or base in ("USDT", "IRT"):
+            return False
+        try:
+            conv = self.exchange.convert_wallet_balance(base)
+        except NobitexError as exc:
+            self.events.error("ENGINE", "EXIT_CONVERT_FAILED", "WARNING",
+                              "%s: %s" % (market, exc.code),
+                              retryable=True)
+            return False
+        except Exception as exc:
+            self.events.error("ENGINE", "EXIT_CONVERT_FAILED", "WARNING",
+                              "%s: %s" % (market, str(exc)[:120]),
+                              retryable=True)
+            return False
+        # the coins are gone from the wallet: drop the plan and the row so
+        # the stop cannot fire again on an empty position
+        plans = self.storage.kv_get("exit_plans", {})
+        if isinstance(plans, dict):
+            plans.pop(market, None)
+            self.storage.kv_set("exit_plans", plans)
+        pos = self.storage.position(market)
+        try:
+            self.storage.upsert_position(
+                market, ZERO, (pos or {}).get("avg_entry") or ZERO,
+                (pos or {}).get("realized_pnl") or ZERO,
+                (pos or {}).get("side") or "LONG")
+        except Exception:
+            pass
+        try:
+            self.sync_real_wallet()
+        except Exception:
+            pass
+        self.events.publish("EXIT_CONVERTED_BELOW_MIN", "engine", "", {
+            "symbol": market, "base": base, "reason": reason,
+            "value_quote": float(d(str(notional or 0))),
+            "min_quote": float(d(str(min_notional or 0))),
+            "converted": (conv or {}).get("converted_amount")})
+        return True
+
+    def _market_row(self, symbol: str) -> dict | None:
+        """Market data for `symbol` WITHOUT requiring a snapshot.
+
+        The cycle's snapshot row wins when it exists (it carries the
+        collected orderbook and quality metrics); otherwise the row is
+        built from the LIVE catalog so a buy/sell/exit on a held coin never
+        fails with «بازار در اسنپ‌شات فعلی نیست». The row is only a carrier
+        for price/quality fields — validation and the risk engine still
+        gate every order (SS100).
+        """
+        symbol = (symbol or "").strip().upper()
+        if not symbol:
+            return None
+        for m in (self.latest_snapshot or {}).get("markets", []):
+            if m.get("symbol") == symbol and m.get("last_price"):
+                return m
+        try:
+            row = self.market_universe().row(symbol)
+        except Exception:
+            row = None
+        if not row or not row.get("last_price"):
+            return None
+        now = utc_now_iso()
+        return {
+            "symbol": symbol,
+            "base_asset": row.get("base_asset"),
+            "quote_asset": row.get("quote_asset"),
+            "timestamp": row.get("timestamp") or now,
+            "received_at": now,
+            "source": "live_universe",
+            "last_price": row.get("last_price"),
+            "best_bid": row.get("best_bid"),
+            "best_ask": row.get("best_ask"),
+            "spread": row.get("spread"),
+            "spread_percent": row.get("spread_percent"),
+            "volume_24h": row.get("volume_24h"),
+            "quote_volume_24h": row.get("quote_volume_24h"),
+            "change_24h": row.get("change_24h"),
+            "high_24h": row.get("high_24h"),
+            "low_24h": row.get("low_24h"),
+            "tradable": row.get("tradable", True),
+            "orderbook": {"bids": [], "asks": [],
+                          "spread": row.get("spread"),
+                          "imbalance": 0.0, "depth_levels": 0},
+            "trades": [],
+            "ohlc": {"timeframe": "30m", "candles": []},
+            "liquidity": {}, "volatility": {},
+            "data_quality": {"status": "WARNING", "score": 0.6,
+                             "issues": ["LIVE_UNIVERSE_ROW"]},
+        }
+
+    def _allowed_symbols(self, market_by_symbol: dict) -> set:
+        """Symbols a decision may reference (SS75): the cycle's snapshot
+        PLUS the exchange's live catalog, the registry and every held
+        market.
+
+        Validating against the snapshot alone marked perfectly valid exit
+        decisions on HELD coins UNKNOWN_MARKET and dropped them before the
+        risk engine ever saw them — one of the reasons «حد ضرر» did not
+        sell (documented live: 24 UNIUSDT EXIT_STOP decisions created and
+        silently discarded).
+        """
+        allowed = set(k for k in (market_by_symbol or {}).keys() if k)
+        try:
+            allowed |= set(self.collector.registry.all_symbols())
+        except Exception:
+            pass
+        try:
+            allowed |= self.market_universe().symbols()
+        except Exception:
+            pass
+        try:
+            for p in self.storage.positions():
+                mkt = p.get("market") or ""
+                if mkt and d(p.get("amount") or 0) > 0:
+                    allowed.add(mkt)
+                    allowed |= set(MarketUniverse.alternates(mkt))
+        except Exception:
+            pass
+        return {s for s in allowed if s}
+
+    def _augment_prices_with_holdings(self, prices: dict) -> dict:
+        """Add a live price for EVERY held market the snapshot missed.
+
+        Called on the cycle's price map: exits, valuation and the AI all
+        then see the coins the wallet actually holds, whether or not the
+        snapshot universe included them this cycle (one cached whole-
+        exchange call, no per-market request).
+        """
+        try:
+            held = [p["market"] for p in self.storage.positions()
+                    if d(p["amount"]) > 0 and p.get("market")]
+        except Exception:
+            return prices
+        for market in held:
+            if prices.get(market):
+                continue
+            px = self._price_fallback(market)
+            if px:
+                prices[market] = px
+        return prices
 
     def _known_deposited_irt(self) -> float:
         """کل سرمایه واریزی, preferring the REAL Nobitex turnover.
@@ -1552,10 +1873,16 @@ class TradingEngine:
                 # hand from the dashboard.
                 continue
             pos = self.storage.position(market)
-            price = prices.get(market)
-            if not pos or d(pos["amount"]) <= 0 or not price:
+            if not pos or d(pos["amount"]) <= 0:
                 # triggers are holding-based now; nothing to do without coins
                 continue
+            # حد ضرر/حد سود با قیمتِ زندهٔ خود سکه سنجیده می‌شود، نه فقط با
+            # اسنپ‌شات: کوینِ نگه‌داشته‌شده‌ای که در سبد چرخه نیست (فیلتر
+            # حجم، بخش خاموش، لیست‌شدن تازه) قبلاً بی‌قیمت می‌ماند و حد
+            # ضررش هیچ‌وقت اجرا نمی‌شد.
+            price = prices.get(market) or self._exit_price(market, prices)
+            if not price:
+                continue   # no price anywhere: leave the plan armed
             # a position worth less than the exchange minimum can never be
             # sold — retry no sooner than 30 min instead of spamming the
             # adapter with REJECTEDs every cycle
@@ -1604,35 +1931,59 @@ class TradingEngine:
             sell_pct = 100 if (stop_hit or tp_hit or drop_hit) \
                 else min(100, triggered_pct)
             sell_amount = amount * Decimal(sell_pct) / Decimal(100)
-            if sell_amount <= 0 or sell_amount * price_d < Decimal("1"):
-                plans[market]["stage"] = stage
-                self.storage.kv_set("exit_plans", plans)
-                continue
-            # exchange minimum order value (Nobitex ≈ 200,000 Toman):
-            # submitting below it only earns a REJECTED — hold quietly.
-            # The minimum lives in the MARKET'S OWN quote unit (the same
-            # conversion the execution engine uses): min_order_usdt is USDT
-            # for a Tether market, and only IRT-quoted markets convert it
-            # to Toman. Multiplying unconditionally compared a USDT
-            # notional against a Toman figure, so every small Tether
-            # position was parked as "below minimum" and its stop could
-            # never fire at all.
-            min_usdt = d(str(getattr(self.cfg.exchange,
-                                     "min_order_usdt", 0.44)))
-            if market.endswith("USDT"):
-                min_notional = min_usdt
-            else:
-                usdtirt = d(str(prices.get("USDTIRT") or 0))
-                min_notional = (min_usdt * usdtirt) if usdtirt else ZERO
-            if min_notional > 0 and (sell_amount * price_d) < min_notional:
-                until = datetime.now(timezone.utc) + timedelta(seconds=1800)
-                plans[market]["below_min_until_ts"] = utc_iso(until)
-                self.storage.kv_set("exit_plans", plans)
-                continue
             reason = ("EXIT_STOP" if stop_hit else
                       "EXIT_DROP" if drop_hit else
                       "EXIT_TAKE_PROFIT" if triggered_pct else
                       "EXIT_PROFIT_TARGET")
+            # the EXCHANGE is the source of truth for how much is free to
+            # sell right now: our own resting SELL orders lock coins and the
+            # ledger can be bigger than the wallet, so an order for the
+            # whole position came back as «OverValueOrder: Order Validation
+            # Failed» every cycle while the price kept falling.
+            try:
+                free_amt = self._free_sell_amount(market, sell_amount)
+            except Exception:
+                free_amt = None
+            if free_amt is not None:
+                if free_amt <= 0:
+                    # کیف پول واقعی این سکه را ندارد: ردیف دفتر کهنه است —
+                    # صفر و پلن پاک می‌شود تا هر چرخه بی‌فایده تلاش نکند
+                    plans.pop(market, None)
+                    self.storage.kv_set("exit_plans", plans)
+                    try:
+                        self.storage.upsert_position(
+                            market, ZERO, pos.get("avg_entry") or ZERO,
+                            pos.get("realized_pnl") or ZERO,
+                            pos.get("side") or "LONG")
+                    except Exception:
+                        pass
+                    self.events.publish("EXIT_STALE_POSITION_CLEARED",
+                                        "engine", cycle_id,
+                                        {"symbol": market,
+                                         "reason": reason})
+                    continue
+                sell_amount = free_amt
+            notional = sell_amount * price_d
+            # حداقل سفارش صرافی (زنده: «SmallOrder: Order value is limited
+            # to above 0.5») در واحد خودِ بازار: سفارش زیر آن فقط REJECTED
+            # می‌گیرد. اما موقعیتِ کوچک هم نباید بی‌پناه بماند — از مسیر
+            # «تبدیل» صرافی (بدون کمینه) فروخته می‌شود تا حد ضرر واقعاً
+            # اجرا شود؛ وگرنه به‌مدت ۳۰ دقیقه پارک می‌شد و هیچ‌وقت نمی‌فروخت.
+            min_notional = self._min_notional_for(market, prices)
+            if (sell_amount <= 0 or notional < Decimal("1")
+                    or (min_notional > 0 and notional < min_notional)):
+                if self._convert_exit_below_min(market, reason, notional,
+                                                min_notional):
+                    # the conversion closed the position on the exchange:
+                    # drop the plan from THIS loop's copy too, or the next
+                    # decision written from it would resurrect the plan of
+                    # a market we no longer hold
+                    plans.pop(market, None)
+                    continue
+                until = datetime.now(timezone.utc) + timedelta(seconds=1800)
+                plans[market]["below_min_until_ts"] = utc_iso(until)
+                self.storage.kv_set("exit_plans", plans)
+                continue
             now_dt = datetime.now(timezone.utc)
             dec = {
                 "decision_id": new_id("dec"),
@@ -1988,6 +2339,9 @@ class TradingEngine:
                 "valid_market_count": snap.get("valid_market_count"),
                 "data_quality_score": snap.get("data_quality_score"),
             },
+            # کاتالوگ زندهٔ همهٔ بازارهای صرافی (بدون نیاز به اسنپ‌شات):
+            # قیمت/حجم/تغییر ۲۴س همهٔ جفت‌ها با یک درخواست کش‌شده
+            "universe": self.live_universe_status(),
             "portfolio": portfolio_snapshot,
             "candidates": self.latest_candidates,
             # «سفارشهای در جریان» — every order still working at the
@@ -2220,17 +2574,47 @@ class TradingEngine:
             "stop_loss", "take_profit", "position_size", "cost", "risk")}
 
     def _markets_view(self, snap: dict) -> list:
-        out = []
+        """«همه بازارها» — the WHOLE exchange, snapshot or not.
+
+        Rows come from the live catalog (every market the exchange lists,
+        one cached public call) merged with the cycle's snapshot metrics
+        (liquidity, RSI, trend, regime, candidate score) for the markets
+        that happen to be inside the trading universe. The old version
+        could only ever show the snapshot subset, so a coin the user holds
+        — or a brand-new listing — simply did not exist in the table.
+        """
+        snap_rows = {m["symbol"]: m for m in snap.get("markets", [])
+                     if m.get("symbol")}
         cand_by_symbol = {c["symbol"]: c for c in self.latest_candidates}
-        for m in snap.get("markets", []):
-            sym = m["symbol"]
+        held = {}
+        try:
+            for p in self.storage.positions():
+                if d(p["amount"]) > 0 and p.get("market"):
+                    held[p["market"]] = d(p["amount"])
+        except Exception:
+            pass
+        try:
+            uni_rows = self.market_universe().rows()
+        except Exception:
+            uni_rows = {}
+        symbols = list(uni_rows.keys())
+        for s in snap_rows:
+            if s not in symbols:
+                symbols.append(s)
+        out = []
+        for sym in symbols:
+            m = snap_rows.get(sym) or {}
+            u = uni_rows.get(sym) or {}
             cand = cand_by_symbol.get(sym)
             out.append({
                 "symbol": sym,
-                "last_price": m.get("last_price"),
-                "change_24h": m.get("change_24h"),
-                "spread_percent": m.get("spread_percent"),
-                "volume_24h": m.get("quote_volume_24h"),
+                "last_price": m.get("last_price", u.get("last_price")),
+                "change_24h": (m.get("change_24h") if m
+                               else u.get("change_24h")),
+                "spread_percent": (m.get("spread_percent") if m
+                                   else u.get("spread_percent")),
+                "volume_24h": (m.get("quote_volume_24h") if m
+                               else u.get("quote_volume_24h")),
                 "liquidity": m.get("liquidity", {}).get("status"),
                 "liquidity_score": m.get("liquidity", {}).get("score"),
                 "volatility_regime": m.get("volatility", {}).get(
@@ -2242,10 +2626,95 @@ class TradingEngine:
                 "rank": cand["rank"] if cand else None,
                 "data_quality": m.get("data_quality", {}).get("score"),
                 "data_quality_status": m.get("data_quality", {}).get("status"),
+                # whole-catalog flags (the dashboard's «وضعیت» column)
+                "source": ("snapshot" if m else
+                           ("universe" if u else "none")),
+                "in_snapshot": bool(m),
+                "tradable": bool(u.get("tradable", True)),
+                "enabled": self._quote_market_enabled(sym),
+                "held": sym in held,
+                "held_amount": (float(held[sym]) if sym in held else None),
             })
         out.sort(key=lambda x: (x["rank"] is None,
-                                x["rank"] if x["rank"] is not None else 999))
+                                x["rank"] if x["rank"] is not None else 999,
+                                -(float(x.get("volume_24h") or 0))))
         return out
+
+    def markets_universe(self, sort: str = "volume", quote: str | None = None,
+                         limit: int | None = None, search: str = "",
+                         refresh: bool = False,
+                         only_enabled: bool = False) -> dict:
+        """Whole-exchange catalog + analysis flags — the snapshot-free
+        scanner behind «همه بازارهای نوبیتکس».
+
+        Every market the exchange lists, ranked (volume / 24h change /
+        gainers / losers / price / spread), searchable by symbol, with the
+        engine's own flags per row: whether the coin is HELD, inside the
+        cycle's snapshot, a ranked candidate, and whether its section is
+        enabled in «بازار معاملات».
+        """
+        try:
+            uni = self.market_universe(force=refresh)
+        except Exception as exc:
+            return {"rows": [], "count": 0, "error": str(exc),
+                    "universe": {"count": 0, "error": str(exc)}}
+        held = {}
+        try:
+            for p in self.storage.positions():
+                if d(p["amount"]) > 0 and p.get("market"):
+                    held[p["market"]] = d(p["amount"])
+        except Exception:
+            pass
+        snap_syms = {m["symbol"] for m in (self.latest_snapshot or {}).get(
+            "markets", []) if m.get("symbol")}
+        cand = {c["symbol"]: c for c in self.latest_candidates}
+        prices = uni.rows()
+        rates = {}
+        try:
+            rates = self._usdt_rates({s: r.get("last_price")
+                                      for s, r in prices.items()
+                                      if r.get("last_price")})
+        except Exception:
+            rates = {}
+        usdt_per_irt = d(str(rates.get("IRT") or 0))
+
+        def _usdt_value(sym: str, amount: Decimal):
+            """Value of `amount` units of `sym` in USDT (unit-aware)."""
+            row = prices.get(sym) or {}
+            px = d(str(row.get("last_price") or 0))
+            if px <= 0:
+                return None
+            if sym.endswith("USDT"):
+                return float(px * amount)
+            if sym.endswith("IRT") and usdt_per_irt > 0:
+                return float(px * amount * usdt_per_irt)
+            return float(px * amount)
+
+        extras = {}
+        for sym in list(prices.keys()) + [s for s in held
+                                          if s not in prices]:
+            amt = held.get(sym)
+            extras[sym] = {
+                "held": sym in held,
+                "held_amount": float(amt) if amt is not None else None,
+                "value_usdt": (_usdt_value(sym, amt)
+                               if amt is not None else None),
+                "in_snapshot": sym in snap_syms,
+                # same token as «همه بازارها» (src/analysis source)
+                "source": "snapshot" if sym in snap_syms else "universe",
+                "candidate_rank": (cand.get(sym) or {}).get("rank"),
+                "candidate_score": (cand.get(sym) or {}).get("score"),
+                "enabled": self._quote_market_enabled(sym),
+            }
+        rows = uni.ranked(sort=sort, quote=quote, limit=limit, search=search,
+                          extras=extras)
+        if only_enabled:
+            rows = [r for r in rows if r.get("enabled")]
+        return {"rows": rows, "count": len(rows),
+                "universe": uni.status(),
+                "transfer": self._market_transfer_gate(),
+                "sort": sort, "search": search, "quote": quote,
+                "generated_at": utc_now_iso()}
 
     def _safe_health(self) -> dict:
         try:
@@ -3059,7 +3528,7 @@ class TradingEngine:
             dec["reason_codes"] = ["MANUAL_BEST_TRADE"] + list(
                 dec.get("reason_codes", []))[:5]
             vres = ValidationResult(ok=True)
-            validate_ai_decision(dec, set(market_by_symbol.keys()), vres)
+            validate_ai_decision(dec, self._allowed_symbols(market_by_symbol), vres)
             if not vres.ok:
                 attempted.append({"symbol": cand["symbol"], "ok": False,
                                   "error": "AI_VALIDATION: " + "; ".join(
@@ -3160,12 +3629,16 @@ class TradingEngine:
             return {"ok": False, "error": "این تصمیم قابل اجرا نیست (خرید/فروش نیست)"}
         snap = self.latest_snapshot or {}
         market_by_symbol = {m["symbol"]: m for m in snap.get("markets", [])}
-        m = market_by_symbol.get(dec.get("symbol"))
+        m = self._market_row(dec.get("symbol") or "")
         if not m:
             return {"ok": False,
-                    "error": "بازار در اسنپ‌شات فعلی نیست — یک چرخه اجرا کنید"}
+                    "error": "قیمت زنده برای " + str(dec.get("symbol")) +
+                    " پیدا نشد — نماد را بررسی کنید یا چند لحظه بعد "
+                    "دوباره تلاش کنید"}
+        market_by_symbol.setdefault(m["symbol"], m)
         prices = {mm["symbol"]: mm["last_price"] for mm in snap["markets"]
                   if mm.get("last_price")}
+        prices.setdefault(m["symbol"], m.get("last_price"))
         portfolio_snapshot = self.portfolio.portfolio_snapshot(
             prices, self._usdt_rates(prices))
         # fresh id + TTL so the freshness/duplicate checks judge the
@@ -4107,14 +4580,12 @@ class TradingEngine:
                 % (symbol, "تتری (USDT)" if symbol.endswith("USDT")
                    else "تومانی (IRT)")) if symbol != click_symbol else None
         snap = self.latest_snapshot or {}
-        m = None
-        for x in snap.get("markets", []):
-            if x.get("symbol") == symbol:
-                m = x
-                break
+        m = self._market_row(symbol)
         if not m or not m.get("last_price"):
             return {"ok": False,
-                    "error": "بازار در اسنپ‌شات فعلی نیست — یک چرخه اجرا کنید"}
+                    "error": "قیمت زنده برای " + symbol +
+                    " پیدا نشد — نماد را بررسی کنید یا چند لحظه بعد "
+                    "دوباره تلاش کنید"}
         if amount_irt is not None and amount_irt <= 0:
             return {"ok": False, "error": "مبلغ باید مثبت باشد"}
 
@@ -4136,6 +4607,7 @@ class TradingEngine:
 
         prices = {x["symbol"]: x["last_price"] for x in snap.get("markets", [])
                   if x.get("last_price")}
+        prices.setdefault(symbol, m.get("last_price"))
         cur = d(str(prices.get(symbol) or 0))
         if cur <= 0:
             return {"ok": False, "error": "قیمت موجود نیست"}
@@ -4178,9 +4650,17 @@ class TradingEngine:
                 "requested_quote_value": float(want_quote),
             }
 
+        # the allowed set is the WHOLE tradable catalog (snapshot + registry
+        # + live universe), not just this cycle's snapshot: a manual buy on
+        # a market the cycle never collected used to die with UNKNOWN_MARKET
+        if not dec.get("snapshot_id"):
+            # this market may not be in any snapshot at all (that is the
+            # whole point): tag the lineage instead of refusing the click
+            dec["snapshot_id"] = (snap.get("snapshot_id") or
+                                  "manual_live_universe")
         vres = ValidationResult(ok=True)
-        validate_ai_decision(dec, {x.get("symbol") for x in
-                                   snap.get("markets", [])}, vres)
+        validate_ai_decision(dec, self._allowed_symbols(
+            {x.get("symbol"): x for x in snap.get("markets", [])}), vres)
         if not vres.ok:
             out = {"ok": False, "symbol": symbol, "market": symbol,
                    "error": "اعتبارسنجی تصمیم: " + "; ".join(
@@ -4247,6 +4727,16 @@ class TradingEngine:
         snap = self.latest_snapshot or {}
         prices = {x["symbol"]: x["last_price"] for x in snap.get("markets", [])
                   if x.get("last_price")}
+        # a suggested amount must exist for EVERY market the user clicks —
+        # held coins outside the snapshot universe included (the click may
+        # target a market the cycle never collected)
+        try:
+            self._augment_prices_with_holdings(prices)
+            m_row = self._market_row(market) if market else None
+            if m_row and m_row.get("last_price"):
+                prices.setdefault(market, m_row.get("last_price"))
+        except Exception:
+            m_row = None
         rates = self._usdt_rates(prices)
         # rates["IRT"] = USDT value of ONE Toman; invert it to get the
         # Toman-per-USDT conversion factor used below
@@ -5321,12 +5811,16 @@ class TradingEngine:
             return out
         snap = self.latest_snapshot or {}
         market_by_symbol = {m["symbol"]: m for m in snap.get("markets", [])}
-        m = market_by_symbol.get(symbol)
+        m = self._market_row(symbol)
         if not m:
             return {"ok": False,
-                    "error": "بازار در اسنپ‌شات فعلی نیست — یک چرخه اجرا کنید"}
+                    "error": "قیمت زنده برای " + symbol +
+                    " پیدا نشد — نماد را بررسی کنید یا چند لحظه بعد "
+                    "دوباره تلاش کنید"}
+        market_by_symbol.setdefault(symbol, m)
         prices = {mm["symbol"]: mm["last_price"] for mm in snap["markets"]
                   if mm.get("last_price")}
+        prices.setdefault(symbol, m.get("last_price"))
         price = float(m.get("last_price") or prices.get(symbol) or 0)
         if price <= 0:
             return {"ok": False, "error": "قیمت موجود نیست"}
@@ -5357,7 +5851,8 @@ class TradingEngine:
             "exit": True,
         }
         vres = ValidationResult(ok=True)
-        validate_ai_decision(dec, set(market_by_symbol.keys()), vres)
+        validate_ai_decision(dec, self._allowed_symbols(market_by_symbol),
+                             vres)
         if not vres.ok:
             return {"ok": False, "error": "AI_VALIDATION: " +
                     "; ".join("%s:%s" % (i.field, i.code)

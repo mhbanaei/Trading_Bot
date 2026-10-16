@@ -212,12 +212,39 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/exchange_portfolio":
                 return self._json(eng.exchange_status())
             if path == "/api/markets_universe":
+                # LIVE catalog of every market the exchange lists (one cached
+                # public call) + the trading-universe selection. The
+                # dashboard's «همه بازارها» table reads `catalog`; the old
+                # top-level keys are kept unchanged for existing clients.
+                q = parse_qs(parsed.query)
                 doc = getattr(eng.collector.registry, "doc", {}) or {}
+                try:
+                    limit = int(q.get("limit", ["0"])[0]) or None
+                except (TypeError, ValueError):
+                    limit = None
+                flag = (q.get("refresh", [""])[0].lower() in
+                        ("1", "true", "yes", "on"))
+                live = eng.markets_universe(
+                    sort=q.get("sort", ["volume"])[0],
+                    quote=(q.get("quote", [""])[0] or None),
+                    limit=limit,
+                    search=q.get("search", [""])[0],
+                    refresh=flag,
+                    only_enabled=(q.get("enabled", [""])[0].lower() in
+                                  ("1", "true", "yes", "on")))
                 return self._json({
-                    "universe": doc.get("universe", {}),
+                    "universe": live.get("universe") or {},
                     "tradable": sorted(eng.collector.registry
                                        .tradable_symbols()),
                     "registered": len(doc.get("markets", {}) or {}),
+                    "catalog": live.get("rows") or [],
+                    "catalog_count": live.get("count", 0),
+                    "catalog_error": live.get("error", ""),
+                    "sort": live.get("sort"),
+                    "search": live.get("search"),
+                    "transfer": live.get("transfer"),
+                    "generated_at": live.get("generated_at"),
+                    "selection": doc.get("universe", {}),
                 })
             if path == "/api/buy_suggestion":
                 return self._json(eng.suggest_buy(

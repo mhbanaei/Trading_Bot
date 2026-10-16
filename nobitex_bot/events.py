@@ -12,9 +12,29 @@ from typing import Callable
 from .enums import ErrorSeverity
 from .utils import new_event_id, new_error_id, utc_now_iso
 
+#: Every type publish() accepts. ANY type missing from this list is
+#: silently rewritten to SYSTEM_ERROR, which made the live view show a
+#: wallet sync / manual sell / ladder step as a red error line. Keep it in
+#: sync with the publish() calls (tests/test_live_universe.py pins the ones
+#: the engine uses).
 EVENT_TYPES = [
     "SNAPSHOT_CREATED", "SNAPSHOT_COMPLETED", "SNAPSHOT_INVALID",
+    "SNAPSHOT_HEADER_INVALID", "SNAPSHOT_VALIDATE_FAILED",
     "MARKET_DISCOVERED", "MARKET_DISABLED",
+    "MARKET_DISCOVERY_FAILED", "MARKET_COLLECTION_FAILED",
+    "WALLET_SYNCED", "EXCHANGE_ATTACHED", "LOGIN_SUCCESS", "LOGOUT",
+    "LIVE_TRADING_CHANGED", "BUY_BEST_CHANGED",
+    "MARKET_TRANSFER_GATE_CHANGED",
+    "MANUAL_BUY_EXECUTED", "MANUAL_SELL", "BEST_TRADE_EXECUTED",
+    "BOT_ORDERS_CANCELLED",
+    "DEPOSITED_CAPITAL_SET",
+    # exit-plan bookkeeping (stop / take-profit / floor / ladder)
+    "BACKSTOP_ARMED", "HADD_SET", "PROFIT_LOCK_ADVANCED",
+    "LADDER_STOP_RAISED", "LADDER_TOPUP_FIRED", "LADDER_TOPUP_BLOCKED",
+    "LADDER_BUY_KEPT_LADDER", "POSITION_ENTRY_REPAIRED",
+    "POSITION_MARKET_REFILED",
+    "EXIT_CONVERTED_BELOW_MIN", "EXIT_STALE_POSITION_CLEARED",
+    "DUST_CONVERT_BLOCKED",
     "AI_ANALYSIS_STARTED", "AI_ANALYSIS_COMPLETED", "AI_DECISION_CREATED",
     "RISK_APPROVED", "RISK_REJECTED",
     "ORDER_SUBMITTED", "ORDER_OPENED", "ORDER_PARTIALLY_FILLED",

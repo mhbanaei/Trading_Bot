@@ -8,7 +8,9 @@
     "data_dir": "data",
     "max_markets": 1024,
     "max_snapshots": 1000,
-    "events_retention_mb": 1024
+    "events_retention_mb": 1024,
+    "live_universe": true,
+    "universe_ttl_s": 20
   },
   "exchange": {
     "mode": "nobitex",
@@ -51,7 +53,7 @@
     "include_irt_markets": true,
     "trade_quote_markets": "usdt",
     "min_quote_volume_usdt": 50000,
-    "min_order_usdt": 0.44,
+    "min_order_usdt": 0.5,
     "rls_to_irt_divisor": 10,
     "rest_timeout": 12,
     "orderbook_depth": 20,
@@ -98,6 +100,7 @@
     "dust_convert_threshold_irt": 50000,
     "dust_convert_exclude": "USDT",
     "dust_convert_max_per_cycle": 3,
+    "exit_convert_below_min": true,
     "risk_mode": false,
     "risk_mode_stop_loss_pct": -3,
     "risk_mode_take_profit_pct": 12,

@@ -57,6 +57,38 @@ class ExchangeAdapter(ABC):
     def health(self) -> dict:
         """SS49 system health of the API connection."""
 
+    def all_tickers(self) -> dict:
+        """Optional: ONE index of EVERY market the exchange lists.
+
+        {SYMBOL: ticker} in the bot's canonical symbol space. The engine's
+        live market universe (universe.py) uses this to price holdings and
+        scan the WHOLE exchange without depending on a snapshot file. The
+        default here sweeps markets()+ticker() (correct everywhere, just
+        more calls); adapters whose API returns all tickers in a single
+        request (Nobitex /market/stats) override it for speed.
+        """
+        out = {}
+        try:
+            markets = self.markets()
+        except Exception:
+            return out
+        for m in markets or []:
+            sym = (m or {}).get("symbol")
+            if not sym:
+                continue
+            try:
+                t = self.ticker(sym)
+            except Exception:
+                continue
+            if t and t.get("last_price"):
+                out[sym] = {
+                    **t,
+                    "base_asset": (m or {}).get("base_asset"),
+                    "quote_asset": (m or {}).get("quote_asset"),
+                    "tradable": bool((m or {}).get("tradable", True)),
+                }
+        return out
+
     def convert_spot(self, coin: str, rls_amount) -> dict:
         """Optional: convert a spot coin balance into rials through the
         exchange's convert market (panel/balance/convert). Adapters that

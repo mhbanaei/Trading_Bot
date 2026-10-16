@@ -101,6 +101,24 @@ canvas{width:100%; height:220px; display:block}
 .btn-buynow{background:#12351f; border:1px solid #1d5c33; color:#7ee2a8;
   border-radius:7px; cursor:pointer; padding:3px 10px}
 .btn-buynow:hover{background:#174428}
+/* «همهٔ بازارهای نوبیتکس» toolbar — search/sort over the LIVE exchange
+   catalog (universe.py): every listed market, snapshot or not */
+.uniBar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px}
+.uniBar input[type=search],.uniBar select{background:var(--panel2); color:var(--text);
+  border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-family:inherit;
+  font-size:13px; min-width:140px}
+.uniBar input[type=search]{direction:ltr; text-align:left}
+.uniBar input[type=search]:focus,.uniBar select:focus{outline:none; border-color:var(--accent)}
+.uniChk{display:inline-flex; gap:6px; align-items:center; font-size:12px;
+  color:var(--muted); cursor:pointer}
+.uniChk input{accent-color:var(--accent)}
+.ubadge{display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px;
+  margin-inline-start:4px; border:1px solid var(--border); white-space:nowrap}
+.ubadge.held{background:#052e16; color:var(--green); border-color:#14532d}
+.ubadge.snap{background:#083344; color:var(--cyan); border-color:#155e75}
+.ubadge.plain{background:#1e293b; color:var(--muted)}
+.ubadge.offx{background:#431407; color:var(--orange); border-color:#7c2d12}
+.ubadge.cand{background:#2e1065; color:#c4b5fd; border-color:#4c1d95}
 .hrow .stop-edit{cursor:pointer; border-bottom:1px dashed var(--accent); padding-bottom:1px}
 .hrow .stop-edit:hover{color:var(--accent)}
 .hrow .lockb{font-size:11px; margin-left:4px; background:rgba(250,204,21,.12); border:1px solid rgba(250,204,21,.35); color:#fde047; border-radius:6px; padding:0 5px; white-space:nowrap}
@@ -197,7 +215,32 @@ canvas{width:100%; height:220px; display:block}
   </section>
 
   <section id="tab-markets" class="tabs">
-    <div class="card"><h3>همه بازارها</h3><div id="marketsBox"></div></div>
+    <div class="card">
+      <h3>🌐 همهٔ بازارهای نوبیتکس <span class="muted">(کاتالوگ زندهٔ خودِ صرافی — بدون نیاز به اسنپ‌شات؛ قیمت، تغییر ۲۴ساعت، اسپرد و حجم همهٔ بازارها + وضعیت هر سکه در ربات)</span></h3>
+      <div class="uniBar">
+        <input id="uniSearch" type="search" placeholder="جست‌وجوی نماد… (مثلاً SHIB)" autocomplete="off">
+        <select id="uniSort" title="مرتب‌سازی کاتالوگ">
+          <option value="volume">مرتب: حجم ۲۴ساعت</option>
+          <option value="gainers">مرتب: بیشترین رشد</option>
+          <option value="losers">مرتب: بیشترین ریزش</option>
+          <option value="change">مرتب: تغییر ۲۴ساعت</option>
+          <option value="price">مرتب: قیمت</option>
+          <option value="spread">مرتب: کم‌ترین اسپرد</option>
+          <option value="symbol">مرتب: نماد (الفبا)</option>
+        </select>
+        <select id="uniQuote" title="فیلتر بازار تتری/تومانی">
+          <option value="">همهٔ بازارها (تتری + تومانی)</option>
+          <option value="USDT">فقط بازارهای تتری</option>
+          <option value="IRT">فقط بازارهای تومانی</option>
+        </select>
+        <label class="uniChk"><input id="uniHeld" type="checkbox"> فقط دارایی‌های من</label>
+        <label class="uniChk"><input id="uniEnabled" type="checkbox"> فقط بخش‌های روشن</label>
+        <button id="uniRefresh" title="کاتالوگ تازه از صرافی بگیر (بدون انتظار برای چرخه)">به‌روزرسانی زنده</button>
+        <span class="muted" id="uniMeta">…</span>
+      </div>
+      <div id="uniBox"><div class="empty">در حال بارگذاری کاتالوگ زنده…</div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>همه بازارها <span class="muted">(سبد تحلیلی همین چرخه — همان بازارهایی که AI می‌بیند: RSI، روند، نوسان، امتیاز)</span></h3><div id="marketsBox"></div></div>
   </section>
 
   <section id="tab-decisions" class="tabs">
@@ -801,6 +844,124 @@ async function execDecision(did,sym){if(!confirm("اجرای دستی تصمیم
   }catch(e){toast("خطا: "+e)}
   poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}}
 document.addEventListener("click",e=>{const b=e.target.closest(".btn-ex");if(b)execDecision(b.dataset.did,b.dataset.sym)});
+
+/* ---------- «همهٔ بازارهای نوبیتکس» — snapshot-free whole-exchange table
+   Local state + one async load per refresh tick. The server answers from
+   the LIVE catalog of the exchange itself (every listed pair, one cached
+   public call — universe.py), so a coin outside the cycle's snapshot or
+   in a switched-off section still gets a real price here and can be sold
+   or bought straight from this row. */
+const univ={rows:[],meta:null,error:"",q:"",sort:"volume",quote:"",
+            heldOnly:false,enabledOnly:false,_t:null,at:0};
+/* client-side default sort follows the toolbar choice until a header is
+   clicked (uiSort is the one source of truth for header clicks) */
+const UNIV_SORT={volume:["volume","desc"],gainers:["chg","desc"],
+  losers:["chg","asc"],change:["chg","desc"],price:["price","desc"],
+  spread:["spread","asc"],symbol:["symbol","asc"]};
+function univQuery(force){
+  const p=new URLSearchParams({sort:univ.sort||"volume"});
+  if(univ.q)p.set("search",univ.q);
+  if(univ.quote)p.set("quote",univ.quote);
+  if(univ.enabledOnly)p.set("enabled","1");
+  if(force)p.set("refresh","1");
+  return "/api/markets_universe?"+p.toString();
+}
+async function loadUniverse(force){
+  try{
+    const d=await jget(univQuery(force));
+    univ.rows=d.catalog||[];
+    univ.meta={count:d.catalog_count||0,universe:d.universe||{},
+      error:d.catalog_error||"",registered:d.registered||0,
+      enabled:(d.tradable||[]).length,generated_at:d.generated_at||"",
+      transfer:d.transfer||null};
+    univ.error=d.catalog_error||""; univ.at=Date.now();
+  }catch(e){univ.error=String((e&&e.message)||e)}
+  renderUniverse();
+}
+function renderUniverse(){
+  setBox("#uniBox",()=>universeTable(univ.rows),"کاتالوگ بازارها");
+  const el=$("#uniMeta"); if(!el)return;
+  if(univ.error){el.textContent="خطا در کاتالوگ: "+univ.error; return}
+  const m=univ.meta||{},u=m.universe||{};
+  el.textContent=m.count!=null?(fmt(m.count,0)+" بازار زنده"+
+    (u.age_seconds!=null?(" | به‌روزرسانی "+fmt(u.age_seconds,0)+" ثانیه پیش"):"")+
+    (u.source?(" | منبع: "+u.source):"")+
+    (u.error?(" | هشدار: "+u.error):"")):"—";
+}
+/* per-row state badges: what the BOT knows about this coin right now */
+function univBadges(r){
+  const b=[];
+  if(r.held)b.push(`<span class="ubadge held" title="این سکه همین حالا در کیف پول/موقعیت‌های ربات است — فروش مستقیم از همین ردیف کار می‌کند">دارم${r.held_amount?(fmt(r.held_amount,6)):""}</span>`);
+  if(r.candidate_rank)b.push(`<span class="ubadge cand" title="جزو گزینه‌های رتبه‌بندی‌شدهٔ همین چرخه: رتبهٔ ${r.candidate_rank} با امتیاز ${r.candidate_score!=null?(r.candidate_score*100).toFixed(0):"—"}">کاندیدا #${r.candidate_rank}</span>`);
+  if(r.in_snapshot)b.push(`<span class="ubadge snap" title="داخل اسنپ‌شات همین چرخه است (تحلیل کامل: RSI، روند، نوسان، نقدینگی)">اسنپ‌شات</span>`);
+  else b.push(`<span class="ubadge plain" title="خارج از سبد تحلیلی چرخه؛ قیمت از کاتالوگ زنده گرفته می‌شود و خرید/فروش دستی همین‌جا کار می‌کند">فقط کاتالوگ</span>`);
+  if(r.enabled===false)b.push(`<span class="ubadge offx" title="بخش این بازار در «بازار معاملات» خاموش است — ربات خودش در این بخش نمی‌خرد (خرید دستی ممکن است)">بخش خاموش</span>`);
+  if(r.tradable===false)b.push(`<span class="ubadge offx" title="صرافی این بازار را غیرقابل‌معامله علامت زده">غیرقابل‌معامله</span>`);
+  return b.join("");
+}
+function universeTable(rows){
+  const all=rows||[];
+  if(!all.length&&!univ.error&&univ.meta===null)
+    return `<div class="empty">در حال بارگذاری کاتالوگ زندهٔ صرافی…</div>`;
+  const list=univ.heldOnly?all.filter(r=>r.held):all;
+  if(!list.length)return `<div class="empty">`+
+    (univ.q?("بازاری با نماد «"+esc(univ.q)+"» پیدا نشد — املای نماد را بررسی کنید"):
+     (univ.heldOnly?"دارایی‌ای برای نمایش نیست":
+      "کاتالوگ زنده خالی است — اتصال صرافی و کلید API را بررسی کنید"))+`</div>`;
+  const getters={symbol:r=>r.symbol,price:r=>r.last_price,chg:r=>r.change_24h,
+    spread:r=>r.spread_percent,volume:r=>(r.quote_volume_24h!=null?r.quote_volume_24h:r.volume_24h),
+    state:r=>r.in_snapshot?0:1,held:r=>r.held?0:1,
+    value:r=>r.value_usdt,rank:r=>r.candidate_rank==null?999:r.candidate_rank};
+  const dst=UNIV_SORT[univ.sort]||UNIV_SORT.volume;
+  const body=sortRows(list,"uni",getters,dst[0],dst[1]);
+  const held=list.filter(r=>r.held).length;
+  const m=univ.meta||{},u=m.universe||{};
+  const head=`<div class="muted" style="margin-bottom:6px">${fmt(list.length,0)} بازار نمایش داده شد`+
+    (m.count!=null?(" از "+fmt(m.count,0)+" بازار کاتالوگ"):"")+
+    (held?(" | "+fmt(held,0)+" بازار از دارایی‌های شما"):"")+
+    (univ.q?(" | جست‌وجو: "+esc(univ.q)):"")+
+    (u.tradable!=null?(" | قابل‌معامله: "+fmt(u.tradable,0)):"")+
+    (m.transfer&&m.transfer.cross_market_allowed===false?" | ⚠ انتقال بین بازارها خاموش است":"")+
+    `</div>`;
+  const trs=body.map(r=>{
+    const vol=(r.quote_volume_24h!=null)?r.quote_volume_24h:r.volume_24h;
+    const chg=r.change_24h;
+    const acts=(r.held?`<button class="btn-sellnow" data-sym="${esc(r.symbol)}" data-amt="${r.held_amount||""}" title="فروش کل موقعیت این بازار (بدون نیاز به اسنپ‌شات)">فروش</button> `:"")+
+      `<button class="btn-buynow" data-sym="${esc(r.symbol)}" title="خرید دستی همین بازار (مبلغ پیشنهادی از موجودی نقد)">خرید</button>`;
+    return `<tr><td class="num">${esc(r.symbol)}</td>
+      <td class="num">${fmtD(r.last_price,r.symbol)}</td>
+      <td class="num ${cls(chg)}">${chg!=null?((chg>=0?"+":"")+Number(chg).toFixed(2)+"%"):"—"}</td>
+      <td class="num">${r.spread_percent!=null?fmt(r.spread_percent,3):"—"}</td>
+      <td class="num">${vol!=null?fmt(vol,0):"—"}</td>
+      <td style="white-space:normal">${univBadges(r)}</td>
+      <td class="num">${r.value_usdt!=null?("$"+fmt(r.value_usdt,2)):"—"}</td>
+      <td>${acts}</td></tr>`;
+  }).join("");
+  return head+`<table><thead><tr>${thS("uni","symbol","نماد")}`+
+    `${thS("uni","price","قیمت","desc")}${thS("uni","chg","تغییر ۲۴س","desc")}`+
+    `${thS("uni","spread","اسپرد%","asc")}${thS("uni","volume","حجم ۲۴س","desc")}`+
+    `${thS("uni","state","وضعیت در ربات","asc")}${thS("uni","value","ارزش دارایی من","desc")}`+
+    `<th>خرید/فروش</th></tr></thead><tbody>${trs}</tbody></table>`;
+}
+/* toolbar wiring: search is debounced, sort/quote/enabled ask the server
+   (it ranks over the WHOLE catalog), the two client-side filters are free */
+(function(){
+  const s=$("#uniSearch");
+  if(s)s.addEventListener("input",e=>{univ.q=e.target.value.trim();
+    clearTimeout(univ._t);univ._t=setTimeout(()=>loadUniverse(false),350)});
+  const so=$("#uniSort");
+  if(so)so.addEventListener("change",e=>{univ.sort=e.target.value;
+    delete uiSort["uni"];loadUniverse(false)});
+  const q=$("#uniQuote");
+  if(q)q.addEventListener("change",e=>{univ.quote=e.target.value;
+    delete uiSort["uni"];loadUniverse(false)});
+  const h=$("#uniHeld");
+  if(h)h.addEventListener("change",e=>{univ.heldOnly=e.target.checked;renderUniverse()});
+  const en=$("#uniEnabled");
+  if(en)en.addEventListener("change",e=>{univ.enabledOnly=e.target.checked;loadUniverse(false)});
+  const rf=$("#uniRefresh");
+  if(rf)rf.addEventListener("click",()=>{toast("در حال گرفتن کاتالوگ زندهٔ صرافی…");loadUniverse(true)});
+})();
 
 function marketsTable(ms){if(!ms||!ms.length)return `<div class="empty">داده بازار موجود نیست — موتور را شروع کنید</div>`;
   const rows=sortRows(ms,"mkts",{symbol:m=>m.symbol,price:m=>m.last_price,chg:m=>m.change_24h,
@@ -1781,6 +1942,10 @@ async function poll(){
       if(!document.querySelector("#holdingsBox input")) setBox("#holdingsBox",()=>holdingsBox(s),"دارایی‌های من");
     }else if(activeTab==="markets"){
       setBox("#marketsBox",()=>marketsTable(s.markets_view),"بازارها");
+      /* the live catalog table re-renders from the last fetch (cheap, no
+         network here): the toolbar/header sorting stays responsive while
+         the data itself refreshes on the slower tick below */
+      setBox("#uniBox",()=>universeTable(univ.rows),"کاتالوگ بازارها");
     }else if(activeTab==="risk"){
       setBox("#riskBox",()=>riskTable(s.risk),"ریسک");
       setBox("#execBox",()=>execTable(s.executions),"اجراها");
@@ -1806,6 +1971,10 @@ async function refreshSlow(){
     if(activeTab==="overview"){
       /* BTCUSDT chart card was replaced by the holdings box */
     }
+    /* «همهٔ بازارهای نوبیتکس»: refresh the LIVE catalog on the slow tick
+       (the server's own TTL decides whether the exchange is re-asked), so
+       the table keeps working even when no cycle/snapshot has run yet */
+    if(activeTab==="markets"){ await loadUniverse(false); }
   }catch(e){}
 }
 setInterval(poll,2500);
