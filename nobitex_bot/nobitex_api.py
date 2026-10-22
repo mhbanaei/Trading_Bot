@@ -25,6 +25,7 @@ appear in snapshots/AI context/events, and are masked by the config API.
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import hmac
 import json
@@ -207,12 +208,18 @@ class NobitexSession:
             headers["Authorization"] = "Token " + token
         if extra_headers:
             headers.update(extra_headers)
+        # gzip accepted here too: the authed wallet/portfolio/turnover
+        # replies are large JSON the exchange happily compresses
+        headers["Accept-Encoding"] = "gzip"
         req = urllib.request.Request(url, data=data, method=method,
                                      headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout,
                                         context=tls.context()) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
+                raw = resp.read()
+                if (resp.headers.get("Content-Encoding") or "").lower() == "gzip":
+                    raw = gzip.decompress(raw)
+                payload = json.loads(raw.decode("utf-8"))
         except urllib.error.HTTPError as exc:
             try:
                 payload = json.loads(exc.read().decode("utf-8"))
@@ -511,18 +518,28 @@ class NobitexAPI(ExchangeAdapter):
         return self.session.authed_request("POST", path, body)
 
     def _public_get(self, path: str, params: dict | None = None) -> dict:
-        """Public market-data call (no token needed)."""
+        """Public market-data call (no token needed).
+
+        gzip accepted on every call: /market/stats (the whole-catalog tick
+        feeding the universe) is a LARGE JSON and Nobitex compresses it —
+        without `Accept-Encoding: gzip` the same download is several times
+        bigger on a metered connection.
+        """
         url = self.base + path
         if params:
             url += "?" + urllib.parse.urlencode(params)
         req = urllib.request.Request(url, headers={
             "Accept": "application/json",
+            "Accept-Encoding": "gzip",
             "User-Agent": self.session.user_agent})
         try:
             with urllib.request.urlopen(
                     req, timeout=self.session.timeout,
                     context=tls.context()) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                raw = resp.read()
+                if (resp.headers.get("Content-Encoding") or "").lower() == "gzip":
+                    raw = gzip.decompress(raw)
+                return json.loads(raw.decode("utf-8"))
         except (urllib.error.HTTPError, urllib.error.URLError,
                 TimeoutError, OSError) as exc:
             hint = tls.error_hint(exc)

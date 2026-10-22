@@ -132,13 +132,27 @@ class SnapshotCollector:
         return result
 
     # -------------------------------------------------------------- collect
-    def collect(self, cycle_id: str) -> dict:
+    def collect(self, cycle_id: str, extra_symbols: list | None = None) -> dict:
         seq = self._next_seq()
         snapshot_id = "snap_%s_%06d" % (
             datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"), seq)
         started = utc_now_iso()
 
         symbols = self.registry.tradable_symbols()
+        # whole-catalog movers that the volume/top-N universe dropped ride
+        # along this cycle (bounded by the engine): so a promising coin
+        # ANYWHERE on the exchange can reach the deep scanner — with no
+        # permanent registry change (next cycle re-decides the list)
+        seen = set(symbols)
+        for sym in (extra_symbols or []):
+            sym = str(sym or "").strip().upper()
+            if sym and sym not in seen:
+                try:
+                    if self.exchange.ticker(sym).get("last_price"):
+                        symbols.append(sym)
+                        seen.add(sym)
+                except Exception:
+                    continue
         markets = []
         for sym in symbols:
             try:
@@ -183,8 +197,19 @@ class SnapshotCollector:
         issues = ValidationResult()
         ticker = self.exchange.ticker(symbol)
         book = self.exchange.orderbook(symbol, self.cfg.exchange.book_levels)
-        trades = self.exchange.trades(symbol, limit=20)
-        candles_30m = self.exchange.candles(symbol, "30m", limit=64)
+        # BANDWIDTH: recent-trades fetches dropped — nothing in the engine,
+        # scanner, features or AI ever reads m["trades"]; it was 20 extra
+        # HTTP calls + payload per market per cycle for data nobody used.
+        # Candles are bounded by the SAME budget the AI context honors
+        # (ai.max_candles_per_market) instead of a hard-coded 64.
+        trades: list = []
+        try:
+            candle_limit = max(21, int(getattr(
+                self.cfg.ai, "max_candles_per_market", 60) or 60))
+        except Exception:
+            candle_limit = 60
+        candles_30m = self.exchange.candles(symbol, "30m",
+                                            limit=candle_limit)
 
         validate_positive(ticker.get("last_price"), issues, "last_price")
         validate_orderbook(book, issues)

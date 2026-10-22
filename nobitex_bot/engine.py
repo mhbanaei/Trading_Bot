@@ -33,7 +33,7 @@ from .demo_market import DemoMarket
 from .nobitex_api import NobitexAPI, NobitexError
 from .portfolio import PaperPortfolio, ZERO
 from .risk import RiskEngine
-from .scanner import rank_markets
+from .scanner import pre_rank_from_catalog, rank_markets
 from .regime import gate_candidates
 from .storage import Storage
 from .nobitex_api import NobitexSession
@@ -974,8 +974,54 @@ class TradingEngine:
             summary["universe_size"] = len(self.collector.registry
                                             .tradable_symbols())
 
-            # 1 ---- collect snapshot (SS7)
-            snap = self.collector.collect(cycle_id)
+            # 0.5 ---- whole-catalog pre-rank (ALL listed coins, one cached
+            # request): every market the exchange lists is scored with its
+            # 24h change from the LIVE catalog — not just the volume top-N
+            # the trading universe selects. The best movers OUTSIDE the
+            # snapshot universe join the deep-analysis pool of THIS cycle,
+            # so a new listing or a rising small-cap can be chosen for a
+            # buy without ever needing its own candles in the snapshot.
+            try:
+                uni = self.market_universe()
+                pool_cap = max(1, int(getattr(self.cfg.ai,
+                                              "top_n_markets", 5) or 5))
+                starts = self.collector.registry.tradable_symbols()
+                pre = pre_rank_from_catalog(
+                    uni.rows(),
+                    min_quote_volume_usdt=float(getattr(
+                        self.cfg.risk,
+                        "risk_mode_min_quote_volume_usdt", 100000.0)
+                        if self.risk_mode else float(getattr(
+                            self.cfg.exchange,
+                            "min_quote_volume_usdt", 50000.0) or 0)),
+                    extra_starts=max(4, pool_cap))
+                # outside-the-universe movers that beat the pool size join
+                for sym, mom24, qv, chg in pre:
+                    if sym in starts:
+                        continue
+                    if len(starts) >= max(pool_cap * 3, 60):
+                        break
+                    starts.append(sym)
+                self._catalog_pre_rank = [
+                    {"symbol": s, "momentum_24h": round(mom24, 4),
+                     "quote_volume_24h": qv, "change_24h": chg}
+                    for s, mom24, qv, chg in pre]
+                # the snapshot collects the pre-ranked movers of the WHOLE
+                # catalog too (bounded: pool*2 extra markets max), so their
+                # candle features are ready for the deep scanner this cycle
+                known = set(starts)
+                extra = [s for s, _m, _q, _c in pre
+                         if s not in known][:max(4, pool_cap * 2)]
+            except Exception:
+                self._catalog_pre_rank = []
+                extra = []
+
+            # 1 ---- collect snapshot (SS7); the whole-catalog movers that
+            # sit OUTSIDE the trading universe ride along (bounded list),
+            # so every listed coin CAN be chosen for a buy
+            snap = self.collector.collect(cycle_id,
+                                          extra_symbols=(extra if isinstance(
+                                              extra, list) else []))
             self.latest_snapshot = snap
             try:
                 sres = ValidationResult()
@@ -1020,6 +1066,12 @@ class TradingEngine:
             if not eligible:
                 self.events.publish("AI_ANALYSIS_STARTED", "engine", cycle_id,
                                     {"candidates": 0, "reason": "NO_ELIGIBLE_MARKETS"})
+                # خروج‌ها هرگز نباید به تحلیل گره بخورند: وقتی هیچ بازار
+                # واجدشرطی نیست (ریزش کل بازار، کیفیت داده پایین، بخش
+                # معاملات خاموش) قبلاً از همین‌جا برمی‌گشتیم و حد ضرر
+                # هیچ‌وقت بررسی نمی‌شد — همان «زیر حد ضرر رسید ولی
+                # نفروخت». مسیر خروج مستقل از تحلیل اجرا می‌شود.
+                summary["exit_only"] = len(self._run_exit_cycle(cycle_id))
                 summary["decisions"] = 0
                 self._cycles_run += 1
                 summary["finished_at"] = utc_now_iso()
@@ -1068,6 +1120,10 @@ class TradingEngine:
                                     {"where": "regime_gate",
                                      "error": str(ex)[:200]})
             if not candidates:
+                # گیت رژیم در حالت ریسک همهٔ کاندیدها را در بازار نزولی
+                # بلاک می‌کند؛ همان لحظه دقیقاً وقتی است که حد ضرر باید
+                # بفروشد. قبلاً این return کل مدیریت خروج را رد می‌کرد.
+                summary["exit_only"] = len(self._run_exit_cycle(cycle_id))
                 summary["decisions"] = 0
                 summary["regime_blocked_all"] = True
                 self._cycles_run += 1
@@ -1866,6 +1922,67 @@ class TradingEngine:
         return out
 
     # ------------------------------------------------------------- exits
+    def _run_exit_cycle(self, cycle_id: str) -> list:
+        """Run ONLY the exit pipeline (backstop + ratchet + stop/TP) and
+        execute the resulting SELLs through validation -> risk -> executor.
+
+        The analysis pipeline has early returns (no eligible market, every
+        candidate regime-blocked). Those branches used to skip step 5.5
+        entirely, so a market-wide crash — exactly when the regime gate
+        empties the candidate list — left stop-losses unevaluated. Exits
+        are risk-reducing and must never depend on a buy opportunity.
+        Returns the executions that were actually sent.
+        """
+        snap = self.latest_snapshot or {}
+        prices = {m["symbol"]: m["last_price"]
+                  for m in (snap.get("markets") or [])
+                  if m.get("last_price")}
+        try:
+            self._augment_prices_with_holdings(prices)
+        except Exception:
+            pass
+        try:
+            self._backstop_exit_plans(prices)
+        except Exception:
+            pass
+        try:
+            self._advance_profit_locks(prices)
+        except Exception:
+            pass
+        exit_decisions = self._manage_exits(prices, cycle_id)
+        if not exit_decisions:
+            return []
+        market_by_symbol = {m["symbol"]: m
+                            for m in (snap.get("markets") or [])}
+        try:
+            portfolio_snapshot = self.portfolio.portfolio_snapshot(
+                prices, self._usdt_rates(prices))
+        except Exception:
+            portfolio_snapshot = {}
+        executed = []
+        for dec in exit_decisions:
+            vres = ValidationResult(ok=True)
+            validate_ai_decision(dec, self._allowed_symbols(market_by_symbol),
+                                 vres)
+            self.storage.save_ai_decision(dec, vres.ok)
+            if not vres.ok:
+                self.events.publish("EXIT_VALIDATION_FAILED", "engine",
+                                    cycle_id,
+                                    {"symbol": dec.get("symbol"),
+                                     "code": vres.first_code()})
+                continue
+            if self.safe_mode or not self.auto_trading:
+                continue
+            rd = self.risk.evaluate(dec, market_by_symbol.get(
+                dec["symbol"], {}), portfolio_snapshot, prices)
+            self.storage.save_risk_decision(rd)
+            self.latest_risk.append(rd)
+            if rd["status"] == "APPROVED":
+                executed.append(self.executor.execute(
+                    dec, rd, prices, cycle_id))
+        self._sync_exit_plans()
+        return executed
+
     def _manage_exits(self, prices: dict, cycle_id: str) -> list:
         """Monitor open positions against their stop/TP plan (SS36/37).
 
@@ -4340,6 +4457,20 @@ class TradingEngine:
         if hadd > 0 and tp_v > 0:
             hadd_tp_pct = float(((tp_v - hadd) / hadd * 100)
                                 .quantize(Decimal("0.01")))
+        # «قیمت حد» نمایشی ردیف نمای کلی = قیمت لحظه‌ای همین سکه (درخواست
+        # کاربر: «قیمت حد باید دقیقاً قیمت فعلی توکن باشد»). مرجع پله/
+        # نردبان همان `hadd` بالا می‌ماند و دست نمی‌خورد؛ فقط عددی که ردیف
+        # چاپ می‌کند — و پایهٔ درصدهایی که ویرایشگر حد با آن باز می‌شود —
+        # قیمت لحظه‌ای است، پس درصدها فاصلهٔ سطح تا «همین‌جا» را می‌گویند.
+        hadd_display = price if price > 0 else (hadd if hadd > 0 else None)
+        live_stop_pct = None
+        if stop_v > 0 and price > 0:
+            live_stop_pct = float(((stop_v - price) / price * 100)
+                                  .quantize(Decimal("0.01")))
+        live_tp_pct = None
+        if tp_v > 0 and price > 0:
+            live_tp_pct = float(((tp_v - price) / price * 100)
+                                .quantize(Decimal("0.01")))
         # مبلغ حد ضرر (در واحد پول همان بازار): مثبت = سودی که با فعال شدن
         # حد ضرر قفل می‌شود، منفی = پولی که هنوز در ریسک است. با هر پله که
         # حد ضرر بالا می‌رود این عدد و درصدش همان لحظه عوض می‌شوند.
@@ -4427,6 +4558,13 @@ class TradingEngine:
             "locked_stop": plan.get("locked_stop"),
             # «قیمت حد (n)» — the strike base the TP percent reads against
             "hadd": float(hadd) if hadd > 0 else None,
+            # the number the overview row PRINTS as «قیمت حد»: the coin's
+            # live price (the engine strike above is kept for the ladder)
+            "hadd_display": (float(hadd_display)
+                             if hadd_display is not None else None),
+            # درصد حد ضرر/حد سود نسبت به «قیمت حد» = قیمت لحظه‌ای
+            "live_stop_pct": live_stop_pct,
+            "live_tp_pct": live_tp_pct,
             # درصد حد ضرر نسبت به «قیمت حد» (همان حدی که کاربر می‌بیند)
             # + مبلغ حد ضرر نسبت به قیمت خرید (قفل سود/ریسک)
             "hadd_stop_pct": hadd_stop_pct,

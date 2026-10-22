@@ -182,6 +182,40 @@ def scan_market(symbol: str, features: dict, data_quality: dict,
     }
 
 
+def pre_rank_from_catalog(rows: dict, min_quote_volume_usdt: float = 0.0,
+                          extra_starts: int = 12) -> list:
+    """Lightweight pre-rank over the WHOLE live catalog (no candles).
+
+    `rows` = MarketUniverse.rows() — every market the exchange lists,
+    received in ONE cached request (/market/stats). Each row is scored
+    with the same momentum_24h signal the risk-mode rank uses, so the
+    day's movers across EVERY listed coin (not just the volume top-N)
+    get a chance to enter the deep-analysis pool of the next cycle.
+
+    Returns [(symbol, momentum_score, quote_volume, change_24h)] sorted
+    best-first. Liquidity floor keeps raw pumps out; the deep pool is
+    still bounded by the caller, so bandwidth stays flat.
+    """
+    out = []
+    for sym, r in (rows or {}).items():
+        if not r or not r.get("tradable", True):
+            continue
+        qv = _f(r.get("quote_volume_24h"))
+        if min_quote_volume_usdt and qv < min_quote_volume_usdt:
+            continue
+        out.append((sym, _momentum_24h_signal(r), qv,
+                    _f(r.get("change_24h"))))
+    out.sort(key=lambda x: -x[1])
+    return out[:max(1, int(extra_starts)) * 2]
+
+
+def _f(v, default: float = 0.0) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def rank_markets(market_features: list, top_n: int,
                  risk_mode: bool = False,
                  min_quote_volume_usdt: float = 0.0) -> list:

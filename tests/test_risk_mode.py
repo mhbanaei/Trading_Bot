@@ -1238,5 +1238,80 @@ class TestInFlightOrders(TempCase):
         self.assertEqual(st["open_orders"][0]["market"], "BTCUSDT")
 
 
+class TestExitRunsWithoutAnalysis(TempCase):
+    """حد ضرر نباید به «فرصت خرید» گره بخورد.
+
+    The cycle has early returns (no eligible market / every candidate
+    regime-blocked). Those branches used to skip _manage_exits entirely,
+    so in a market-wide crash — precisely when the regime gate empties
+    the candidate list — the stop-loss never sold. _run_exit_cycle runs
+    the exit pipeline on those branches.
+    """
+
+    def _engine(self):
+        e = TradingEngine(self.cfg)
+        e.auto_trading = True
+        return e
+
+    def test_stop_sells_on_no_eligible_market_cycle(self):
+        e = self._engine()
+        e.run_cycle()                       # snapshot + live prices
+        mkt = "BTCUSDT"
+        px = Decimal("100000")
+        amount = (Decimal("5000") / px).quantize(Decimal("0.00000001"))
+        e.storage.upsert_position(
+            mkt, amount, px, Decimal("0"),
+            last_buy_at=utc_now_iso(), last_buy_price=px)
+        plans = e.storage.kv_get("exit_plans", {}) or {}
+        # stop ABOVE the current price: the trigger is already breached
+        plans[mkt] = {"stop": float(px * Decimal("1.5")), "stop_pct": -2.0,
+                      "auto": True, "stage": 0, "base_price": float(px)}
+        e.storage.kv_set("exit_plans", plans)
+        # make the analysis pipeline bail out before its exit step
+        e.cfg.quality.min_ai_quality = 1.01
+        before = len(e.storage.orders(limit=1000))
+        summary = e.run_cycle()
+        self.assertEqual(summary["decisions"], 0)
+        self.assertIn("exit_only", summary)
+        orders = e.storage.orders(limit=1000)
+        self.assertGreater(len(orders), before,
+                           "stop-loss did not send a SELL on the "
+                           "early-return cycle")
+        self.assertTrue(any(o.get("side") == "SELL" for o in orders))
+
+    def test_stop_sells_when_all_candidates_blocked(self):
+        """The regime gate can empty the candidate list in a downtrend;
+        the stop must still be evaluated and sold."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = "BTCUSDT"
+        px = Decimal("100000")
+        amount = (Decimal("5000") / px).quantize(Decimal("0.00000001"))
+        e.storage.upsert_position(
+            mkt, amount, px, Decimal("0"),
+            last_buy_at=utc_now_iso(), last_buy_price=px)
+        plans = e.storage.kv_get("exit_plans", {}) or {}
+        plans[mkt] = {"stop": float(px * Decimal("1.5")), "stop_pct": -2.0,
+                      "auto": True, "stage": 0, "base_price": float(px)}
+        e.storage.kv_set("exit_plans", plans)
+        e.set_risk_mode(True)
+        # every candidate is blocked by the regime layer
+        import nobitex_bot.engine as eng
+        orig = eng.gate_candidates
+        eng.gate_candidates = lambda cands, mbs, **kw: ([], [
+            {"symbol": c["symbol"], "regime_blocked": "STRONG_DOWNTREND"}
+            for c in cands])
+        try:
+            before = len(e.storage.orders(limit=1000))
+            summary = e.run_cycle()
+        finally:
+            eng.gate_candidates = orig
+        self.assertTrue(summary.get("regime_blocked_all"))
+        orders = e.storage.orders(limit=1000)
+        self.assertGreater(len(orders), before,
+                           "stop-loss did not send a SELL when the "
+                           "regime gate blocked every candidate")
+
+
 if __name__ == "__main__":
     unittest.main()

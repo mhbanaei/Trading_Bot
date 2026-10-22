@@ -169,8 +169,44 @@ class TestProfitLock(TempCase):
         # and the money shown next to it: nothing lost, nothing locked yet
         self.assertAlmostEqual(row["stop_money"], 0.0, places=1)
 
+    def test_row_hadd_column_is_the_live_price(self):
+        """نمای کلی: the «قیمت حد» the row PRINTS is the coin's current
+        price (user request) and BOTH trigger percents read against that
+        same number — while the engine's strike base (`hadd`) keeps its
+        own value, so the ladder/ratchet is untouched."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = self._first_market(e)
+        price = self._price_of(e, mkt)
+        self._plant(e, mkt, price)
+        tp0 = Decimal(str(e.storage.kv_get("exit_plans", {})[mkt]
+                          ["take_profit_manual"]))
+        e._advance_profit_locks({mkt: float(tp0)})
+        plan_now = e.storage.kv_get("exit_plans", {})[mkt]
+        tp_now = Decimal(str(plan_now["take_profit_manual"]))
+        stop = Decimal(str(plan_now["stop"]))
+        pos = e.storage.position(mkt)
+        live = price * Decimal("1.10")
+        row = e._position_row(pos, {mkt: float(live)}, 1_000_000.0)
+        # the column shows EXACTLY the live price …
+        # (the payload is JSON — compare as floats)
+        self.assertAlmostEqual(row["hadd_display"], float(live),
+                               delta=float(live) * 1e-9)
+        # … and the strike behind the ladder is still the reached target
+        self.assertEqual(Decimal(str(row["hadd"])), tp0)
+        self.assertEqual(int(row["stage"]), 1)
+        # both percentages read against the live price
+        self.assertAlmostEqual(row["live_tp_pct"],
+                               float((tp_now / live - 1) * 100), places=2)
+        self.assertAlmostEqual(row["live_stop_pct"],
+                               float((stop / live - 1) * 100), places=2)
+        # the strike-anchored percents are still reported for the API
+        self.assertIsNotNone(row["hadd_stop_pct"])
+        self.assertIsNotNone(row["hadd_tp_pct"])
+
     def test_first_buy_records_hadd(self):
         """_auto_stop_for_buy stores the hadd = buy price, stage 0."""
+
         e = self._engine()
         e.run_cycle()
         mkt = self._first_market(e)

@@ -6,6 +6,7 @@ control endpoints (start/stop/safe-mode/reset) are POST-only.
 """
 from __future__ import annotations
 
+import gzip
 import json
 import sys
 import threading
@@ -65,15 +66,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "same-origin")
 
+    BANDWIDTH = True   # gzip on compressed-capable clients (metered users)
+
+    def _wants_gzip(self) -> bool:
+        ae = (self.headers.get("Accept-Encoding") or "").lower()
+        return self.BANDWIDTH and "gzip" in ae
+
     def _json(self, obj, status: int = 200, extra: dict | None = None) -> None:
         body = json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self._security_headers()
         for k, v in (extra or {}).items():
             self.send_header(k, v)
+        # /api/status (markets_view over ~500 live markets) is by far the
+        # dashboard's heaviest payload and polls every few seconds — gzip
+        # typically cuts it ~85-90% on the exchange's repetitive JSON rows
+        if self._wants_gzip() and len(body) > 512:
+            body = gzip.compress(body, 6)
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
@@ -103,9 +116,13 @@ class Handler(BaseHTTPRequestHandler):
         body = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
         self._security_headers()
+        if self._wants_gzip() and path.suffix.lower() in (
+                ".html", ".js", ".css") and len(body) > 512:
+            body = gzip.compress(body, 6)
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 

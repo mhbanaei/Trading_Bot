@@ -6,11 +6,22 @@
 <title>ورود به داشبورد ربات</title>
 <style>
 :root{
-  --bg:#0b0f17; --panel:#111827; --panel2:#0e1522; --border:#1f2a3a;
-  --text:#e5edf8; --muted:#8b9bb4; --accent:#10cf89; --green:#10cf89;
+  /* تم روشن برند — هم‌خوان با داشبورد: پس‌زمینهٔ روشن، کارت سفید،
+     رنگ اصلی سبز-فیروزه‌ای (#10CF89) */
+  --bg:#f4f7fa; --panel:#ffffff; --panel2:#f8fafc; --border:#e3e9f0;
+  --text:#182033; --muted:#70819e; --accent:#10cf89; --green:#10cf89;
   --on-accent:#04231a;
-  --red:#ef4444; --orange:#f59e0b; --cyan:#22d3ee;
+  --red:#ef4444; --orange:#d97706; --cyan:#0e9ec2;
 }
+/* همان تم تاریک داشبورد — انتخاب یک‌جا در localStorage می‌ماند */
+html[data-theme="dark"]{
+  --bg:#0b1016; --panel:#111a23; --panel2:#0d151d; --border:#1e2b38;
+  --text:#e6edf6; --muted:#8fa3b8; --accent:#19e39a; --green:#19e39a;
+  --on-accent:#04231a; --red:#f87171; --orange:#f5a524; --cyan:#38bdf8;
+}
+html[data-theme="dark"] .msg.err{background:rgba(248,113,113,.13); border-color:rgba(248,113,113,.35)}
+html[data-theme="dark"] .msg.ok{background:rgba(25,227,154,.13); border-color:rgba(25,227,154,.35)}
+html[data-theme="dark"] .msg.warn{background:rgba(245,165,36,.13); border-color:rgba(245,165,36,.35)}
 *{box-sizing:border-box; margin:0; padding:0}
 body{background:var(--bg); color:var(--text); min-height:100vh;
   display:flex; align-items:center; justify-content:center; padding:18px;
@@ -26,14 +37,18 @@ input:focus{outline:none; border-color:var(--accent)}
 button{width:100%; margin-top:14px; background:var(--accent); color:var(--on-accent); border:1px solid var(--accent);
   border-radius:8px; padding:11px 14px; cursor:pointer; font-family:inherit; font-size:14px; font-weight:700}
 button:disabled{opacity:.55; cursor:not-allowed}
+.theme-toggle{position:fixed; top:14px; left:14px; width:auto; margin:0;
+  padding:7px 13px; background:var(--panel); color:var(--text);
+  border:1px solid var(--border); font-size:13px; font-weight:600}
 .msg{margin-top:12px; font-size:13px; line-height:1.8; display:none; border-radius:8px;
   padding:9px 12px; border:1px solid var(--border); background:var(--panel2)}
-.msg.err{color:var(--red); border-color:#7f1d1d; background:#450a0a}
-.msg.ok{color:var(--green); border-color:#14532d; background:#052e16}
-.msg.warn{color:var(--orange); border-color:#7c2d12; background:#431407}
+.msg.err{color:var(--red); border-color:#f5b5b5; background:#fdecec}
+.msg.ok{color:var(--green); border-color:#bfe8d7; background:#effaf3}
+.msg.warn{color:var(--orange); border-color:#f3d39a; background:#fef6e7}
 </style>
 </head>
 <body>
+<button id="btnTheme" class="theme-toggle" type="button">🌙 تاریک</button>
 <div class="card">
   <h1>🤖 ورود به داشبورد ربات</h1>
   <div class="muted">برای ادامه، پسورد دسترسی را وارد کنید.</div>
@@ -46,6 +61,28 @@ button:disabled{opacity:.55; cursor:not-allowed}
 </div>
 <script>
 "use strict";
+/* تم روشن/تاریک — همان انتخاب ذخیره‌شدهٔ داشبورد */
+(function(){
+  var t=null;
+  try{t=localStorage.getItem("nbTheme")}catch(_){}
+  if(t!=="light"&&t!=="dark"){
+    t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";
+  }
+  document.documentElement.dataset.theme=t;
+})();
+function paintThemeBtn(){
+  const dark=document.documentElement.dataset.theme==="dark";
+  const b=document.getElementById("btnTheme");
+  if(b){b.textContent=dark?"☀️ روشن":"🌙 تاریک";
+    b.title=dark?"تغییر به تم روشن":"تغییر به تم تاریک";}
+}
+document.getElementById("btnTheme").addEventListener("click",()=>{
+  const next=document.documentElement.dataset.theme==="dark"?"light":"dark";
+  document.documentElement.dataset.theme=next;
+  try{localStorage.setItem("nbTheme",next)}catch(_){}
+  paintThemeBtn();
+});
+paintThemeBtn();
 const pw=document.getElementById("pw"), msg=document.getElementById("msg"),
       btn=document.getElementById("btnLogin"), form=document.getElementById("loginForm");
 let status={password_set:true,locked:false,lock_seconds_left:0,attempts_left:3,max_attempts:3};
