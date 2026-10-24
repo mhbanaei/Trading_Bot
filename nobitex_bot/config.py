@@ -23,8 +23,17 @@ class EngineCfg:
     server_port: int = 8787
     data_dir: str = "data"
     max_markets: int = 30              # SS71 context budget: top-N by volume
-    max_snapshots: int = 200           # retention cap for data/markets/snapshots
-    events_retention_mb: float = 20.0  # cap for events/events.jsonl
+    # دادهٔ بازار مستقیم از API خوانده می‌شود و در حافظه می‌ماند؛ اسنپ‌شات
+    # روی دیسک نوشته نمی‌شود (حجم پوشهٔ برنامه را کوچک نگه می‌دارد).
+    # true = نوشتن فایل snapshot_*.json (فقط برای دیباگ لازم است)
+    persist_snapshots: bool = False
+    max_snapshots: int = 0             # cap for data/snapshots (0 = هیچ فایلی نگه ندار)
+    events_retention_mb: float = 10.0  # cap for events/events.jsonl
+    # سقف رکوردهای تاریخی تصمیم/ریسک در SQLite (هستهٔ اصلیِ حجم دیتابیس).
+    # قدیمی‌ترها در بک‌گراند حذف می‌شوند؛ سفارش/فیل/موقعیت هرگز حذف نمی‌شوند.
+    decisions_keep: int = 3000
+    db_max_mb: float = 120.0           # بالاتر از این = هرس + VACUUM
+    db_maintenance_every: int = 30     # هر چند چرخه یک‌بار بررسی شود
     # live market universe (universe.py): the WHOLE exchange catalog in one
     # cached public call, independent of the snapshot. Held coins, exits,
     # manual orders and the «همه بازارها» table read prices from here, so a
@@ -295,10 +304,16 @@ class AICfg:
     committee_mode: str = "gate"
     # آستانه‌های «قیمت بعد از خرید بالاتر می‌رود؟»
     committee_min_p_up: float = 0.60        # احتمال صعود
-    committee_min_upside_pct: float = 1.0   # درصد حرکت مثبت انتظاری
+    committee_min_upside_pct: float = 0.0   # درصد حرکت مثبت انتظاری (۰=فقط مثبت)
     committee_min_net_edge_pct: float = 0.2  # ارزش انتظاری خالص بعد از هزینه
     committee_min_votes: int = 3            # حداقل رأی BUY (quorum)
-    committee_horizon_s: int = 14400        # افق پیش‌بینی (ثانیه) — ۴ ساعت
+    committee_horizon_s: int = 14400        # افق پیش‌بینی کوتاه‌مدت (ثانیه) — ۴ ساعت
+    # افق نگه‌داری معامله برای اقتصاد پلن (حد سود/حد ضرر). مدل‌های کوتاه‌مدت
+    # روی یک کندل ۳۰ دقیقه‌ای کالیبره‌اند؛ مقایسهٔ آن با کارمزد رفت‌وبرگشت
+    # هیچ‌وقت جواب نمی‌داد، چون معامله تا رسیدن به حد سود/ضرر نگه داشته
+    # می‌شود. افق نگه‌داری پیش‌فرض یک روز است.
+    committee_hold_s: int = 86400
+    committee_bar_s: int = 1800             # طول کندل تحلیل (۳۰ دقیقه)
     # فقط این تعداد کندیدیت برتر به مدل‌های LLM فرستاده می‌شوند (هزینهٔ
     # هر درخواست) — ۰ = هیچ مدل زبانی رأی نمی‌دهد
     committee_llm_top_n: int = 2

@@ -213,7 +213,15 @@ class HeuristicAI:
             }
             fees = (self.cfg.fee.taker_rate * 2)
             costs = fees + (liq.get("estimated_buy_slippage", 0.001) or 0.001)
-            expected = 2 * atr / entry
+            # Expected gross return of the WHOLE plan, not just TP1. The
+            # ladder closes 50% at +2×ATR, 30% at +3.2×ATR and 20% at
+            # +4.5×ATR, so the position's expected exit is the weighted
+            # distance (2.86×ATR). Using only TP1 (2×ATR) understated it:
+            # combined with the honest 0.6% net floor in risk.py it rejected
+            # EVERY buy in quiet markets, which is why the bot stopped
+            # trading after the fee-aware gate landed.
+            expected = (abs(t1 - entry) * 0.5 + abs(t2 - entry) * 0.3
+                        + abs(t3 - entry) * 0.2) / entry
             decision["cost"] = {
                 "estimated_total_cost": round(costs, 6),
                 "expected_gross_return": round(expected, 6),

@@ -69,21 +69,37 @@ class EventBus:
             self.max_bytes = max(0.0, float(max_mb)) * 1024 * 1024
         except (TypeError, ValueError):
             self.max_bytes = 0
+        # trim immediately: a 800MB log left by an older run must shrink
+        # at startup, not after the next publish()
+        self._prune_events()
 
     def _prune_events(self) -> None:
+        """Keep only the newest half of the byte budget — tail-first.
+
+        The old implementation read the WHOLE file and split it into lines
+        before keeping the tail; on an 800MB log that allocated gigabytes
+        and could fail (or OOM) right when the cap was needed. Reading only
+        the last `max_bytes/2` bytes is O(cap) regardless of file size.
+        """
         if self.max_bytes <= 0:
             return
         try:
-            if self._jsonl.exists() and \
-                    self._jsonl.stat().st_size > self.max_bytes:
-                lines = self._jsonl.read_text(encoding="utf-8",
-                                              errors="replace").splitlines()
-                keep = lines[len(lines) // 2:]
-                tmp = self._jsonl.with_suffix(".tmp")
-                tmp.write_text(
-                    "\n".join(keep) + ("\n" if keep else ""),
-                    encoding="utf-8")
-                tmp.replace(self._jsonl)
+            if not self._jsonl.exists() or \
+                    self._jsonl.stat().st_size <= self.max_bytes:
+                return
+            keep_bytes = int(self.max_bytes / 2)
+            size = self._jsonl.stat().st_size
+            with open(self._jsonl, "rb") as fh:
+                fh.seek(max(0, size - keep_bytes))
+                tail = fh.read()
+            # drop the first (probably partial) line so every remaining
+            # line is a complete JSON object
+            cut = tail.find(b"\n")
+            if cut >= 0:
+                tail = tail[cut + 1:]
+            tmp = self._jsonl.with_suffix(".tmp")
+            tmp.write_bytes(tail)
+            tmp.replace(self._jsonl)
         except OSError:
             pass
 

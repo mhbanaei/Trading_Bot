@@ -108,6 +108,19 @@ class TradingEngine:
                 self.collector._prune_snapshots()
         except Exception:
             pass
+        # disk footprint: decision/risk history is the DB growth driver.
+        # Trim once at startup so a long-running account shrinks on restart
+        # (VACUUM only at startup — it rewrites the file and would stall a
+        # cycle if it ran mid-trading).
+        self._last_db_check = 0
+        try:
+            self.storage.prune_history(int(getattr(
+                cfg.engine, "decisions_keep", 3000)))
+            if self.storage.db_size_mb() > float(getattr(
+                    cfg.engine, "db_max_mb", 120.0)):
+                self.storage.vacuum()
+        except Exception:
+            pass
         # one-shot backfill: positions bought before the holding-timer
         # feature have an empty last_buy_at — recover it from the latest
         # recorded BUY fill of that coin (both market-name spellings)
@@ -889,12 +902,43 @@ class TradingEngine:
                     pass
         return rates
 
+    def _maybe_housekeeping(self) -> None:
+        """Cheap disk check every N cycles (see engine.db_* config).
+
+        Deleted rows keep their SQLite pages for reuse, so the file does not
+        grow again after the startup VACUUM; pruning here just keeps the
+        row count (and the size) flat without stalling a cycle with VACUUM.
+        """
+        try:
+            every = max(1, int(getattr(self.cfg.engine,
+                                       "db_maintenance_every", 30)))
+        except Exception:
+            every = 30
+        self._last_db_check = getattr(self, "_last_db_check", 0) + 1
+        if self._last_db_check % every:
+            return
+        try:
+            self.storage.prune_history(
+                int(getattr(self.cfg.engine, "decisions_keep", 3000)))
+        except Exception:
+            pass
+        try:
+            if not self.collector._persist_enabled():
+                self.collector._prune_snapshots()
+        except Exception:
+            pass
+        try:
+            self.events._prune_events()
+        except Exception:
+            pass
+
     def run_cycle(self) -> dict:
         """One full SS100 pipeline pass. Returns a cycle summary."""
         with self._cycle_lock:
             cycle_id = "cycle_" + utc_now_iso().replace(
                 "-", "").replace(":", "")[:15]
             summary = {"cycle_id": cycle_id, "started_at": utc_now_iso()}
+            self._maybe_housekeeping()
 
             # 0 ---- real-account upkeep (SS67 token resync + SS44 recon)
             self.maybe_refresh_token()
@@ -2749,8 +2793,16 @@ class TradingEngine:
                 "expected_up_pct": c.get("expected_up_pct"),
                 "expected_down_pct": c.get("expected_down_pct"),
                 "expected_net_edge_pct": c.get("expected_net_edge_pct"),
+                "plan_ev_pct": c.get("plan_ev_pct"),
+                "plan_tp_pct": c.get("plan_tp_pct"),
+                "plan_stop_pct": c.get("plan_stop_pct"),
+                "forecast_net_edge_pct": c.get("forecast_net_edge_pct"),
+                "cost_pct": c.get("cost_pct"),
                 "votes_buy": c.get("votes_buy"),
+                "votes_active": c.get("votes_active"),
                 "votes_needed": c.get("votes_needed"),
+                "hold_s": c.get("hold_s"),
+                "horizon_s": c.get("horizon_s"),
                 "blocked_by": c.get("blocked_by") or [],
                 "models": [{"model": m.get("model"),
                             "verdict": m.get("verdict"),

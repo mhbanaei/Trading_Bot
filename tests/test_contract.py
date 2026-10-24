@@ -221,13 +221,32 @@ class TestPipeline(TempCase):
         self.assertEqual(e.latest_snapshot["status"], "COMPLETE")
         self.assertEqual(e.latest_snapshot["schema_version"], "1.0")
 
-    def test_snapshot_file_written_and_checksum(self):
+    def test_snapshot_checksum_without_touching_the_disk(self):
+        """Market data comes straight from the API — no snapshot files.
+
+        The old pipeline wrote a ~400KB snapshot_*.json every cycle (and a
+        ~800MB events log on top of it). The data folder must stay small, so
+        the snapshot lives in memory only and still carries its checksum.
+        """
         e = self._engine()
         e.run_cycle()
         snaps = sorted((self.tmp / "data" / "snapshots").glob("snapshot_*.json"))
-        self.assertTrue(snaps)
-        doc = json.loads(snaps[-1].read_text(encoding="utf-8"))
+        self.assertEqual(snaps, [])
+        doc = e.latest_snapshot
         self.assertIn("integrity", doc)
+        self.assertEqual(doc["integrity"]["algorithm"], "SHA-256")
+        self.assertTrue(doc["integrity"]["checksum"])
+
+    def test_snapshot_files_can_be_enabled_explicitly(self):
+        e = self._engine()
+        e.cfg.engine.persist_snapshots = True
+        e.cfg.engine.max_snapshots = 2
+        e.collector.cfg = e.cfg
+        for _ in range(4):
+            e.run_cycle()
+        snaps = sorted((self.tmp / "data" / "snapshots").glob("snapshot_*.json"))
+        self.assertEqual(len(snaps), 2)
+        doc = json.loads(snaps[-1].read_text(encoding="utf-8"))
         self.assertEqual(doc["integrity"]["algorithm"], "SHA-256")
 
     def test_decisions_validated_and_persisted(self):

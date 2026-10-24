@@ -253,26 +253,34 @@ class SnapshotCollector:
                     "collection_error": str(exc)}
 
     # -------------------------------------------------------------- write
+    def _persist_enabled(self) -> bool:
+        """Snapshot files are OFF by default (engine.persist_snapshots).
+
+        The data is collected from the exchange API every cycle and kept in
+        memory (`engine.latest_snapshot`); writing a ~400KB JSON per cycle
+        only filled the data folder (~200MB/day) and was never read except
+        for debugging.
+        """
+        return bool(getattr(self.cfg.engine, "persist_snapshots", False))
+
     def _finalize(self, snapshot: dict) -> None:
-        name = SNAPSHOT_FORMAT % self._seq
-        final = self.snapshots_dir / name
-        tmp = self.snapshots_dir / (name + ".tmp")
         payload = json.dumps(snapshot, ensure_ascii=False, default=str)
-        raw = payload.encode("utf-8")
         snapshot["integrity"] = {
             "algorithm": "SHA-256",
-            "checksum": sha256_bytes(raw).replace("sha256:", ""),
+            "checksum": sha256_bytes(payload.encode("utf-8")).replace(
+                "sha256:", ""),
         }
-        payload = json.dumps(snapshot, ensure_ascii=False, default=str)
-        tmp.write_text(payload, encoding="utf-8")
-        fh = open(tmp, "ab")
-        try:
-            fh.flush()
-            os.fsync(fh.fileno())
-        finally:
-            fh.close()
-        os.replace(tmp, final)
-        self._prune_snapshots()
+        if self._persist_enabled():
+            name = SNAPSHOT_FORMAT % self._seq
+            final = self.snapshots_dir / name
+            tmp = self.snapshots_dir / (name + ".tmp")
+            payload = json.dumps(snapshot, ensure_ascii=False, default=str)
+            tmp.write_text(payload, encoding="utf-8")
+            with open(tmp, "ab") as fh:
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, final)
+            self._prune_snapshots()
 
         self.events.publish("SNAPSHOT_CREATED", "data_collector",
                             snapshot["cycle_id"],
@@ -293,16 +301,24 @@ class SnapshotCollector:
         """Keep only the newest `max_keep` snapshot files (SS-retention).
 
         Snapshots are large (~400KB each); without pruning the data folder
-        grows ~200MB/day. The cap comes from engine.max_snapshots in
-        config.json (0 or negative = unlimited). Returns removed count.
+        grows ~200MB/day. When snapshot files are disabled every file is
+        removed (temp data must not accumulate), otherwise the cap comes
+        from engine.max_snapshots. Returns removed count.
         """
         try:
-            max_keep = int(getattr(self.cfg.engine, "max_snapshots", 200))
+            max_keep = int(getattr(self.cfg.engine, "max_snapshots", 0))
         except Exception:
-            max_keep = 200
-        if max_keep <= 0:
-            return 0
+            max_keep = 0
         files = sorted(self.snapshots_dir.glob("snapshot_*.json"))
+        if max_keep <= 0:
+            removed = 0
+            for f in files:
+                try:
+                    f.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+            return removed
         excess = len(files) - max_keep
         removed = 0
         for f in files[:max(0, excess)]:

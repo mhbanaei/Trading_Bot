@@ -1,3 +1,10 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:2f00d6d24f07edd8132c9e67ac35148eedda790dd4b8e001352ba1b19e105f4e
-size 2300
+{"event_id": "evt_b3cb9c4a835549a6", "event_type": "RISK_REJECTED", "timestamp": "2026-09-15T22:54:45.179Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg3", "reasons": ["LIQUIDITY_NOT_TRADABLE", "INSUFFICIENT_NET_EXPECTED_RETURN", "EXCESSIVE_PORTFOLIO_EXPOSURE"]}}
+{"event_id": "evt_8c300601f4604561", "event_type": "RISK_REJECTED", "timestamp": "2026-09-15T22:54:45.417Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg3", "reasons": ["LIQUIDITY_NOT_TRADABLE", "INSUFFICIENT_NET_EXPECTED_RETURN", "EXCESSIVE_PORTFOLIO_EXPOSURE"]}}
+{"event_id": "evt_5f0b331c6f684e62", "event_type": "RISK_REJECTED", "timestamp": "2026-09-15T22:55:24.090Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg5", "reasons": ["LIQUIDITY_NOT_TRADABLE", "EXCESSIVE_PORTFOLIO_EXPOSURE"]}}
+{"event_id": "evt_c28767d845b748fb", "event_type": "RISK_REJECTED", "timestamp": "2026-09-15T23:01:27.945Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg6", "reasons": ["LIQUIDITY_NOT_TRADABLE", "EXCESSIVE_PORTFOLIO_EXPOSURE"]}}
+{"event_id": "evt_b14cd4fead204629", "event_type": "RISK_APPROVED", "timestamp": "2026-09-15T23:01:39.255Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg7"}}
+{"event_id": "evt_2b436d7e429c4021", "event_type": "RISK_APPROVED", "timestamp": "2026-09-15T23:01:39.259Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg7"}}
+{"event_id": "evt_27cbccccf1bd4019", "event_type": "RISK_REJECTED", "timestamp": "2026-09-15T23:33:44.874Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg8", "reasons": ["EXCESSIVE_PORTFOLIO_EXPOSURE", "DRAWDOWN_LIMIT_BREACHED"]}}
+{"event_id": "evt_db2a866e5ab042da", "event_type": "RISK_APPROVED", "timestamp": "2026-09-15T23:34:07.503Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg9"}}
+{"event_id": "evt_605542d6352042c6", "event_type": "RISK_APPROVED", "timestamp": "2026-09-15T23:35:28.279Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg10"}}
+{"event_id": "evt_b7c9bdf718654f2f", "event_type": "RISK_APPROVED", "timestamp": "2026-09-15T23:37:28.134Z", "source": "risk_engine", "cycle_id": "", "payload": {"decision_id": "dbg11"}}

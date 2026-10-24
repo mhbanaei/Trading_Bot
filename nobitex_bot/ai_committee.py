@@ -28,20 +28,38 @@ The committee aggregates the votes by weight and prices the trade:
 
     upside  = Σ w·max(expected, 0)          # how far it should go up
     downside= Σ w·max(-expected, 0)         # how far it may go against us
-    net_edge_pct = p_up·upside - (1-p_up)·downside - cost_pct
+    plan_ev = p_up·TP - (1-p_up)·|SL| - cost_pct    # the real exit plan
 
-A BUY is allowed only when ALL of these hold — the exact "will the price be
-higher after the buy, by more than it costs?" test:
+The gate has TWO economic tests, because the bot does not sell after a fixed
+4 hours — it holds until its stop-loss or take-profit is hit:
+
+    A) short-term forecast: the models must agree the price is HIGHER than
+       the entry over ai.committee_horizon_s (p_up + positive expected move).
+    B) the actual trade plan: expected value of holding to the configured
+       exit (ai.committee_hold_s, default one day):
+
+           plan_ev = p_up·TP − (1−p_up)·|SL| − cost
+
+A BUY is allowed only when ALL of these hold:
 
     1. no veto from any model
     2. quorum: at least ai.committee_min_votes models vote BUY
     3. p_up  >= ai.committee_min_p_up
-    4. upside >= max(ai.committee_min_upside_pct, cost × 1.2)
-    5. net_edge_pct >= ai.committee_min_net_edge_pct
+    4. upside >= ai.committee_min_upside_pct   (0 = only has to be positive)
+    5. plan_ev >= ai.committee_min_net_edge_pct
 
 Anything else is HOLD (or AVOID on a veto), with the blocking reasons kept
 in the payload. The committee may only ever *block* an entry — it can never
 bypass the risk engine, size limits or the SS32/33/34 safety rails.
+
+Why (B) exists: the per-model expected moves come from a 30-minute ATR, so a
+4-hour forecast is only ~1×ATR wide. Comparing THAT against the 0.5%
+round-trip fee blocked every single buy in quiet markets — the bot never
+traded. The fee is paid once per campaign, not once per 30 minutes, so the
+honest comparison is the whole plan (TP/SL from risk config): a +25%/−3%
+plan needs only ~14% odds to be profitable, while a 1% scalp against a 0.5%
+fee does not. The four-hour forecast is still the *direction* test and is
+scored by the scoreboard.
 
 `CommitteeScoreboard` closes the loop: every approved BUY is stored with its
 forecast, and after the horizon the actual move is compared against it
@@ -51,6 +69,7 @@ instead of trusting them.
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -104,6 +123,19 @@ def _reason(verdict: str, code: str) -> str:
     return "%s:%s" % (verdict, code)
 
 
+def _move_pct(ctx: dict, mult: float, s: float) -> float:
+    """Expected signed move over the forecast horizon, in percent.
+
+    `volatility.atr_percent` is the ATR of ONE 30-minute bar, but the
+    horizon is hours long. Under a random walk the range scales with the
+    square root of the number of bars (8 bars ≈ 2.8×), so the raw single-bar
+    ATR must be scaled — without this the committee compared a 30-minute
+    move against a full round-trip fee and blocked every buy.
+    """
+    return (ctx["atr_pct"] * 100.0 * mult
+            * float(ctx.get("vol_scale", 1.0)) * (2 * s - 1))
+
+
 # ------------------------------------------------------------------ voters
 def vote_trend(cand: dict, snap: dict, ctx: dict) -> dict:
     sig = cand.get("signals") or {}
@@ -125,7 +157,7 @@ def vote_trend(cand: dict, snap: dict, ctx: dict) -> dict:
           0.0 if structure in ("DOWN", "DOWNTREND", "BEARISH") else 0.5)
     s = _clamp(0.45 * trend_s + 0.35 * align + 0.20 * st)
     p = _p_from_score(s)
-    exp = ctx["atr_pct"] * 100 * 0.55 * (2 * s - 1)
+    exp = _move_pct(ctx, 0.55, s)
     verdict = BUY if (s >= 0.62 and exp > 0) else (AVOID if s < 0.32 else HOLD)
     return {"p_up": p, "expected_move_pct": round(exp, 4),
             "verdict": verdict,
@@ -141,7 +173,7 @@ def vote_momentum(cand: dict, snap: dict, ctx: dict) -> dict:
     macd_s = 0.62 if hist > 0 else (0.38 if hist < 0 else 0.5)
     s = _clamp(0.40 * mom + 0.40 * mom24 + 0.20 * macd_s)
     p = _p_from_score(s, 0.8)
-    exp = ctx["atr_pct"] * 100 * 0.6 * (2 * s - 1)
+    exp = _move_pct(ctx, 0.6, s)
     verdict = BUY if (s >= 0.6 and exp > 0) else (AVOID if s < 0.3 else HOLD)
     return {"p_up": p, "expected_move_pct": round(exp, 4),
             "verdict": verdict,
@@ -162,7 +194,7 @@ def vote_breakout(cand: dict, snap: dict, ctx: dict) -> dict:
     else:
         s, code = _clamp(0.5 + (liq_s - 0.5) * 0.2), "NO_BREAKOUT"
     p = _p_from_score(s, 1.0)
-    exp = ctx["atr_pct"] * 100 * 0.9 * (2 * s - 1)
+    exp = _move_pct(ctx, 0.9, s)
     verdict = BUY if (code == "BREAKOUT_UP" and exp > 0) else (
         AVOID if code == "BREAKOUT_DOWN" else HOLD)
     return {"p_up": p, "expected_move_pct": round(exp, 4),
@@ -198,7 +230,7 @@ def vote_meanrev(cand: dict, snap: dict, ctx: dict) -> dict:
             s += 0.05
     s = _clamp(s)
     p = _p_from_score(s, 0.7)
-    exp = ctx["atr_pct"] * 100 * 0.45 * (2 * s - 1)
+    exp = _move_pct(ctx, 0.45, s)
     verdict = BUY if (s >= 0.62 and exp > 0) else (AVOID if s < 0.3 else HOLD)
     return {"p_up": p, "expected_move_pct": round(exp, 4),
             "verdict": verdict, "reason": _reason(verdict, code)}
@@ -265,6 +297,10 @@ def vote_llm(model: str, cand: dict, snap: dict, ctx: dict,
         "horizon_minutes": round(ctx.get("horizon_s", 3600) / 60.0, 1),
         "price": ctx["price"],
         "atr_percent": round(ctx["atr_pct"] * 100, 3),
+        # 1-sigma range over the forecast horizon (ATR scaled to that span
+        # — a single 30-minute ATR is NOT a 4-hour expectation)
+        "expected_range_percent": round(
+            ctx["atr_pct"] * 100 * float(ctx.get("vol_scale", 1.0)), 3),
         "cost_percent": round(ctx["cost_pct"], 3),
         "spread_percent": _f(snap.get("spread_percent")),
         "change_24h_percent": _f(snap.get("change_24h")),
@@ -305,9 +341,16 @@ def vote_llm(model: str, cand: dict, snap: dict, ctx: dict,
 
 # --------------------------------------------------------------- committee
 def combine(votes: list, *, cost_pct: float, atr_pct: float,
-            min_p_up: float = 0.60, min_upside_pct: float = 1.0,
-            min_net_edge_pct: float = 0.2, min_votes: int = 3) -> dict:
-    """Weighted vote + expected-value gate. Pure function (easy to test)."""
+            min_p_up: float = 0.60, min_upside_pct: float = 0.0,
+            min_net_edge_pct: float = 0.2, min_votes: int = 3,
+            plan_tp_pct: float = 0.0, plan_stop_pct: float = 0.0,
+            hold_s: float = 0.0, bar_s: float = 1800.0) -> dict:
+    """Weighted vote + plan expected-value gate. Pure function (easy to test).
+
+    plan_tp_pct / plan_stop_pct describe the exit the bot will actually arm
+    (risk.default_take_profit_pct / risk.default_stop_loss_pct or their
+    risk-mode twins). When they are omitted the forecast itself is used.
+    """
     vetoes = [v for v in votes if v.get("veto")]
     active = [v for v in votes
               if not v.get("veto") and v.get("verdict") != ABSTAIN]
@@ -325,8 +368,22 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
     if downside <= 1e-9:
         # هیچ مدلی حرکت منفی پیش‌بینی نکرده: ریسک را از نوسان واقعی بگیر
         downside = max(atr_pct * 100 * 0.5, 0.1)
-    min_upside = max(_f(min_upside_pct, 1.0), cost_pct * 1.2)
+    # forecast edge over the (short) horizon — kept for diagnostics and for
+    # the scoreboard; the DECISION uses the plan economics below
     net = p_up * upside - (1.0 - p_up) * downside - cost_pct
+    min_upside = max(0.0, _f(min_upside_pct, 0.0))
+
+    # --- plan economics: what THIS trade can make vs what it can lose
+    bars = max(1.0, _f(hold_s, 0.0) / _f(bar_s, 1800.0)) \
+        if _f(hold_s, 0.0) > 0 else 1.0
+    sigma = atr_pct * 100.0 * math.sqrt(bars)   # 1-sigma move, percent
+    tp = _f(plan_tp_pct, 0.0)
+    if tp <= 0:
+        tp = max(upside, 0.0)
+    sl = abs(_f(plan_stop_pct, 0.0))
+    if sl <= 0:
+        sl = max(downside, 0.1)
+    plan_ev = p_up * tp - (1.0 - p_up) * sl - cost_pct
 
     buys = [v for v in active if v.get("verdict") == BUY]
     need = min(max(1, int(min_votes)), len(active)) if active else max(
@@ -340,7 +397,7 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
         blocked.append("P_UP_TOO_LOW")
     if upside < min_upside:
         blocked.append("UPSIDE_TOO_SMALL")
-    if net < min_net_edge_pct:
+    if plan_ev < min_net_edge_pct:
         blocked.append("NEGATIVE_EXPECTED_VALUE")
     allow = bool(active) and not blocked
     consensus = BUY if allow else (AVOID if vetoes else HOLD)
@@ -365,7 +422,13 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
         "expected_up_pct": round(upside, 4),
         "expected_down_pct": round(downside, 4),
         "cost_pct": round(cost_pct, 4),
-        "expected_net_edge_pct": round(net, 4),
+        "expected_net_edge_pct": round(plan_ev, 4),
+        "forecast_net_edge_pct": round(net, 4),
+        "plan_tp_pct": round(tp, 4),
+        "plan_stop_pct": round(sl, 4),
+        "plan_ev_pct": round(plan_ev, 4),
+        "hold_s": int(_f(hold_s, 0.0)),
+        "sigma_pct": round(sigma, 4),
         "min_upside_pct": round(min_upside, 4),
         "min_p_up": round(_f(min_p_up, 0.6), 4),
         "min_net_edge_pct": round(_f(min_net_edge_pct, 0.2), 4),
@@ -413,6 +476,21 @@ class AICommittee:
                 w[str(k)] = _f(v, w.get(str(k), 1.0))
         return w
 
+    def _plan_pcts(self) -> tuple:
+        """(take-profit %, stop-loss %) of the exit the bot actually arms.
+
+        These come from the risk settings the dashboard shows as «حد سود»
+        and «حد ضرر» — the same numbers the profit-lock ratchet uses — so
+        the committee prices the real campaign, not a hypothetical scalp.
+        """
+        risk = getattr(self.cfg, "risk", None)
+        risk_mode = bool(getattr(risk, "risk_mode", False))
+        tp = _f(getattr(risk, "risk_mode_take_profit_pct" if risk_mode else
+                        "default_take_profit_pct", 0.0))
+        sl = _f(getattr(risk, "risk_mode_stop_loss_pct" if risk_mode else
+                        "default_stop_loss_pct", 0.0))
+        return tp, sl
+
     def _thresholds(self) -> dict:
         return {
             "min_p_up": _f(getattr(self.cfg.ai, "committee_min_p_up", 0.60),
@@ -423,6 +501,10 @@ class AICommittee:
                 self.cfg.ai, "committee_min_net_edge_pct", 0.2), 0.2),
             "min_votes": int(_f(getattr(
                 self.cfg.ai, "committee_min_votes", 3), 3)),
+            "hold_s": _f(getattr(self.cfg.ai, "committee_hold_s", 86400),
+                         86400),
+            "bar_s": _f(getattr(self.cfg.ai, "committee_bar_s", 1800),
+                        1800) or 1800.0,
         }
 
     # ------------------------------------------------------------ evaluate
@@ -439,11 +521,15 @@ class AICommittee:
                     + slip) * 100.0
         horizon = int(_f(getattr(self.cfg.ai, "committee_horizon_s", 14400),
                          14400))
+        bar_s = _f(getattr(self.cfg.ai, "committee_bar_s", 1800), 1800) or 1800.0
+        hold_s = _f(getattr(self.cfg.ai, "committee_hold_s", 86400), 86400)
         ctx = {
             "price": price,
             "atr_pct": atr_pct,
             "cost_pct": cost_pct,
             "horizon_s": horizon,
+            # one ATR bar -> horizon: random-walk scaling (sqrt of bars)
+            "vol_scale": math.sqrt(max(1.0, horizon / bar_s)),
             "atr_crash_pct": _f(getattr(
                 self.cfg.risk, "risk_mode_regime_atr_crash_pct", 8.0), 8.0),
         }
@@ -464,7 +550,9 @@ class AICommittee:
             v["weight"] = _f(weights.get("llm"), LLM_WEIGHT)
             votes.append(v)
 
+        tp_pct, sl_pct = self._plan_pcts()
         verdict = combine(votes, cost_pct=cost_pct, atr_pct=atr_pct,
+                          plan_tp_pct=tp_pct, plan_stop_pct=sl_pct,
                           **self._thresholds())
         verdict["horizon_s"] = horizon
         verdict["symbol"] = candidate.get("symbol")

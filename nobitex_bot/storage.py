@@ -373,6 +373,60 @@ class Storage:
                 pass
         return out
 
+    # ------------------------------------------------------- retention
+    def prune_history(self, keep_decisions: int = 3000,
+                      keep_risk: int | None = None,
+                      keep_executions: int = 2000) -> dict:
+        """Drop old decision/risk/execution rows — the DB growth driver.
+
+        A live bot writes one ai_decision (+ one risk_decision) per analysed
+        market per cycle; after weeks those two tables held 250k+ rows with
+        full JSON payloads each (~465MB for one account). They are audit
+        history, not financial records: orders/fills/positions/performance
+        are NEVER touched, and the newest rows (what the UI shows) stay.
+
+        Returns the number of deleted rows per table.
+        """
+        keep_decisions = max(0, int(keep_decisions))
+        keep_risk = keep_decisions if keep_risk is None else max(0, int(keep_risk))
+        removed = {}
+        with self._lock:
+            for table, keep in (("ai_decisions", keep_decisions),
+                                ("risk_decisions", keep_risk),
+                                ("executions", max(0, int(keep_executions)))):
+                try:
+                    total = self._conn.execute(
+                        "SELECT COUNT(*) FROM %s" % table).fetchone()[0]
+                except sqlite3.Error:
+                    removed[table] = 0
+                    continue
+                excess = total - keep
+                if excess <= 0:
+                    removed[table] = 0
+                    continue
+                self._conn.execute(
+                    "DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s "
+                    "ORDER BY created_at ASC LIMIT ?)" % (table, table),
+                    (excess,))
+                removed[table] = excess
+            self._conn.commit()
+        return removed
+
+    def db_size_mb(self) -> float:
+        try:
+            return self.db_path.stat().st_size / (1024 * 1024)
+        except OSError:
+            return 0.0
+
+    def vacuum(self) -> None:
+        """Reclaim the space of deleted rows (SQLite keeps it otherwise)."""
+        with self._lock:
+            try:
+                self._conn.execute("VACUUM")
+                self._conn.commit()
+            except sqlite3.Error:
+                pass
+
     # -------------------------------------------------------- performance
     def save_performance(self, perf: dict) -> None:
         with self._lock:

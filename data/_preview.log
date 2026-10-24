@@ -1,6 +1,0 @@
-[preview] BTCUSDT stage=3 amount=0.02 anchor=88665.07817707189611243527575 stop=117259.565889 rung_add=1348.49
-[preview] ETHUSDT stage=1 amount=0.2 anchor=4885.933217640863478260869565 stop=4885.933218 rung_add=561.88
-[preview] BTCIRT stage=0 amount=0.000005 anchor=12758327551.729473 stop=12375577725.17759 rung_add=31895.82
-[preview] serving http://127.0.0.1:8801 (gate: OFF)
-[web] dashboard on http://127.0.0.1:8801
-[web] password gate: OFF (loopback only) — set web.password in config.json before exposing this port

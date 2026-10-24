@@ -1,2 +1,0 @@
-[warn] exchange.mode=nobitex but no credentials/api_key configured — running DEMO simulator instead (login from the dashboard to attach the real account).
-[sandbox] dashboard http://127.0.0.1:8799 | data=.tmp_check/sbdata | live=False auto=False | read_only=True | gate=False

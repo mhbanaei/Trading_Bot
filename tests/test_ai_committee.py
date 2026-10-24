@@ -130,13 +130,33 @@ class TestCombine(TempCase):
         self.assertFalse(v["allow_buy"])
         self.assertIn("P_UP_TOO_LOW", v["blocked_by"])
 
-    def test_upside_floor_is_never_below_cost(self):
+    def test_configured_upside_floor_is_enforced(self):
         v = combine([vote(BUY, 0.9, 4.0, 1.0, model=m) for m in "abc"],
-                    cost_pct=5.0, atr_pct=0.04, min_upside_pct=1.0,
+                    cost_pct=0.6, atr_pct=0.04, min_upside_pct=6.0,
                     min_votes=3)
         self.assertAlmostEqual(v["min_upside_pct"], 6.0, places=3)
         self.assertIn("UPSIDE_TOO_SMALL", v["blocked_by"])
         self.assertFalse(v["allow_buy"])
+
+    def test_round_trip_cost_is_charged_against_the_plan(self):
+        """A 5% cost eats a 2% target: no buy, whatever the forecast says."""
+        v = combine([vote(BUY, 0.9, 4.0, 1.0, model=m) for m in "abc"],
+                    cost_pct=5.0, atr_pct=0.04, min_votes=3,
+                    plan_tp_pct=2.0, plan_stop_pct=-2.0)
+        self.assertFalse(v["allow_buy"])
+        self.assertIn("NEGATIVE_EXPECTED_VALUE", v["blocked_by"])
+        self.assertAlmostEqual(v["plan_ev_pct"], -3.4, places=3)
+
+    def test_wide_plan_target_pays_the_fee(self):
+        """The bot's real +25%/−3% plan: 60% odds are clearly profitable."""
+        v = combine([vote(BUY, 0.6, 1.0, 1.0, model=m) for m in "abc"],
+                    cost_pct=0.55, atr_pct=0.005, min_votes=3,
+                    plan_tp_pct=25.0, plan_stop_pct=-3.0, hold_s=86400,
+                    bar_s=1800)
+        self.assertTrue(v["allow_buy"], v["blocked_by"])
+        self.assertAlmostEqual(v["plan_ev_pct"], 13.25, places=2)
+        self.assertEqual(v["plan_tp_pct"], 25.0)
+        self.assertEqual(v["hold_s"], 86400)
 
     def test_abstain_models_do_not_vote(self):
         v = combine([vote(BUY, 0.8, 4.0, 1.0, model=m) for m in "abc"]
@@ -261,6 +281,31 @@ class TestCommittee(TempCase):
         self.assertGreaterEqual(verdict["votes_buy"],
                                 cfg.ai.committee_min_votes)
         self.assertEqual(verdict["horizon_s"], cfg.ai.committee_horizon_s)
+
+    def test_quiet_market_can_still_buy(self):
+        """ATR 0.5% must not lock the bot out of every trade.
+
+        Regression: the committee compared a single 30-minute ATR against
+        the full round-trip fee, so in quiet markets it blocked 100% of
+        buys and the bot never traded at all.
+        """
+        cfg = self.cfg
+        cfg.ai.committee_enabled = True
+        cfg.ai.committee_mode = "decide"
+        cfg.ai.committee_min_upside_pct = 0.0
+        verdict = AICommittee(cfg).evaluate(candidate(),
+                                            snapshot(atr_pct=0.005))
+        self.assertTrue(verdict["allow_buy"], verdict["blocked_by"])
+        self.assertGreater(verdict["plan_ev_pct"], 0)
+
+    def test_a_thin_target_is_rejected(self):
+        cfg = self.cfg
+        cfg.risk.default_take_profit_pct = 0.8
+        cfg.risk.default_stop_loss_pct = -2.0
+        verdict = AICommittee(cfg).evaluate(candidate(),
+                                            snapshot(atr_pct=0.005))
+        self.assertFalse(verdict["allow_buy"])
+        self.assertIn("NEGATIVE_EXPECTED_VALUE", verdict["blocked_by"])
 
     def test_weak_setup_is_rejected(self):
         cfg = self.cfg
