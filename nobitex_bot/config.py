@@ -282,6 +282,28 @@ class AICfg:
     llm_base_url: str = ""             # OpenAI-compatible endpoint (optional)
     llm_api_key: str = ""
     llm_model: str = ""
+    # چند مدل AI برای کمیته (ai_committee.py): هر مدل یک رأی می‌دهد و یک
+    # BUY فقط وقتی مجاز است که ارزش انتظاری مثبتِ بعد از کارمزد تأیید شود.
+    # لیست خالی = فقط مدل تکنیکال؛ llm_model بالا هم اگر ست باشد رأی می‌دهد.
+    llm_models: str = ""                 # چندمدلی: با کاما جدا کنید
+    # مثال: "gpt-4o-mini, claude-3-5-haiku, llama-3.1-70b" — هر مدل یک رأی
+    # پیش‌فرض خاموش تا مسیر تستی/دموی قبلی عوض نشود؛ config.json این پروژه
+    # آن را روشن می‌کند (committee_enabled: true).
+    committee_enabled: bool = False
+    # gate   : کمیته فقط می‌تواند BUY موتور را وتو کند
+    # decide : کمیته خودش تصمیم BUY را می‌گیرد (موتور نقشهٔ ورود را می‌دهد)
+    committee_mode: str = "gate"
+    # آستانه‌های «قیمت بعد از خرید بالاتر می‌رود؟»
+    committee_min_p_up: float = 0.60        # احتمال صعود
+    committee_min_upside_pct: float = 1.0   # درصد حرکت مثبت انتظاری
+    committee_min_net_edge_pct: float = 0.2  # ارزش انتظاری خالص بعد از هزینه
+    committee_min_votes: int = 3            # حداقل رأی BUY (quorum)
+    committee_horizon_s: int = 14400        # افق پیش‌بینی (ثانیه) — ۴ ساعت
+    # فقط این تعداد کندیدیت برتر به مدل‌های LLM فرستاده می‌شوند (هزینهٔ
+    # هر درخواست) — ۰ = هیچ مدل زبانی رأی نمی‌دهد
+    committee_llm_top_n: int = 2
+    # وزن هر مدل در رأی‌گیری (خالی = وزن‌های پیش‌فرض ai_committee)
+    committee_weights: dict = field(default_factory=dict)
     max_context_tokens: int = 6000     # SS71 budgets
     max_output_tokens: int = 700
     max_candles_per_market: int = 60

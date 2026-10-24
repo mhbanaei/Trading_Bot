@@ -101,7 +101,7 @@
     "dust_convert_exclude": "USDT",
     "dust_convert_max_per_cycle": 3,
     "exit_convert_below_min": true,
-    "risk_mode": true,
+    "risk_mode": false,
     "risk_mode_stop_loss_pct": -3,
     "risk_mode_take_profit_pct": 12,
     "risk_mode_drop_exit_pct": -6,
@@ -130,7 +130,17 @@
     "max_candles_per_market": 60,
     "min_confidence": 0.55,
     "buy_best": true,
-    "entry_pullback_pct": 0.0025
+    "entry_pullback_pct": 0.0025,
+    "llm_models": "",
+    "committee_enabled": true,
+    "committee_mode": "decide",
+    "committee_min_p_up": 0.6,
+    "committee_min_upside_pct": 1.0,
+    "committee_min_net_edge_pct": 0.2,
+    "committee_min_votes": 3,
+    "committee_horizon_s": 14400,
+    "committee_llm_top_n": 2,
+    "committee_weights": {}
   },
   "paper": {
     "starting_usdt": 5000,

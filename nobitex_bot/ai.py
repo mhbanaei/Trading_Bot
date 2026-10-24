@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Optional
 
 from . import tls
+from .ai_committee import AICommittee, CommitteeScoreboard
 from .config import Config
 from .utils import new_id, sha256_json, utc_iso, utc_now_iso
 
@@ -239,12 +240,21 @@ class LLMClient:
     def available(self) -> bool:
         return bool(self.cfg.ai.llm_base_url and self.cfg.ai.llm_model)
 
-    def complete_json(self, system: str, user: str) -> Optional[dict]:
-        if not self.available():
+    def ready(self) -> bool:
+        """Endpoint configured — enough for the committee's multiple models
+        (a local OpenAI-compatible server needs no key)."""
+        return bool(self.cfg.ai.llm_base_url)
+
+    def complete_json(self, system: str, user: str,
+                      model: str | None = None) -> Optional[dict]:
+        if not self.cfg.ai.llm_base_url:
+            return None
+        model = model or self.cfg.ai.llm_model
+        if not model:
             return None
         url = self.cfg.ai.llm_base_url.rstrip("/") + "/chat/completions"
         body = {
-            "model": self.cfg.ai.llm_model,
+            "model": model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -349,6 +359,117 @@ class AILayer:
         self.events = events
         self.heuristic = HeuristicAI(cfg)
         self.llm = LLMClient(cfg)
+        # کمیتهٔ چندمدلی (ai_committee.py): رأی مدل‌های مستقل + گیتِ ارزش
+        # انتظاری مثبت. verdict هر نماد برای ثبت در دفترچهٔ پیش‌بینی می‌ماند.
+        self.committee = AICommittee(cfg, llm=self.llm)
+        self.scoreboard = CommitteeScoreboard(cfg)
+        self._committee_verdicts: dict = {}
+
+    # --------------------------------------------------- committee (SS32)
+    def _committee_plan(self, cand: dict, snap: dict,
+                        portfolio_snapshot: dict, open_positions: dict,
+                        prices: dict | None) -> Optional[dict]:
+        """کامل‌ترین نقشهٔ ورود (entry/stop/TP/size) از موتور تکنیکال.
+
+        «decide» mode: تصمیم BUY با کمیته است ولی نقشهٔ اجرا باید کامل
+        باشد؛ HeuristicAI با سیگنال‌های تأییدشده همان نقشه را با اندازه و
+        حد ضرر/سود ATR-محور می‌سازد (همان کاری که «خرید بهترین گزینه»
+        می‌کند). موتور ریسک بعد از این دوباره اندازه/نقدینگی را می‌بندد.
+        """
+        boosted = {**cand, "signals": {
+            **cand.get("signals", {}),
+            "trend": max(cand.get("signals", {}).get("trend", 0), 0.9),
+            "momentum": max(cand.get("signals", {}).get("momentum", 0), 0.9),
+        }}
+        plan = self.heuristic.decide(boosted, snap, portfolio_snapshot,
+                                     open_positions, prices)
+        if (plan.get("action") not in ("BUY", "SELL") or
+                not (plan.get("entry") or {}).get("price")):
+            return None
+        return plan
+
+    def _committee_apply(self, dec: dict, verdict: dict, held: bool,
+                         cand: dict, snap: dict,
+                         portfolio_snapshot: dict, open_positions: dict,
+                         prices: dict | None) -> dict:
+        """اعمال حکم کمیته روی تصمیم موتور.
+
+        - gate   : کمیته فقط می‌تواند BUY موتور را رد کند.
+        - decide : اگر کمیته BUY بگوید و موتور مردد باشد، تصمیم BUY از
+                   کمیته می‌آید و نقشهٔ ورود کامل از موتور.
+        در هر دو حالت، بدون تأیید کمیته هیچ BUY تازه‌ای صادر نمی‌شود
+        (اگر بستهٔ بدون ورود باشد AVOID، برای سکهٔ نگه‌داری‌شده HOLD).
+        """
+        if not verdict.get("models"):
+            return dec
+        allow = bool(verdict.get("allow_buy"))
+        action = dec.get("action")
+        reasons = list(dec.get("reason_codes") or [])
+
+        if allow and self.committee.decide_mode() and action not in ("BUY",
+                                                                    "SELL"):
+            if held:
+                return dec        # افزودن به سکهٔ موجود تصمیم جداست (topup)
+            plan = self._committee_plan(cand, snap, portfolio_snapshot,
+                                        open_positions, prices)
+            if plan is None:
+                return dec
+            for k in ("entry", "stop_loss", "take_profit", "position_size",
+                      "risk", "cost", "invalidation_conditions"):
+                if k in plan:
+                    dec[k] = plan[k]
+            dec["action"] = "BUY"
+            dec["confidence"] = round(max(float(verdict.get("p_up") or 0),
+                                          float(dec.get("confidence") or 0)),
+                                      4)
+            dec["reason_codes"] = (["COMMITTEE_BUY"] + reasons)[:8]
+            return dec
+
+        if action == "BUY" and not allow:
+            blocked = verdict.get("blocked_by") or []
+            dec["action"] = "HOLD" if held else (
+                "AVOID" if verdict.get("consensus") == "AVOID" else "HOLD")
+            dec["confidence"] = round(min(float(dec.get("confidence") or 0),
+                                          max(float(verdict.get("p_up") or 0),
+                                              0.3)), 4)
+            dec["reason_codes"] = ([("COMMITTEE_BLOCK:" + str(blocked[0]))
+                                    if blocked else "COMMITTEE_BLOCK"]
+                                   + reasons)[:8]
+            for k in ("entry", "stop_loss", "take_profit", "position_size",
+                      "risk", "cost", "invalidation_conditions"):
+                dec.pop(k, None)
+        return dec
+
+    def register_verdict(self, symbol: str, verdict: dict) -> None:
+        """حکم کمیته را برای تصمیمی که بیرون از analyze() ساخته شده نگه می‌دارد
+        (مثلاً «خرید بهترین گزینه») تا دفترچهٔ پیش‌بینی آن را هم ثبت کند."""
+        if symbol and verdict:
+            self._committee_verdicts[symbol] = verdict
+
+    def scoreboard_tick(self, storage, prices: dict,
+                        executions: list | None = None) -> dict:
+        """هر BUY تأییدشده را با پیش‌بینی‌اش ثبت و بعد از افق ارزیابی کن."""
+        if not self.committee.enabled():
+            return {}
+        for ex in executions or []:
+            if str(ex.get("side") or "").upper() != "BUY":
+                continue
+            if str(ex.get("status") or "").upper() not in ("FILLED",
+                                                            "SUBMITTED"):
+                continue
+            sym = ex.get("market") or ex.get("symbol")
+            verdict = self._committee_verdicts.get(sym)
+            if not verdict or not verdict.get("allow_buy"):
+                continue
+            price = ex.get("fill_price") or ex.get("price") or 0
+            try:
+                self.scoreboard.record(storage, sym, float(price), verdict)
+            except Exception:
+                pass
+        try:
+            return self.scoreboard.update(storage, prices)
+        except Exception:
+            return {}
 
     def analyze(self, candidates: list, market_by_symbol: dict,
                 portfolio_snapshot: dict, open_positions: dict,
@@ -356,7 +477,10 @@ class AILayer:
                 topup_allowed: bool = False) -> list:
         decisions = []
         use_llm = self.cfg.ai.engine == "llm" and self.llm.available()
-        for cand in candidates:
+        # LLM voters cost one request per model per candidate — only the
+        # best few candidates get them (ai.committee_llm_top_n)
+        llm_top_n = int(getattr(self.cfg.ai, "committee_llm_top_n", 2) or 0)
+        for idx, cand in enumerate(candidates):
             sym = cand["symbol"]
             snap = market_by_symbol.get(sym)
             if not snap:
@@ -384,6 +508,21 @@ class AILayer:
                 dec = self.heuristic.decide(
                     cand, snap, portfolio_snapshot, open_positions, prices,
                     topup_allowed=topup_allowed)
+            # کمیتهٔ چندمدلی: رأی همهٔ مدل‌ها + گیت ارزش انتظاری مثبت
+            if self.committee.enabled():
+                try:
+                    verdict = self.committee.evaluate(
+                        cand, snap, allow_llm=(idx < llm_top_n))
+                except Exception:
+                    verdict = {}
+                if verdict:
+                    self._committee_verdicts[sym] = verdict
+                    held = float((open_positions.get(sym) or {}).get(
+                        "amount", 0) or 0) > 0
+                    dec = self._committee_apply(
+                        dec, verdict, held, cand, snap, portfolio_snapshot,
+                        open_positions, prices)
+                    dec["committee"] = verdict
             dec["cycle_id"] = cycle_id
             decisions.append(dec)
         return decisions

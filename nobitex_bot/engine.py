@@ -1204,10 +1204,22 @@ class TradingEngine:
                 snap_top = market_by_symbol.get(top["symbol"])
                 held_top = float(open_positions.get(
                     top["symbol"], {}).get("amount", 0) or 0) > 0
+                # کمیتهٔ چندمدلی: «خرید بهترین گزینه» هم بدون تأیید کمیته
+                # (ارزش انتظاری مثبت بعد از کارمزد) اجرا نمی‌شود؛ وگرنه این
+                # مسیر، گیت کمیته را کامل دور می‌زد.
+                verdict_top = {}
+                committee_ok = True
+                if getattr(self.cfg.ai, "committee_enabled", False):
+                    try:
+                        verdict_top = self.ai.committee.evaluate(
+                            top, snap_top or {}, allow_llm=False)
+                        committee_ok = bool(verdict_top.get("allow_buy"))
+                    except Exception:
+                        verdict_top, committee_ok = {}, True
                 # allow_topup: a still-best-ranked HELD coin may be topped
                 # up with free cash (the risk engine caps it) instead of
                 # only ever buying a first position
-                if snap_top and (not held_top or getattr(
+                if snap_top and committee_ok and (not held_top or getattr(
                         self.cfg.risk, "allow_topup", False)):
                     boosted = {**top, "signals": {
                         **top["signals"],
@@ -1235,6 +1247,9 @@ class TradingEngine:
                         float(best.get("confidence", 0) or 0), 0.75)
                     best["reason_codes"] = ["BUY_BEST_OPTION"] + list(
                         best.get("reason_codes", []))[:5]
+                    if verdict_top:
+                        best["committee"] = verdict_top
+                        self.ai.register_verdict(top["symbol"], verdict_top)
                     decisions.append(best)
             valid_decisions = []
             for dec in decisions:
@@ -1277,6 +1292,15 @@ class TradingEngine:
                         ex = self.executor.execute(
                             dec, rd, prices, cycle_id)
                         self.latest_executions.append(ex)
+
+            # 7.5 ---- committee scoreboard: هر BUY تأییدشده با پیش‌بینی‌اش
+            # ثبت می‌شود و بعد از افق، حرکت واقعی قیمت با آن مقایسه می‌شود
+            # («آیا تحلیل AI درست بود؟»). خطا هرگز چرخه را نمی‌شکند.
+            try:
+                self.latest_committee_score = self.ai.scoreboard_tick(
+                    self.storage, prices, self.latest_executions)
+            except Exception:
+                pass
 
             # 8 ---- measure performance on closed positions (SS46)
             self._sync_exit_plans()
@@ -2705,10 +2729,36 @@ class TradingEngine:
         return base + "IRT"
 
     def _decision_brief(self, d_: dict) -> dict:
-        return {k: d_.get(k) for k in (
+        """خلاصهٔ تصمیم برای داشبورد — کمیتهٔ چندمدلی هم دیده می‌شود.
+
+        `committee` همان حکم ai_committee است: هر مدل چه رأیی داد، احتمال
+        صعود، حرکت انتظاری و ارزش انتظاری خالص، و دلیل مسدودشدن. چون پاسخ
+        وضعیت هر چند ثانیه خوانده می‌شود، فهرست مدل‌ها کوتاه (نام/رأی/عدد)
+        فرستاده می‌شود نه کل پیلود.
+        """
+        brief = {k: d_.get(k) for k in (
             "decision_id", "symbol", "action", "confidence",
             "reason_codes", "created_at", "expires_at", "entry",
             "stop_loss", "take_profit", "position_size", "cost", "risk")}
+        c = d_.get("committee")
+        if isinstance(c, dict) and c:
+            brief["committee"] = {
+                "consensus": c.get("consensus"),
+                "allow_buy": c.get("allow_buy"),
+                "p_up": c.get("p_up"),
+                "expected_up_pct": c.get("expected_up_pct"),
+                "expected_down_pct": c.get("expected_down_pct"),
+                "expected_net_edge_pct": c.get("expected_net_edge_pct"),
+                "votes_buy": c.get("votes_buy"),
+                "votes_needed": c.get("votes_needed"),
+                "blocked_by": c.get("blocked_by") or [],
+                "models": [{"model": m.get("model"),
+                            "verdict": m.get("verdict"),
+                            "p_up": m.get("p_up"),
+                            "expected_move_pct": m.get("expected_move_pct")}
+                           for m in (c.get("models") or [])],
+            }
+        return brief
 
     def _markets_view(self, snap: dict) -> list:
         """«همه بازارها» — the WHOLE exchange, snapshot or not.
