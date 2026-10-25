@@ -55,7 +55,7 @@
     "wallet_sync": true,
     "prefer_usdt_markets": true,
     "include_irt_markets": true,
-    "trade_quote_markets": "both",
+    "trade_quote_markets": "irt",
     "min_quote_volume_usdt": 50000,
     "min_order_usdt": 0.5,
     "rls_to_irt_divisor": 10,

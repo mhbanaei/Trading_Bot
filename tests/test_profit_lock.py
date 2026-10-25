@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -733,6 +734,110 @@ class TestNetDeposited(TempCase):
         e._holdings_pnl({})                 # stale cache must not be used
         self.assertEqual(len(calls), 2)
         self.assertFalse(e.portfolio.flow_dirty)
+
+    def test_an_old_cache_without_the_paging_version_is_refreshed(self):
+        """کش قدیمی (قبل از صفحه‌بندی کامل) نباید با همان عدد ناقص سرو شود."""
+        e = TradingEngine(self.cfg)
+        e.auto_trading = False
+        calls = []
+
+        class CountEx:
+            def deposits_withdraws(self):
+                calls.append(1)
+                return {"deposits": [{"amount": "60302240",
+                                       "currency": "rls",
+                                       "status": "Succeed", "fee": "0"}],
+                        "withdraws": [], "pages": 2}
+
+            def ticker(self, sym):
+                return {"last_price": 100000.0}
+
+        e.exchange = CountEx()
+        import time as _time
+        e.storage.kv_set("net_deposited_cache", {
+            "at": _time.time(), "net_irt": 1536224.0,   # page-1 only
+            "deposits_irt": 22740470.0, "withdraws_irt": 21204246.0})
+        out = e._holdings_pnl({})
+        self.assertEqual(len(calls), 1)                 # re-read NOW
+        self.assertEqual(out["deposited_irt"], 6030224.0)
+        self.assertEqual(out["deposited_detail"]["pages"], 2)
+        e._holdings_pnl({})                             # v2 cache → TTL
+        self.assertEqual(len(calls), 1)
+
+    def test_a_deposit_never_shows_up_as_profit(self):
+        """کاربر: «واریز کردم ولی جزو سود حساب شد». ارزش حساب و سرمایهٔ
+        واریزی باید با هم به همان اندازه بالا بروند → سود ثابت بماند."""
+        e = TradingEngine(self.cfg)
+        e.auto_trading = False
+
+        class CountEx:
+            deposits = [{"amount": "100000000", "currency": "rls",
+                         "status": "Succeed", "fee": "0"}]
+
+            def deposits_withdraws(self):
+                return {"deposits": list(self.deposits),
+                        "withdraws": []}
+
+            def ticker(self, sym):
+                return {"last_price": 100000.0}
+
+        ex = CountEx()
+        e.exchange = ex
+        e.portfolio.overwrite_balances({
+            "IRT": {"available": Decimal("5000000"), "locked": Decimal("0")}})
+        e.portfolio.flow_dirty = False       # the first sync is not a flow
+        ps = e.portfolio.portfolio_snapshot({}, e._usdt_rates({}))
+        before = e._holdings_pnl({}, ps)
+        # deposit lands: wallet +10M AND the turnover shows the same +10M
+        ex.deposits = [{"amount": "200000000", "currency": "rls",
+                        "status": "Succeed", "fee": "0"}]
+        e.portfolio.overwrite_balances({
+            "IRT": {"available": Decimal("15000000"),
+                    "locked": Decimal("0")}})
+        e.portfolio.flow_dirty = False
+        e.storage.kv_set("net_deposited_cache", {})
+        ps = e.portfolio.portfolio_snapshot({}, e._usdt_rates({}))
+        after = e._holdings_pnl({}, ps)
+        self.assertEqual(before["deposited_irt"], 10000000.0)
+        self.assertEqual(after["deposited_irt"], 20000000.0)
+        self.assertAlmostEqual(after["profit_capital_irt"],
+                               before["profit_capital_irt"], places=2)
+        # درصد عمداً عوض می‌شود (پایهٔ سرمایه بزرگ‌تر شده) — عدد سود نه
+        self.assertAlmostEqual(after["total_irt"], 15000000.0, places=2)
+
+    def test_recent_history_capital_is_repaired_from_the_full_list(self):
+        """بعد از صفحه‌بندی، `d` نقاط اخیر تاریخچه از لیست کامل بازسازی
+        می‌شود؛ وگرنه باکس ۲۴ساعته با مبنای ناقص، ضرر جعلی می‌سازد."""
+        e = TradingEngine(self.cfg)
+        e.auto_trading = False
+        now = datetime.now(timezone.utc)
+        t_new = (now - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        t_old = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        dep_at = (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S")
+        e.storage.kv_set("equity_history", [
+            {"t": t_old, "e": 1000000.0, "d": 111.0, "a": 1, "u": "irt"},
+            {"t": t_new, "e": 6000000.0, "d": 111.0, "a": 1,
+             "u": "irt"}])
+
+        class CountEx:
+            def deposits_withdraws(self):
+                return {"deposits": [{"amount": "100000000",
+                                       "currency": "rls",
+                                       "status": "Succeed", "fee": "0",
+                                       "createdAt": dep_at + ".000000+00:00"}],
+                        "withdraws": []}
+
+            def ticker(self, sym):
+                return {"last_price": 100000.0}
+
+        e.exchange = CountEx()
+        e.storage.kv_set("net_deposited_cache", {})
+        out = e._net_deposited_from_exchange()
+        self.assertEqual(out["net_irt"], 10000000.0)
+        hist = {p["t"]: p for p in e.storage.kv_get("equity_history")}
+        # before the deposit: net − deposit; after it: the full net
+        self.assertEqual(hist[t_old]["d"], 0.0)
+        self.assertEqual(hist[t_new]["d"], 10000000.0)
 
     def test_cache_ttl_and_refresh(self):
         e = TradingEngine(self.cfg)
