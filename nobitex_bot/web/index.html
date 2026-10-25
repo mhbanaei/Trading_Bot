@@ -887,6 +887,9 @@ function pvTotalProfitCard(hp){hp=hp||{};
   const dtail=(hp.deposited_detail||{});
   const pending=Number(dtail.pending_withdraws_irt||0);
   const depRaw=dtail.deposits_irt, wdrRaw=dtail.withdraws_irt;
+  /* اگر صرافی بیشتر از سقف صفحه‌ها داده داد، عدد صریحاً «ناقص» علامت
+     می‌خورد؛ سکوت کردن یعنی دوباره همان سود جعلی. */
+  const dTrunc=Boolean(dtail.truncated);
   /* شکل حساب (همان چیزی که کاربر خواست):
        سرمایهٔ واریزی = جمع واریزها − جمع برداشتها
        سود سرمایه    = ارزش کل حساب − سرمایهٔ واریزی
@@ -901,7 +904,8 @@ function pvTotalProfitCard(hp){hp=hp||{};
   const sub=(line("میزان سود سرمایه",pvNum(pS))
     +flow
     +line("جمع (سود سرمایه + سرمایهٔ واریزی)",pvNum(tS))
-    +(pending>0?`<div class="mut" style="font-size:11px">برداشت در جریان (از حساب رفته، بانک در حال تسویه): <span class="num">${pvMoney(pending)}</span> — از سرمایه واریزی کم شده تا سود سرمایه اشتباه منفی نشود</div>`:""));
+    +(pending>0?`<div class="mut" style="font-size:11px">برداشت در جریان (از حساب رفته، بانک در حال تسویه): <span class="num">${pvMoney(pending)}</span> — از سرمایه واریزی کم شده تا سود سرمایه اشتباه منفی نشود</div>`:"")
+    +(dTrunc?`<div class="s" style="color:#e0a300">هشدار: لیست انتقال‌های صرافی کامل خوانده نشد؛ «سرمایهٔ واریزی» ممکن است کم‌تر از واقع باشد</div>`:""));
   return pvCard("سود/زیان کل (رشد کل حساب)",main,sub,cls(hp.profit_capital_irt),
     {cardId:"kpiTotalProfit",title:"کلیک: تغییر سرمایهٔ واریزی (دستی) | فرمول: سرمایهٔ واریزی = جمع واریزها − جمع برداشت‌ها؛ سود سرمایه = ارزش کل حساب − سرمایهٔ واریزی؛ جمع = سود سرمایه + سرمایهٔ واریزی = ارزش کل حساب | درصد تیتر: سود سرمایه ÷ سرمایهٔ واریزی | پیش‌فرض: گردش واقعی حساب در نوبیتکس (هر ساعت خودکار، و بلافاصله بعد از هر واریز/برداشتی که در کیف پول دیده شود)"});
 }

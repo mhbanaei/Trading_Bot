@@ -58,6 +58,14 @@ from .validation import (ValidationResult, validate_ai_decision,
                          validate_snapshot_header)
 
 
+# Bump when the net-deposited ALGORITHM changes: a cache written by an older
+# build is ignored (and immediately refreshed) instead of being served with
+# a wrong capital figure. v2 = the turnover list is read across ALL pages
+# (page 1 alone truncated older deposits and the missing money read as
+# profit).
+NET_DEPOSIT_CACHE_VERSION = 2
+
+
 class TradingEngine:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -2464,6 +2472,14 @@ class TradingEngine:
         if equity_24h_irt <= 0 and irt_rate > 0:
             equity_24h_irt = float((portfolio_snapshot.get("risk") or {})
                                    .get("total_equity") or 0) * irt_rate
+        # the deposit-cache migration + recent-history repair must run
+        # BEFORE the 24h history is read: the first poll after this upgrade
+        # would otherwise compare the new correct capital with a baseline
+        # built from the old truncated turnover list (a fake one-day loss)
+        try:
+            self._net_deposited_from_exchange()
+        except Exception:
+            pass
         hist_24h = self.storage.kv_get("equity_history", [])[-1800:]
         hist_24h, migrated_24h = self._migrate_equity_history(
             hist_24h, 1.0 / irt_rate if irt_rate > 0 else 0.0)
@@ -3973,8 +3989,10 @@ class TradingEngine:
         force = False
         if getattr(self.portfolio, "flow_dirty", False):
             force = True
-        if not force and cached.get("net_irt") is not None and \
-                now - cached_at < cache_ttl:
+        cache_current = (int(cached.get("v") or 0) ==
+                         NET_DEPOSIT_CACHE_VERSION)
+        if not force and cache_current and cached.get("net_irt") is not None \
+                and now - cached_at < cache_ttl:
             return {**cached, "fresh": False}
         try:
             data = self.exchange.deposits_withdraws()
@@ -4104,10 +4122,15 @@ class TradingEngine:
                           "irt": float(round(irt_v, 2)), "counted": counted,
                           "date": _item_date(item)})
         net = dep_sum - wdr_sum
-        out = {"at": now, "net_irt": float(round(net, 2)),
+        out = {"v": NET_DEPOSIT_CACHE_VERSION,
+               "at": now, "net_irt": float(round(net, 2)),
                "deposits_irt": float(round(dep_sum, 2)),
                "withdraws_irt": float(round(wdr_sum, 2)),
                "deposits_count": dep_rls, "withdraws_count": wdr_rls,
+               # pagination audit: how many pages the FULL turnover needed
+               # and whether a cap stopped us before `hasNext` ended
+               "pages": int(data.get("pages") or 1),
+               "truncated": bool(data.get("truncated")),
                # «در جریان»: a withdrawal that already left the wallet but
                # has not settled at the bank yet (counted in withdraws_irt)
                "pending_withdraws_irt": float(round(sum(
@@ -4117,11 +4140,71 @@ class TradingEngine:
                                                       "paid"))), 2)),
                "audit": audit[-60:]}
         self.storage.kv_set("net_deposited_cache", out)
+        # the FULL list is in hand now: rewrite the recent equity points'
+        # «کل سرمایه واریزی» so the 24h box does not compare today's correct
+        # number with a baseline built from the truncated list (that reads
+        # as a one-day fake loss after the paging fix)
+        self._repair_equity_deposits(out)
         try:                     # cache is live again: the ledger flow that
             self.portfolio.flow_dirty = False   # forced this has been read
         except Exception:
             pass
         return {**out, "fresh": True}
+
+    def _repair_equity_deposits(self, nd: dict) -> None:
+        """Rewrite recent `d` (کل سرمایه واریزی) values in the equity history.
+
+        Each history point stores the capital at that minute. Points written
+        before the turnover list was paginated carry a truncated capital, so
+        once the current net is correct the 24h box would subtract a wrong
+        baseline and report a fake loss for a day.
+
+        The transfer audit has every deposit/withdraw with its date, so the
+        capital at any past time is reconstructable:
+            d(t) = net_now − Σ(transfers AFTER t)
+        Only the last 26h matter (that is the 24h box's window). If the audit
+        was capped (60 rows) completeness is not guaranteed, so we skip
+        rather than write a guess.
+        """
+        try:
+            audit = nd.get("audit") or []
+            if not audit or len(audit) >= 60:
+                return
+            flows = []
+            for a in audit:
+                if not a.get("counted"):
+                    continue
+                ts = str(a.get("date") or "")[:19]
+                if not ts:
+                    return
+                sign = 1 if a.get("kind") == "deposit" else -1
+                flows.append((ts, sign * float(a.get("irt") or 0)))
+            net = float(nd.get("net_irt") or 0)
+            hist = self.storage.kv_get("equity_history", [])
+            if not isinstance(hist, list) or not hist:
+                return
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=26)) \
+                .strftime("%Y-%m-%dT%H:%M:%S")
+            changed = False
+            for pt in hist:
+                if not isinstance(pt, dict):
+                    continue
+                t = str(pt.get("t") or "")[:19]
+                if not t or t < cutoff:
+                    continue
+                after = sum(v for ts, v in flows if ts > t)
+                d_new = round(net - after, 2)
+                try:
+                    same = abs(float(pt.get("d") or 0) - d_new) <= 1
+                except Exception:
+                    same = False
+                if not same:
+                    pt["d"] = d_new
+                    changed = True
+            if changed:
+                self.storage.kv_set("equity_history", hist)
+        except Exception:
+            pass
 
     def refresh_net_deposited(self) -> dict:
         """Force a live re-fetch of the exchange turnover (UI button)."""

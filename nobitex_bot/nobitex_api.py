@@ -853,22 +853,83 @@ class NobitexAPI(ExchangeAdapter):
         }
 
     # ------------------------------------------------- deposits / withdraws
-    def deposits_withdraws(self, wallet_id: str | None = None) -> dict:
+    @staticmethod
+    def _turnover_key(item: dict, kind: str) -> str:
+        """Stable identity of one turnover row, for page de-duplication."""
+        rid = item.get("id")
+        if rid not in (None, ""):
+            return "%s:%s" % (kind, rid)
+        return "%s:%s:%s:%s:%s" % (
+            kind, item.get("createdAt") or item.get("date"),
+            item.get("amount"), item.get("currency"), item.get("status"))
+
+    def deposits_withdraws(self, wallet_id: str | None = None,
+                           max_pages: int = 50) -> dict:
         """Panel turnover data: POST /users/wallets/deposits/list.
 
         Returns {"deposits": [...], "withdraws": [...]} — each item has an
         amount (string) and currency (lowercase, e.g. "rls", "usdt").
         These are the same numbers the dashboard's
         /panel/turnover/deposit and /panel/turnover/withdraw pages show.
+
+        PAGINATED: the endpoint returns 20 deposits per page plus a
+        `hasNext` flag, and reading only page 1 silently TRUNCATES the
+        history — older deposits vanish from Σdeposits while every
+        withdrawal is still listed. The missing capital then reads as
+        profit (user report: «الان واریز کردم، جزو سود حساب شد»). Here we
+        follow `hasNext` and merge every page; withdrawals are repeated on
+        each page, so rows are de-duplicated by id (or a content key).
         """
-        body = {"wallet": str(wallet_id)} if wallet_id else {}
-        data = self._post("/users/wallets/deposits/list", body)
-        if str((data or {}).get("status", "ok")).lower() != "ok":
-            raise NobitexError("DEPOSITS_LIST_FAILED",
-                               _api_error_text(data or {}), retryable=True)
+        deposits: list = []
+        withdraws: list = []
+        seen_d: set = set()
+        seen_w: set = set()
+        pages = 0
+        truncated = False
+        while True:
+            body: dict = {"page": pages + 1}
+            if wallet_id:
+                body["wallet"] = str(wallet_id)
+            data = self._post("/users/wallets/deposits/list", body)
+            if str((data or {}).get("status", "ok")).lower() != "ok":
+                raise NobitexError("DEPOSITS_LIST_FAILED",
+                                   _api_error_text(data or {}), retryable=True)
+            pages += 1
+            added = 0
+            d_page = data.get("deposits") or []
+            w_page = data.get("withdraws") or []
+            for item in d_page:
+                key = self._turnover_key(item, "deposit")
+                if key in seen_d:
+                    continue
+                seen_d.add(key)
+                deposits.append(item)
+                added += 1
+            for item in w_page:
+                key = self._turnover_key(item, "withdraw")
+                if key in seen_w:
+                    continue
+                seen_w.add(key)
+                withdraws.append(item)
+                added += 1
+            has_next = data.get("hasNext")
+            if isinstance(has_next, str):
+                has_next = has_next.strip().lower() in ("1", "true", "yes")
+            if not has_next:
+                break
+            if pages >= max_pages:
+                # honest flag instead of pretending the totals are complete
+                truncated = True
+                break
+            if added == 0:
+                # a server that ignores `page` must not loop forever
+                truncated = True
+                break
         return {
-            "deposits": data.get("deposits") or [],
-            "withdraws": data.get("withdraws") or [],
+            "deposits": deposits,
+            "withdraws": withdraws,
+            "pages": pages,
+            "truncated": truncated,
         }
 
     # ------------------------------------------------------ diagnostic lock
