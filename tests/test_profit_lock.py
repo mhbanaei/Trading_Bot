@@ -70,10 +70,12 @@ class TestProfitLock(TempCase):
         return Decimal(str(next(m for m in e.latest_snapshot["markets"]
                                 if m["symbol"] == mkt)["last_price"]))
 
-    def _step_frac(self, e):
-        return (Decimal(str(getattr(e.cfg.risk,
-                                    "profit_lock_step_pct", 20.0)))
-                / Decimal("100"))
+    def _step_frac(self, e, plan=None):
+        """گام همین پلن (درصد حد سود خودش)، وگرنه گام سراسری."""
+        pct = (plan or {}).get("take_profit_manual_pct")
+        if pct is None:
+            pct = getattr(e.cfg.risk, "profit_lock_step_pct", 20.0)
+        return Decimal(str(pct)) / Decimal("100")
 
     def test_no_position_rejected_by_set_stop(self):
         e = self._engine()
@@ -87,12 +89,10 @@ class TestProfitLock(TempCase):
         e.run_cycle()
         mkt = self._first_market(e)
         price = self._price_of(e, mkt)
-        self._plant(e, mkt, price)
+        planted = self._plant(e, mkt, price)
         tp0 = Decimal(str(e.storage.kv_get("exit_plans", {})[mkt]
                           ["take_profit_manual"]))
-        stop_frac = abs(Decimal(str(getattr(
-            e.cfg.risk, "default_stop_loss_pct", -2.0) or -2.0))) / 100
-        step = self._step_frac(e)
+        step = self._step_frac(e, planted)
 
         # price below the target: nothing moves
         e._advance_profit_locks({mkt: float(price * Decimal("1.1"))})
@@ -100,10 +100,10 @@ class TestProfitLock(TempCase):
         self.assertEqual(int(plan["stage"]), 0)
 
         # price REACHES the target: stage 0->1, the HADD moves to the
-        # reached price and the next take-profit re-arms +step% above
-        # the new hadd. نردبان: the STOP also moves — to the previous
-        # rung, which at stage 1 IS the buy price (break-even), so it can
-        # only ever go UP (the planted stop was buy*0.98).
+        # reached price and the next take-profit re-arms by THIS plan's
+        # own 20% step (not the global 15% setting). نردبان: the STOP
+        # also moves — to the previous rung, with the configured minimum
+        # profit floor (1%) above the buy price, so profit is secured.
         stop_before = Decimal(str(e.storage.kv_get(
             "exit_plans", {})[mkt]["stop"]))
         e._advance_profit_locks({mkt: float(tp0)})
@@ -111,10 +111,13 @@ class TestProfitLock(TempCase):
         self.assertEqual(int(plan["stage"]), 1)
         self.assertEqual(Decimal(str(plan["base_price"])), tp0)
         self.assertEqual(Decimal(str(plan["locked_stop"])), tp0)
-        # the stop rode the ladder up to rung 0 = the buy price
+        # the stop rode the ladder to rung 0 (buy) plus the 1% profit floor
         self.assertEqual(Decimal(str(plan["stop"])),
-                         price.quantize(Decimal("0.000001")))
+                         (price * Decimal("1.01")).quantize(
+                             Decimal("0.000001")))
         self.assertGreater(Decimal(str(plan["stop"])), stop_before)
+        self.assertGreater(Decimal(str(plan["stop"])), price)
+        self.assertAlmostEqual(plan["stop_pct"], 1.0, places=2)
         self.assertEqual(int(plan["ladder_stop_stage"]), 1)
         # and the next rung's capital budget is queued for the same cycle
         self.assertEqual(int(plan["ladder_add_stage"]), 1)
@@ -138,6 +141,36 @@ class TestProfitLock(TempCase):
                          tp0.quantize(Decimal("0.000001")))
         self.assertGreater(Decimal(str(plan["stop"])), price)
 
+    def test_fast_move_registers_every_crossed_rung(self):
+        """A price that jumps over several targets must not advance only
+        one rung per cycle: all crossed rungs are registered at once, the
+        next target is re-armed from the LAST crossed rung and the stop
+        lands on the previous rung (not on break-even)."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = self._first_market(e)
+        buy = Decimal("100")
+        plan = self._plant(e, mkt, buy)
+        plan["take_profit_manual"] = 120.0
+        plan["take_profit_manual_pct"] = 20.0
+        plans = e.storage.kv_get("exit_plans", {})
+        plans[mkt] = plan
+        e.storage.kv_set("exit_plans", plans)
+
+        e._advance_profit_locks({mkt: 200.0})
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        # 100 -> 120 -> 144 -> 172.8 are the three rungs the price crossed
+        self.assertEqual(int(plan["stage"]), 3)
+        self.assertEqual(Decimal(str(plan["base_price"])), Decimal("172.8"))
+        self.assertEqual(Decimal(str(plan["take_profit_manual"])),
+                         Decimal("207.36"))
+        self.assertEqual(float(plan["take_profit_manual_pct"]), 20.0)
+        # the stop sits on the previous rung (144), locking +44%
+        self.assertEqual(Decimal(str(plan["stop"])), Decimal("144.0"))
+        self.assertAlmostEqual(plan["stop_pct"], 44.0, places=2)
+        self.assertEqual(int(plan["ladder_stop_stage"]), 3)
+        self.assertEqual(int(plan["ladder_add_stage"]), 3)
+
     def test_row_percents_read_against_hadd(self):
         """The holdings row shows «قیمت حد (n)»; BOTH the TP percent and
         the STOP percent read against the hadd (قیمت حد) — the user's
@@ -156,19 +189,22 @@ class TestProfitLock(TempCase):
         # hadd moved to the reached take-profit, stage 1
         self.assertEqual(Decimal(str(row["hadd"])), tp0)
         self.assertEqual(int(row["stage"]), 1)
-        # TP % vs the hadd (=tp0): +step%
+        # TP % vs the hadd (=tp0): this plan's own +20%
+        plan_now = e.storage.kv_get("exit_plans", {})[mkt]
+        step = self._step_frac(e, plan_now)
         self.assertAlmostEqual(row["hadd_tp_pct"],
-                               float(step := self._step_frac(e) * 100),
-                               places=2)
-        # STOP % vs the HADD: the ladder lifted the stop to rung 0 (the
-        # buy price) while the hadd sits on the reached target, so the row
-        # reads «how far below قیمت حد the stop sits» = (buy/hadd - 1)
+                               float(step * 100), places=2)
+        # STOP % vs the HADD: the ladder lifted the stop to rung 0 (buy)
+        # plus the 1% profit floor, so the row reads how far below the
+        # reached strike that locked level sits.
+        stop_now = Decimal(str(row["stop"]))
         self.assertAlmostEqual(row["hadd_stop_pct"],
-                               float((price / tp0 - 1) * 100), places=1)
-        # the old buy-anchored percent is still reported (break-even here)
-        self.assertAlmostEqual(row["stop_pct_buy"], 0.0, places=2)
-        # and the money shown next to it: nothing lost, nothing locked yet
-        self.assertAlmostEqual(row["stop_money"], 0.0, places=1)
+                               float((stop_now / tp0 - 1) * 100), places=1)
+        # the buy-anchored percent shows the 1% profit now locked
+        self.assertAlmostEqual(row["stop_pct_buy"], 1.0, places=2)
+        self.assertAlmostEqual(row["stop_money"],
+                               float((stop_now - price) * Decimal("10")),
+                               places=1)
 
     def test_row_hadd_column_is_the_live_price(self):
         """نمای کلی: the «قیمت حد» the row PRINTS is the coin's current

@@ -536,7 +536,8 @@ class TradingEngine:
                 step_default = 15.0
             self._raise_ladder_stop(symbol, plan, base,
                                     anchor if anchor > 0 else lbp,
-                                    stage, step_default)
+                                    stage, step_default,
+                                    ae if ae > 0 else base)
         plans[symbol] = plan
         self.storage.kv_set("exit_plans", plans)
         self.events.publish("HADD_SET", "engine", "",
@@ -621,7 +622,9 @@ class TradingEngine:
 
         چرا «پلهٔ قبلی» و نه چند درصد زیر پلهٔ جدید: با این قاعده یک پلهٔ
         کامل فضای نفس می‌ماند؛ حد تنگ (مثلاً ۳٪ زیر پلهٔ تازه) روی تکان
-        معمولی بازار می‌فروخت و سود را قبل از ادامهٔ روند می‌بست.
+        معمولی بازار می‌فروخت و سود را قبل از ادامهٔ روند می‌بست. کفِ
+        profit_lock_stage_floor_pct در _raise_ladder_stop تضمین می‌کند
+        پلهٔ اول دست‌کم چند درصد سود (نه فقط سربه‌سر) را قفل کند.
         """
         if stage <= 0:
             return ZERO
@@ -632,11 +635,15 @@ class TradingEngine:
 
     def _raise_ladder_stop(self, symbol: str, plan: dict, hadd: Decimal,
                            fallback_anchor: Decimal, stage: int,
-                           default_step: float = 15.0) -> bool:
+                           default_step: float = 15.0,
+                           entry: Decimal = ZERO) -> bool:
         """حد ضرر پلن را روی پلهٔ قبلی می‌برد (فقط بالا، هرگز پایین).
-        درصد و مبلغ حد ضرر همین لحظه از قیمت جدید درمی‌آید، چون
-        _position_row آن‌ها را از خودِ stop می‌سازد. اگر نه، هیچ تغییری
-        نمی‌دهد و False برمی‌گرداند.
+
+        پله ۱ ← قیمت خرید (سربه‌سر)، پله ۲ ← پله ۱ … ولی از پلهٔ اول به
+        بعد حداقل `risk.profit_lock_stage_floor_pct` درصد بالای قیمت خرید
+        هم قفل می‌شود؛ وگرنه با یک strike، حد ضرر روی سربه‌سر می‌ماند و
+        «سود تامین‌شده» هنوز هیچ سودی را تضمین نمی‌کند. درصد و مبلغ حد
+        ضرر همین لحظه از خودِ stop درمی‌آید. اگر تغییری ندهد False.
         """
         if stage <= 0:
             return False
@@ -650,13 +657,47 @@ class TradingEngine:
                                            default_step)
         if rung_stop <= 0:
             return False
+        # قفل حداقل سود: پلهٔ اول روی قیمت خرید است، پس بدون این کف
+        # «سود تامین شد» ولی حد ضرر هنوز صفر سود را نشان می‌داد.
+        try:
+            floor_pct = d(str(getattr(
+                self.cfg.risk, "profit_lock_stage_floor_pct", 0.0) or 0))
+        except Exception:
+            floor_pct = ZERO
+        if floor_pct > 0 and entry > 0:
+            floor_stop = (entry * (1 + floor_pct / d("100"))).quantize(
+                Decimal("0.000001"))
+            if floor_stop > rung_stop:
+                rung_stop = floor_stop
         try:
             cur_stop = d(str(plan.get("stop", 0) or 0))
         except Exception:
             cur_stop = ZERO
+        # اگر حد ضرر فعلی از پله بالاتر است، درصد باید از همان stop
+        # فعلی خوانده شود (نه از پله‌ای که پایین‌تر می‌ماند).
+        effective_stop = cur_stop if cur_stop > rung_stop else rung_stop
+        new_stop_pct = None
+        if entry > 0:
+            new_stop_pct = float(
+                ((effective_stop - entry) / entry * 100)
+                .quantize(Decimal("0.01")))
         if rung_stop <= cur_stop:
+            # خود حد ضرر بالاتر از پله است (دستی یا پلهٔ قبلی) و پایین
+            # نمی‌آید؛ ولی درصد ذخیره‌شده باید همان stop واقعی را نشان دهد.
+            if new_stop_pct is not None:
+                try:
+                    old_pct = float(plan.get("stop_pct"))
+                except (TypeError, ValueError):
+                    old_pct = None
+                if old_pct is None or abs(old_pct - new_stop_pct) > 0.005:
+                    plan["stop_pct"] = new_stop_pct
+                    return True
             return False
         plan["stop"] = float(rung_stop)
+        # درصد ذخیره‌شده هم با همان stop عوض می‌شود؛ وگرنه ردیف/کمیته
+        # هنوز ‎-۳٪ قدیمی را می‌خوانند در حالی که حد ضرر روی سود نشسته.
+        if new_stop_pct is not None:
+            plan["stop_pct"] = new_stop_pct
         plan["ladder_stop"] = float(rung_stop)
         plan["ladder_stop_stage"] = int(stage)
         self.events.publish("LADDER_STOP_RAISED", "engine", "",
@@ -664,29 +705,31 @@ class TradingEngine:
                              "stop": float(rung_stop),
                              "stop_before": float(cur_stop),
                              "hadd": float(hadd),
-                             "anchor": float(anchor)})
+                             "anchor": float(anchor),
+                             "floor_pct": float(floor_pct)})
         return True
 
     def _advance_profit_locks(self, prices: dict) -> int:
         """Always-on HADD ratchet + نردبان پله‌ها (run once per cycle).
 
-        The moment the live price reaches the armed take-profit, the
-        stage counter goes up (0→1→2→3…), the HADD moves to that price
-        and the next take-profit re-arms step% above the new hadd.
+        وقتی قیمت زنده به حد سود مسلح می‌رسد، پله بالا می‌رود و حد سود
+        بعدی از **درصد خودِ همان پلن** (take_profit_manual_pct / گام
+        نردبان) دوباره مسلح می‌شود — نه از گام سراسری. اگر قیمت در یک
+        چرخه چند پله را رد کرده باشد، همهٔ پله‌های رد‌شده یک‌جا ثبت
+        می‌شوند (نه یک پله در هر چرخه)، پس حد ضرر بلافاصله روی آخرین
+        پلهٔ قبلی می‌نشیند و سود را قفل می‌کند.
 
-        نردبان (ladder, risk.ladder_enabled): با هر strike حد ضرر روی
-        «پلهٔ قبلی» بالا می‌رود و هرگز پایین نمی‌آید — پله ۱ ← قیمت خرید
-        (سربه‌سر)، پله ۲ ← پله ۱ … پس هر پله که رد می‌شود سود پلهٔ قبل
-        قفل می‌شود و درصد/مبلغ حد ضرر هم با همان پله به‌روز می‌شود.
-        همین‌جا اگر حد ضرر یک پلن قدیمی عقب مانده باشد (زیر پلهٔ قبلی)
-        هر چرخه بالا کشیده می‌شود.
+        نردبان (risk.ladder_enabled): حد ضرر هرگز پایین نمی‌آید؛ از پلهٔ
+        اول به بعد حداقل profit_lock_stage_floor_pct بالای قیمت خرید هم
+        قفل می‌شود. اگر یک پلن خراب باشد، بقیهٔ پلن‌ها همین چرخه پیش
+        می‌روند.
         """
         advanced = 0
         try:
-            step = d(str(getattr(self.cfg.risk,
-                                 "profit_lock_step_pct", 20.0) or 0))
-            if step <= 0:
-                step = d("20")
+            global_step = d(str(getattr(self.cfg.risk,
+                                         "profit_lock_step_pct", 20.0) or 0))
+            if global_step <= 0:
+                global_step = d("20")
             max_stage = int(getattr(self.cfg.risk,
                                     "profit_lock_max_stage", 0) or 0)
             ladder_on = bool(getattr(self.cfg.risk, "ladder_enabled", True))
@@ -696,99 +739,146 @@ class TradingEngine:
             if not isinstance(plans, dict):
                 return 0
             for symbol, plan in list(plans.items()):
-                if not isinstance(plan, dict):
-                    continue
-                pos = self.storage.position(symbol)
-                if not pos or d(pos["amount"]) <= 0:
-                    continue
-                lbp = d(str(pos.get("last_buy_price") or 0))
-                ae = d(str(pos.get("avg_entry") or 0))
-                nstage, nhadd = self._hadd_stage_of(plan, lbp, ae)
-                stage = int(plan.get("stage", 0) or 0)
-                if nstage != stage:
-                    # invariant: hadd == buy price ⇒ stage 0 — normalize
-                    # legacy plans that still carry a stale counter
-                    plan["stage"] = nstage
-                    stage = nstage
-                    plans[symbol] = plan
-                    self.storage.kv_set("exit_plans", plans)
-                # نردبان: حد ضرر هر پلن عقب‌مانده را همین چرخه بالا می‌برد
-                if ladder_on and self._raise_ladder_stop(
-                        symbol, plan, nhadd,
-                        lbp if lbp > 0 else ae, stage, float(step)):
-                    plans[symbol] = plan
-                    self.storage.kv_set("exit_plans", plans)
-                if max_stage > 0 and stage >= max_stage:
-                    continue
-                cur = prices.get(symbol)
                 try:
-                    cur_d = d(str(cur)) if cur else None
-                except Exception:
-                    cur_d = None
-                if not cur_d or cur_d <= 0:
-                    cur_d = self._live_price_for(symbol)
-                if not cur_d or cur_d <= 0:
-                    continue
-                tp = d(str(plan.get("take_profit_manual", 0) or 0))
-                if tp <= 0:
-                    # plan without a level: re-arm one from the hadd
-                    floor0 = self._hadd_base(plan, pos.get("last_buy_price"),
-                                             pos.get("avg_entry"))
-                    if floor0 > 0:
-                        tp = (floor0 * (1 + step / 100)).quantize(
-                            Decimal("0.000001"))
-                        plan["take_profit_manual"] = float(tp)
-                        plan["take_profit_manual_pct"] = float(step)
+                    if not isinstance(plan, dict):
+                        continue
+                    pos = self.storage.position(symbol)
+                    if not pos or d(pos["amount"]) <= 0:
+                        continue
+                    lbp = d(str(pos.get("last_buy_price") or 0))
+                    ae = d(str(pos.get("avg_entry") or 0))
+                    entry = ae if ae > 0 else lbp
+                    nstage, nhadd = self._hadd_stage_of(plan, lbp, ae)
+                    stage = int(plan.get("stage", 0) or 0)
+                    if nstage != stage:
+                        # invariant: hadd == buy price ⇒ stage 0 — normalize
+                        # legacy plans that still carry a stale counter
+                        plan["stage"] = nstage
+                        stage = nstage
                         plans[symbol] = plan
                         self.storage.kv_set("exit_plans", plans)
-                    continue
-                if cur_d < tp:
-                    continue
-                # the live price REACHED the armed take-profit: the HADD
-                # moves to that price (strike #N is registered) and the
-                # next take-profit re-arms step% above the new hadd. The
-                # ladder moves the STOP up to the previous rung with it.
-                new_base = tp
-                new_stage = stage + 1
-                old_base = d(str(plan.get("base_price", 0) or 0))
-                plan["base_price"] = float(new_base)
-                plan["locked_stop"] = float(new_base)
-                plan["stage"] = new_stage
-                nxt = (new_base * (1 + step / 100)).quantize(
-                    Decimal("0.000001"))
-                plan["take_profit_manual"] = float(nxt)
-                plan["take_profit_manual_pct"] = float(
-                    ((nxt / new_base - 1) * 100)
-                    .quantize(Decimal("0.1")))
-                # نردبان: همین strike حد ضرر را روی پلهٔ قبلی می‌برد
-                # (فقط بالا) و بودجهٔ سرمایهٔ پلهٔ جدید را در صف می‌گذارد
-                # — _ladder_topup_decisions در همان چرخه آن را می‌خرد
-                if ladder_on:
-                    # پله‌های واقعی رد‌شده را نگه دار تا «پلهٔ قبلی» دقیق
-                    # باشد — حتی وقتی گام پله‌ها بین پله‌ها عوض می‌شود
+                    # گام همین پلن: درصد حد سود خودش، وگرنه گام سراسری
+                    step = self._ladder_step_pct(plan, float(global_step))
+                    if step <= 0:
+                        step = global_step
+                    # نردبان: حد ضرر هر پلن عقب‌مانده را همین چرخه بالا می‌برد
+                    if ladder_on and self._raise_ladder_stop(
+                            symbol, plan, nhadd,
+                            lbp if lbp > 0 else ae, stage, float(step),
+                            entry):
+                        plans[symbol] = plan
+                        self.storage.kv_set("exit_plans", plans)
+                    if max_stage > 0 and stage >= max_stage:
+                        continue
+                    cur_d = self._exit_price(symbol, prices)
+                    try:
+                        cur_d = d(str(cur_d)) if cur_d else None
+                    except Exception:
+                        cur_d = None
+                    if not cur_d or cur_d <= 0:
+                        continue
+                    tp = d(str(plan.get("take_profit_manual", 0) or 0))
+                    if tp <= 0:
+                        # plan without a level: re-arm one from the hadd
+                        base0 = self._hadd_base(plan, pos.get("last_buy_price"),
+                                                pos.get("avg_entry"))
+                        if base0 > 0:
+                            tp = (base0 * (1 + step / d("100"))).quantize(
+                                Decimal("0.000001"))
+                            plan["take_profit_manual"] = float(tp)
+                            plan["take_profit_manual_pct"] = float(
+                                ((tp / base0 - 1) * 100)
+                                .quantize(Decimal("0.1")))
+                            plans[symbol] = plan
+                            self.storage.kv_set("exit_plans", plans)
+                        continue
+                    if tp <= nhadd:
+                        # هدف کهنه/زیر حد فعلی: از خود حد دوباره مسلح کن،
+                        # وگرنه یک «پله» می‌توانست قیمت حد را پایین ببرد.
+                        tp = (nhadd * (1 + step / d("100"))).quantize(
+                            Decimal("0.000001"))
+                        plan["take_profit_manual"] = float(tp)
+                        plan["take_profit_manual_pct"] = float(
+                            ((tp / nhadd - 1) * 100)
+                            .quantize(Decimal("0.1")))
+                        plans[symbol] = plan
+                        self.storage.kv_set("exit_plans", plans)
+                    if cur_d < tp:
+                        continue
+                    # قیمت به حد سود رسید. همهٔ پله‌هایی که قیمت از آن‌ها
+                    # گذشته را یک‌جا ثبت کن؛ نه فقط یکی در هر چرخه.
+                    anchor = d(str(plan.get("ladder_anchor") or 0))
+                    if anchor <= 0:
+                        anchor = lbp if lbp > 0 else ae
                     rungs = plan.get("ladder_rungs")
-                    if (not isinstance(rungs, list) or
-                            len(rungs) != max(0, int(stage)) + 1):
-                        anchor_v = d(str(plan.get("ladder_anchor") or 0))
-                        if anchor_v <= 0:
-                            anchor_v = lbp if lbp > 0 else ae
-                        rungs = [float(x) for x in self._ladder_rungs(
-                            plan, old_base if old_base > 0 else anchor_v,
-                            anchor_v, stage, float(step))]
-                    rungs.append(float(new_base))
-                    plan["ladder_rungs"] = rungs[-50:]
-                    self._raise_ladder_stop(
-                        symbol, plan, new_base,
-                        lbp if lbp > 0 else ae, new_stage, float(step))
-                if ladder_add_on:
-                    plan["ladder_add_stage"] = new_stage
-                plans[symbol] = plan
-                self.storage.kv_set("exit_plans", plans)
-                advanced += 1
-                self.events.publish("PROFIT_LOCK_ADVANCED", "engine", "",
-                                    {"symbol": symbol, "stage": new_stage,
-                                     "base_price": float(new_base),
-                                     "take_profit": float(nxt)})
+                    if (isinstance(rungs, list) and
+                            len(rungs) == max(0, int(stage)) + 1):
+                        try:
+                            rungs = [d(str(x)) for x in rungs]
+                        except Exception:
+                            rungs = []
+                    else:
+                        rungs = []
+                    if not rungs or any(x <= 0 for x in rungs):
+                        rungs = list(self._ladder_rungs(
+                            plan, nhadd, anchor, stage, float(step)))
+                    # آخرین پله باید همان hadd فعلی باشد
+                    if rungs:
+                        rungs[-1] = nhadd
+                    new_stage = stage
+                    new_base = nhadd
+                    nxt = tp
+                    while cur_d >= nxt:
+                        if max_stage > 0 and new_stage >= max_stage:
+                            break
+                        new_stage += 1
+                        new_base = nxt
+                        if len(rungs) > new_stage:
+                            rungs[new_stage] = new_base
+                        else:
+                            rungs.append(new_base)
+                        nxt = (new_base * (1 + step / d("100"))).quantize(
+                            Decimal("0.000001"))
+                    if new_stage <= stage:
+                        continue
+                    plan["base_price"] = float(new_base)
+                    plan["locked_stop"] = float(new_base)
+                    plan["stage"] = int(new_stage)
+                    plan["take_profit_manual"] = float(nxt)
+                    plan["take_profit_manual_pct"] = float(
+                        ((nxt / new_base - 1) * 100)
+                        .quantize(Decimal("0.1")))
+                    if ladder_on:
+                        plan["ladder_rungs"] = [float(x) for x in
+                                                rungs[-200:]]
+                        self._raise_ladder_stop(
+                            symbol, plan, new_base,
+                            lbp if lbp > 0 else ae, int(new_stage),
+                            float(step), entry)
+                    if ladder_add_on:
+                        plan["ladder_add_stage"] = int(new_stage)
+                    plans[symbol] = plan
+                    self.storage.kv_set("exit_plans", plans)
+                    advanced += 1
+                    self.events.publish(
+                        "PROFIT_LOCK_ADVANCED", "engine", "",
+                        {"symbol": symbol, "stage": int(new_stage),
+                         "stage_before": int(stage),
+                         "base_price": float(new_base),
+                         "take_profit": float(nxt),
+                         "take_profit_pct": float(step),
+                         "stop": plan.get("stop")})
+                except Exception as exc:
+                    # یک پلن خراب (عدد نامعتبر/فیلد کهنه) نباید بقیهٔ
+                    # پلن‌ها را از پیشروی در همین چرخه محروم کند.
+                    try:
+                        self.events.publish(
+                            "PROFIT_LOCK_ERROR", "engine", "",
+                            {"symbol": symbol,
+                             "error": str(exc)[:200]})
+                    except Exception:
+                        pass
+                    continue
         except Exception:
             pass
         return advanced
