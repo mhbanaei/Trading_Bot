@@ -606,5 +606,53 @@ class TestCorruptEntryIsRepairedFromOurOwnFills(TempCase):
         self.assertGreater(m["pnl"], -1.0)               # هرگز ‎-۲۳۳$ نیست
 
 
+class TestLastBuyBackfillIsSameCoinOnly(TempCase):
+    """«قیمت خرید» هر ردیف فقط از فیل همان سکه پر می‌شود.
+
+    `fills_by_base` یک query پیشوندی است؛ ردیف XIRT (سکهٔ «X») با base
+    یک‌حرفی، در استارت بعدی جدیدترین خرید XRPIRT را به‌عنوان «آخرین
+    قیمت خرید» خودش می‌گرفت (۳۴۶٬۵۸۴ برای سکهٔ ۱٫۳۷ دلاری) و ردیف را
+    ‎-۱۰۰٪ / ‎-۳۵ میلیارد تومان نشان می‌داد. حالا برابری (سکه، واحد پول)
+    هم شرط است.
+    """
+
+    def _engine(self):
+        e = TradingEngine(self.cfg)
+        e.auto_trading = False
+        return e
+
+    def _fill(self, e, market, trade_id, price, amount, ts=TS):
+        e.storage.save_fill({
+            "trade_id": trade_id, "order_id": "o-" + trade_id,
+            "decision_id": "", "market": market, "side": "BUY",
+            "price": price, "amount": amount,
+            "gross_value": str(Decimal(price) * Decimal(amount)),
+            "fee_amount": "0", "fee_asset": "IRT", "timestamp": ts})
+
+    def test_a_one_letter_base_never_borrows_another_coins_fill(self):
+        e = self._engine()
+        self._fill(e, "XRPIRT", "live_xrp", "346584.0", "0.39")
+        self._fill(e, "XLMIRT", "live_xlm", "52000.0", "2")
+        e.storage.upsert_position("XIRT", Decimal("1000"), Decimal("0"),
+                                  Decimal("0"))
+        e._backfill_last_buy_from_fills()
+        p = e.storage.position("XIRT")
+        self.assertFalse(p.get("last_buy_at"))
+        self.assertIn(str(p.get("last_buy_price")), ("None", "0"))
+
+    def test_it_still_uses_the_coins_own_fill(self):
+        e = self._engine()
+        self._fill(e, "XRPIRT", "live_xrp", "346584.0", "0.39",
+                   "2026-10-25T07:39:40.042Z")
+        self._fill(e, "XIRT", "live_x", "1.36", "1000",
+                   "2026-10-24T10:00:00.000Z")
+        e.storage.upsert_position("XIRT", Decimal("1000"), Decimal("1.36"),
+                                  Decimal("0"))
+        e._backfill_last_buy_from_fills()
+        p = e.storage.position("XIRT")
+        self.assertEqual(p.get("last_buy_at"), "2026-10-24T10:00:00.000Z")
+        self.assertEqual(Decimal(str(p.get("last_buy_price"))), Decimal("1.36"))
+
+
 if __name__ == "__main__":
     unittest.main()

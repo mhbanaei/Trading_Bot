@@ -170,6 +170,11 @@ _TICKER_ALIASES = {
     # the order/echo endpoints spell PAX Gold "PAXGold" while /market/stats
     # (and the bot's registry) uses the short "paxg" code
     "PAXGOLD": "PAXG",
+    # Nobitex's wallet/order echo says "XEmpire" for the XIRT market.
+    # Without this alias the bot invented a separate XEMPIREIRT row, so
+    # the wallet's X balance had no live price/24h change and its P&L used
+    # a different market's ticker.
+    "XEMPIRE": "X",
     "HEDERAHASHGRAPH": "HBAR",
     "ADVENTUREGOLD": "AGLD",
     "JASMYCOIN": "JASMY",

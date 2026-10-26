@@ -30,6 +30,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import struct
 import threading
 import time
@@ -785,16 +786,25 @@ class NobitexAPI(ExchangeAdapter):
 
     # ------------------------------------------------------------ portfolio
     def portfolio(self) -> dict:
-        """Real spot wallet (SS21) valued at live market prices.
+        """Real spot wallet (SS21), valued by the EXCHANGE where possible.
 
-        RLS balances are divided by rls_to_irt_divisor (Rial->Toman) and
-        IRT is valued via the live USDT-IRT price; other assets via their
-        USDT market price when available.
+        Nobitex returns ``rialBalance``/``rialBalanceSell`` on every spot
+        wallet: the exchange's own current value of that balance in Rials.
+        That is the number its wallet page shows, and it is authoritative
+        for coins with no live ticker (XIRT) too — valuing those from a
+        missing/old market price made their Toman value wrong (and silently
+        dropped them from equity). We therefore prefer ``rialBalance`` and
+        only fall back to the USDT-market/USDTIRT ticker when it is absent
+        or zero (fresh wallet, exchange glitch).
+
+        RLS balances are divided by rls_to_irt_divisor (Rial->Toman). The
+        returned per-asset ``value_irt``/``price_irt`` are the exact
+        exchange valuations the holdings box now uses.
         """
         data = self._get("/users/wallets/list", {"type": "spot"})
         div = float(getattr(self.cfg, "rls_to_irt_divisor", 10) or 10)
 
-        # ---- live valuation prices (best effort; zeros on failure)
+        # ---- live fallback prices (best effort; zeros on failure)
         usdt_irt_toman = 0.0   # one USDT = this many Toman
         asset_usdt = {}
         try:
@@ -820,37 +830,270 @@ class NobitexAPI(ExchangeAdapter):
             available = float(w.get("activeBalance") or 0)
             locked = float(w.get("blockedBalance") or 0)
             total = available + locked
+            # the exchange's own valuation (Rials -> Toman), if present
+            try:
+                value_irt = float(w.get("rialBalance") or 0) / div
+            except (TypeError, ValueError):
+                value_irt = 0.0
+            value_source = "wallet" if value_irt > 0 else "market"
             if asset == "IRT":
                 # rls balances are in Rial; Toman = /10 (configurable)
                 available, locked, total = (available/div, locked/div,
                                             total/div)
-                # value in USDT: Toman / (Toman per USDT)
+                if value_irt <= 0:
+                    value_irt = total
                 rate_usdt = (1.0 / usdt_irt_toman) if usdt_irt_toman else 0.0
-                total_usdt += total * rate_usdt
+                total_usdt += value_irt * rate_usdt
                 available_usdt += available * rate_usdt
-                total_irt += total
+                total_irt += value_irt
                 available_irt += available
             else:
                 rate_usdt = asset_usdt.get(asset, 1.0 if asset == "USDT" else 0.0)
-                total_usdt += total * rate_usdt
+                if (value_irt <= 0 and total > 0 and rate_usdt > 0
+                        and usdt_irt_toman > 0):
+                    value_irt = total * rate_usdt * usdt_irt_toman
+                    value_source = "market"
+                value_usdt = (value_irt / usdt_irt_toman
+                              if usdt_irt_toman else total * rate_usdt)
+                total_usdt += value_usdt
                 available_usdt += available * rate_usdt
+                total_irt += value_irt
+            value_usdt = (value_irt / usdt_irt_toman if usdt_irt_toman
+                          else total * rate_usdt)
             assets.append({
                 "asset": asset,
                 "available": str(available),
                 "locked": str(locked),
                 "total": str(total),
                 "quote_asset": "USDT",
-                "price_usdt": rate_usdt,
-                "value_usdt": round(total * rate_usdt, 2),
+                "price_usdt": (value_usdt / total if total > 0 else rate_usdt),
+                "value_usdt": round(value_usdt, 2),
+                # exact exchange valuation (Toman) + Toman per unit — the
+                # holdings/portfolio rows read these instead of re-pricing
+                # the coin from a ticker that may be stale or missing.
+                "value_irt": round(value_irt, 2),
+                "price_irt": (value_irt / total if total > 0 else 0.0),
+                "value_source": value_source,
             })
+        equity_irt = total_irt if total_irt > 0 else 0.0
+        equity_usdt = (equity_irt / usdt_irt_toman if usdt_irt_toman
+                       else total_usdt)
         return {
             "timestamp": utc_now_iso(),
-            "account": {"equity_irt": round(total_irt, 2),
-                        "equity_usdt": round(total_usdt, 2),
+            "account": {"equity_irt": round(equity_irt, 2),
+                        "equity_usdt": round(equity_usdt, 2),
                         "available_irt": round(available_irt, 2),
                         "available_usdt": round(available_usdt, 2)},
             "assets": assets,
         }
+
+    # ------------------------------------------------ account daily P&L
+    def portfolio_daily_profit(self) -> dict:
+        """The exchange's own daily portfolio P&L (wallet P&L panel).
+
+        ``POST /users/portfolio/last-week-daily-profit`` returns one row
+        per day: the day's profit and its percentage, plus the account's
+        total balance after that day. These are the exact numbers the
+        Nobitex wallet/portfolio view prints; the local equity history is
+        only a fallback when this call is unavailable.
+
+        The API reports Rials, so the Toman P&L/balance are divided by the
+        configured rial->Toman divisor.
+        """
+        data = self._post("/users/portfolio/last-week-daily-profit", {})
+        rows = data.get("data") or []
+        if not rows:
+            return {}
+        latest = max(rows, key=lambda r: str(r.get("report_date") or ""))
+        div = float(getattr(self.cfg, "rls_to_irt_divisor", 10) or 10)
+        try:
+            profit_irt = float(latest.get("total_profit") or 0) / div
+        except (TypeError, ValueError):
+            profit_irt = None
+        try:
+            balance_irt = float(latest.get("total_balance") or 0) / div
+        except (TypeError, ValueError):
+            balance_irt = None
+        try:
+            pct = float(latest.get("total_profit_percentage"))
+        except (TypeError, ValueError):
+            pct = None
+        return {"report_date": str(latest.get("report_date") or ""),
+                "profit_irt": profit_irt, "pct": pct,
+                "balance_irt": balance_irt,
+                "source": "nobitex-portfolio-daily"}
+
+    # ------------------------------------------ exchange wallet cost basis
+    #: «خرید 0.3 اتم به قیمت واحد 447,284 تومان» / «... 2.041 تتر»
+    _TX_PRICE_RE = re.compile(
+        r"به قیمت واحد\s*([\d,]+(?:\.\d+)?)\s*(تومان|تتر|USDT|دلار|ریال|﷼)",
+        re.IGNORECASE)
+    #: /users/transactions-history pages at 50 by default. Read up to 300
+    #: rows (3 x 100) for an exact remaining lot; 14 held coins still stay
+    #: well under the endpoint's 60-requests/hour limit.
+    WALLET_TX_PAGE_SIZE = 100
+    WALLET_TX_MAX_PAGES = 3
+
+    def wallet_cost_bases(self, usdt_toman: float | None = None) -> dict:
+        """Rebuild every held coin's cost from the exchange's OWN ledger.
+
+        Nobitex has no public per-asset P&L endpoint, but its wallet shows
+        exactly what its transaction history says: the remaining quantity
+        and the Toman amount that quantity cost. This method reads
+        ``/users/transactions-history`` per held currency and applies
+        average-cost accounting to the real BUYs/SELLs (including manual
+        trades the bot never placed).
+
+        The result is keyed by the wallet ticker and contains ``amount``,
+        ``cost_irt``, ``avg_irt``, the quote side the remaining quantity
+        was really bought in (``quote``), the most recent BUY time/price
+        and per-quote net quantities. The engine uses it to repair the
+        local ledger's average entry — the local weighted average stayed
+        wrong after partial sells/re-buys, which made both the Toman P&L
+        and its percentage disagree with the Nobitex wallet.
+
+        Tether-priced transactions are converted with ``usdt_toman`` (the
+        live Toman value of one USDT) so a Tether-bought coin can be
+        compared with its wallet rialBalance. Transactions whose price is
+        missing are counted in ``missing_price`` and make ``complete``
+        false; callers may keep their previous basis in that case.
+        """
+        div = float(getattr(self.cfg, "rls_to_irt_divisor", 10) or 10)
+        data = self._get("/users/wallets/list", {"type": "spot"})
+        wallets = data.get("wallets") or []
+        if not usdt_toman or float(usdt_toman) <= 0:
+            for w in wallets:
+                if (w.get("currency") or "").lower() == "usdt":
+                    amt = float(w.get("balance") or 0)
+                    val = float(w.get("rialBalance") or 0) / div
+                    if amt > 0 and val > 0:
+                        usdt_toman = val / amt
+                    break
+        usdt_toman = float(usdt_toman or 0)
+        out: dict = {}
+        for w in wallets:
+            cur = (w.get("currency") or "").strip().lower()
+            if not cur or cur == "rls":
+                continue
+            try:
+                held = float(w.get("balance") or 0)
+            except (TypeError, ValueError):
+                held = 0.0
+            if held <= 0:
+                continue
+            txs = []
+            seen_ids = set()
+            has_next = False
+            pages = 0
+            try:
+                while pages < self.WALLET_TX_MAX_PAGES:
+                    pages += 1
+                    hist = self._get(
+                        "/users/transactions-history",
+                        {"currency": cur, "page": pages,
+                         "pageSize": self.WALLET_TX_PAGE_SIZE})
+                    batch = hist.get("transactions") or []
+                    for tx in batch:
+                        tid = tx.get("id")
+                        if tid is not None:
+                            key = str(tid)
+                            if key in seen_ids:
+                                continue
+                            seen_ids.add(key)
+                        txs.append(tx)
+                    has_next = bool(hist.get("hasNext"))
+                    if not has_next or not batch:
+                        break
+            except Exception:
+                # Keep the rows already read, but NEVER call a partial
+                # history complete: a remaining lot priced from only its
+                # newest trades is the exact mismatch this reader fixes.
+                has_next = True
+            if not txs:
+                continue
+            qty = Decimal("0")
+            cost = Decimal("0")
+            realized = Decimal("0")
+            q_by_quote = {"IRT": Decimal("0"), "USDT": Decimal("0")}
+            last_buy_at = ""
+            last_buy_price = Decimal("0")
+            last_buy_price_irt = Decimal("0")
+            last_quote = ""
+            missing = 0
+            for t in sorted(txs, key=lambda z: str(z.get("created_at") or "")):
+                tp = str(t.get("tp") or "").lower()
+                if tp not in ("buy", "sell"):
+                    continue
+                try:
+                    q = abs(Decimal(str(t.get("amount") or 0)))
+                except Exception:
+                    continue
+                if q <= 0:
+                    continue
+                m = self._TX_PRICE_RE.search(str(t.get("description") or ""))
+                if not m:
+                    missing += 1
+                    continue
+                try:
+                    price = Decimal(m.group(1).replace(",", ""))
+                except Exception:
+                    missing += 1
+                    continue
+                unit = m.group(2).strip()
+                is_usdt = unit in ("تتر", "USDT", "دلار")
+                if unit in ("ریال", "﷼"):
+                    price = price / Decimal(str(div))
+                price_irt = (price * Decimal(str(usdt_toman))
+                             if is_usdt else price)
+                q_side = "USDT" if is_usdt else "IRT"
+                if tp == "buy":
+                    qty += q
+                    cost += q * price_irt
+                    q_by_quote[q_side] += q
+                    last_buy_at = str(t.get("created_at") or last_buy_at)
+                    last_buy_price = price
+                    last_buy_price_irt = price_irt
+                    last_quote = q_side
+                else:
+                    if qty > 0:
+                        avg = cost / qty
+                        cost -= avg * q
+                        realized += q * price_irt - avg * q
+                        qty -= q
+                        q_by_quote[q_side] -= q
+                        if qty <= Decimal("0.000000000001"):
+                            # the lot is fully closed: a later re-buy opens
+                            # a NEW lot, so the old quote mix must not
+                            # decide where the new coins are filed.
+                            qty = Decimal("0")
+                            cost = Decimal("0")
+                            q_by_quote = {"IRT": Decimal("0"),
+                                          "USDT": Decimal("0")}
+            if qty <= 0 or cost <= 0:
+                continue
+            irt_q = max(Decimal("0"), q_by_quote.get("IRT", Decimal("0")))
+            usdt_q = max(Decimal("0"), q_by_quote.get("USDT", Decimal("0")))
+            quote = ("IRT" if irt_q >= usdt_q else "USDT") \
+                if (irt_q > 0 or usdt_q > 0) else last_quote
+            out[cur.upper()] = {
+                "amount": float(qty),
+                "cost_irt": float(cost),
+                "avg_irt": float(cost / qty),
+                "quote": quote,
+                "qty_by_quote": {"IRT": float(irt_q),
+                                  "USDT": float(usdt_q)},
+                "realized_irt": float(realized),
+                "last_buy_at": last_buy_at or None,
+                "last_buy_price": float(last_buy_price),
+                "last_buy_price_irt": float(last_buy_price_irt),
+                "last_quote": last_quote or quote,
+                "transactions": len(txs),
+                "pages": pages,
+                "missing_price": missing,
+                "complete": (not has_next) and missing == 0,
+                "source": "exchange-history",
+            }
+        return out
 
     # ------------------------------------------------- deposits / withdraws
     @staticmethod

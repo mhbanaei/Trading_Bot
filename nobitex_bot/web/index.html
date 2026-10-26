@@ -840,7 +840,7 @@ function pvCard(label,big,sub,color,opts){const o=opts||{};
    و تا وقتی نقطهٔ ۲۴ ساعت پیشِ همین حساب نباشد عددی چاپ نمی‌شود (هیچ
    بازهٔ کوتاه‌تری جانشین نمی‌شود). */
 function pvProfit24Card(p24){p24=p24||{};
-  if(p24.coverage!=="exact"||p24.pnl_irt==null||p24.basis!=="capital"){
+  if(p24.coverage!=="exact"||p24.pnl_irt==null||(p24.basis!=="capital"&&p24.basis!=="exchange_daily")){
     const why=(p24.waiting_reason==="MISSING_DEPOSIT_DATA")
       ?"دیتای «کل سرمایه واریزی» در یکی از دو سر بازه کامل نیست، پس «سود سرمایه» ساخته نمی‌شود"
       :(p24.waiting_reason==="HISTORY_SHORTER_THAN_24H")
@@ -850,6 +850,21 @@ function pvProfit24Card(p24){p24=p24||{};
       why+(p24.needs_h?(" | تا نقطهٔ ۲۴ ساعت پیش حدود "+p24.needs_h+" ساعت مانده"):"")
       +(p24.skipped_other_source?" | نقطه‌های حساب دیگر (دمو/واقعی) نادیده گرفته شدند":""));}
   const line=(l,v)=>`<div class="s">${l}: <span class="num">${v}</span></div>`;
+  /* گزارش روزانهٔ خود نوبیتکس — همان عددی که در پنل سود/زیان کیف پول
+     نوشته شده؛ نه تاریخچهٔ محلی و نه میانگین‌های دفتر ربات. */
+  if(p24.basis==="exchange_daily"){
+    const mainX=pvMoneySigned(p24.pnl_irt);
+    const day=p24.report_date?(" | تاریخ گزارش: "+p24.report_date):"";
+    const tipX=("سود/زیان روزانهٔ حساب از گزارش خود نوبیتکس: "+mainX+
+      (p24.pct!=null?" ("+pvPct(p24.pct)+")":"")+
+      (p24.total_irt!=null?" | ارزش حساب در پایان روز: "+pvMoney(p24.total_irt):"")+day);
+    let subX=(p24.total_irt!=null?line("ارزش حساب (پایان روز گزارش)",pvMoney(p24.total_irt)):"")
+      +(p24.pct!=null?line("درصد تغییر",pvPct(p24.pct)+" از ارزش حساب"):"")
+      +(p24.report_date?line("تاریخ گزارش نوبیتکس",p24.report_date):"");
+    subX+=`<div class="mut" style="font-size:11px">منبع: گزارش سود و زیان روزانهٔ خود نوبیتکس (شامل معاملات دستی و کارمزدها)</div>`;
+    return pvCard("سود ۲۴ساعت کل حساب (گزارش نوبیتکس)",mainX,subX,
+      p24.pct==null?"mut":cls(p24.pnl_irt),{title:tipX});
+  }
   const src=p24.real?"حساب واقعی نوبیتکس":"حساب آزمایشی";
   const pctDen=(p24.pct_base==="deposited")?"سرمایه واریزی":"ارزش حساب";
   const main=pvMoneySigned(p24.pnl_irt);
@@ -1812,18 +1827,17 @@ function holdingsBox(s){
   const chg24={};
   (s.markets_view||[]).forEach(m=>{chg24[m.symbol]=m.change_24h});
   const p24For=h=>{
-    /* MY holding's 24h profit. Bought <24h ago -> the honest reference is
-       MY cost (profit since purchase). Older -> I owned the same amount
-       24h ago, so my 24h P&L IS the coin's 24h move applied to MY amount. */
-    const age=h.last_buy_at?(Date.now()-new Date(h.last_buy_at).getTime())/3600000:null;
-    if(age!=null&&age<24&&h.value_irt&&h.invested_irt&&h.invested_irt>0){
-      const g=(h.value_irt/h.invested_irt-1)*100;
-      return (g>=0?"+":"")+g.toFixed(2)+"%"}
-    const chg=chg24[h.symbol];
-    if(chg==null)return null;
+    /* «سود ۲۴ساعت» = تغییر قیمت ۲۴ساعتِ همین سکه روی مقدار فعلی — همان
+       تعریفی که کیف پول نوبیتکس نشان می‌دهد. قبلاً برای خریدهای کمتر از
+       ۲۴ ساعت، «سود از زمان خرید» چاپ می‌شد و همین ستون بی‌صدا معنی
+       عوض می‌کرد (و سر ۲۴ ساعت یک‌باره می‌پرید). حالا همیشه ۲۴ساعت است. */
+    const raw=(h.ch24_pct!=null?h.ch24_pct:chg24[h.symbol]);
+    if(raw==null||isNaN(raw))return null;
     /* change_24h arrives already in percent (0.42 = +0.42%) */
-    const g=chg;
+    const g=Number(raw);
     return (g>=0?"+":"")+g.toFixed(2)+"%"};
+  const p24MoneyFor=h=>(h.ch24_money!=null&&!isNaN(h.ch24_money))
+    ?Number(h.ch24_money):null;
   /* clickable column sorting (persists across the 2.5s re-render):
      نماد = alphabetical, everything else = numeric value/percent */
   const hget={sym:h=>h.coin,amount:h=>h.amount,invested:h=>h.invested_irt,
@@ -1843,7 +1857,10 @@ function holdingsBox(s){
      قبلاً در حالت دلاری مبالغ تومانی هم دلار می‌شدند و دو بازار
      در یک جدول قاطی می‌شدند. */
   const moneyCell=(v,sym)=>{if(v==null||isNaN(v))return "—";
-    return /USDT$/.test(String(sym))?("$"+fmt(v,2)):(fmt(v,0)+" ت");};
+    /* تومان: مبالغ بزرگ بدون اعشار (مثل کیف پول نوبیتکس)، ولی مبالغ
+       کوچک با ۲ رقم اعشار تا سود/زیان واقعاً «دقیق» دیده شود. */
+    return /USDT$/.test(String(sym))?("$"+fmt(v,2))
+      :(fmt(v,Math.abs(Number(v))<1000?2:0)+" ت");};
   /* مبلغ سود/زیان همین ردیف = ارزش منهای مبلغ خرید (هر دو در واحد پول
      همان بازار). «سود و زیان این بازار» بالای هر بخش دقیقاً جمع همین
      عددها روی ردیف‌های همان بخش است، پس کاربر می‌تواند جمع را با چشم
@@ -1859,11 +1876,17 @@ function holdingsBox(s){
      «ارزش − مبلغ خرید» سرِ بخش عیناً جمع ردیف‌هاست و با چشم چک‌شدنی است
      (قبلاً جمع خام گرد می‌شد و سرِ بخش یک سنت/یک تومان با ردیف‌ها فرق
      داشت). */
-  const rowVal=h=>(h.value_disp!=null?h.value_disp:h.value_irt);
-  const rowCost=h=>(h.invested_disp!=null?h.invested_disp:h.invested_irt);
-  const rowMoney=h=>(h.pnl_money!=null&&!isNaN(h.pnl_money))?Number(h.pnl_money)
-    :((rowVal(h)!=null&&rowCost(h)!=null&&!isNaN(rowVal(h))&&!isNaN(rowCost(h)))
-      ?(Number(rowVal(h))-Number(rowCost(h))):null);
+  /* اعدادِ خام (value_exact/invested_exact/pnl_exact) از سرور می‌آیند و
+     مبنای rialBalance صرافی‌اند؛ برای نمایش ترجیح داده می‌شوند تا مبلغ
+     سود فقط گِردشدهٔ تومانی نباشد. */
+  const rowVal=h=>(h.value_exact!=null?h.value_exact
+    :(h.value_disp!=null?h.value_disp:h.value_irt));
+  const rowCost=h=>(h.invested_exact!=null?h.invested_exact
+    :(h.invested_disp!=null?h.invested_disp:h.invested_irt));
+  const rowMoney=h=>(h.pnl_exact!=null&&!isNaN(h.pnl_exact))?Number(h.pnl_exact)
+    :((h.pnl_money!=null&&!isNaN(h.pnl_money))?Number(h.pnl_money)
+      :((rowVal(h)!=null&&rowCost(h)!=null&&!isNaN(rowVal(h))&&!isNaN(rowCost(h)))
+        ?(Number(rowVal(h))-Number(rowCost(h))):null));
   /* قیمت (قیمت لحظه‌ای/خرید/حد) هم در واحد همان بازار */
   const mfmt=fmtMkt;
   /* دو بخش: هر خرید زیر بخش بازار خودش (تتری زیر «موجودی تتر»،
@@ -1872,10 +1895,11 @@ function holdingsBox(s){
   const rowsUsdt=[],rowsIrt=[],holdUsdt=[],holdIrt=[];
   for(const h of sorted){
     const sym=h.symbol;
-    /* SS100d: after a new buy the «قیمت خرید» shows the LAST buy price
-       (and سود از خرید resets against it); the server already decided
-       that — it sends avg_entry as the weighted mean and profit_pct
-       computed against last_buy_price. Here we just display it. */
+    /* SS100d: after a new buy the «قیمت خرید» shows the LAST buy price;
+       سود از خرید (هم مبلغ، هم درصد) always reads the WEIGHTED average
+       cost — profit_pct = (ارزش − مبلغ خرید) ÷ مبلغ خرید, exactly the
+       money printed next to it, so a loss can never show a plus percent.
+       The server computes both; here we just display them. */
     const entry=(h.last_buy_price!=null?h.last_buy_price:h.avg_entry);
     /* HADD badge: (n) next to the strike price — n = number of strikes
        reached (0 = still equal to the last buy price); ALWAYS shown —
@@ -1949,6 +1973,7 @@ function holdingsBox(s){
                  (h.live_stop_pct!=null?h.live_stop_pct
                   :(h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct)));
     const p24=p24For(h);
+    const p24Money=p24MoneyFor(h);
     /* last-buy as RELATIVE time in parentheses: (۵ دقیقه) / (۳ ساعت) /
        (۲ روز) / (۱ ماه) — no «ago» word. The exact Tehran timestamp
        stays available as the hover tooltip. */
@@ -1978,8 +2003,8 @@ function holdingsBox(s){
       <span>ارزش: <b class="num">${moneyCell(rowVal(h),sym)}</b></span>
       <span class="muted">قیمت خرید: <span class="num">${entry?mfmt(entry,h.symbol):"—"}</span></span>
       <span class="muted">قیمت حد: <span class="num">${haddShown?mfmt(haddShown,h.symbol):"—"}</span>${haddBadge}</span>
-      <span>سود از خرید:${buyAge} <b class="num ${h.profit_pct==null?"mut":h.profit_pct>=0?"pos":"neg"}">${h.profit_pct==null?"—":(h.profit_pct>=0?"+":"")+h.profit_pct.toFixed(2)+"%"}</b> ${pnlCell(rowMoney(h),sym)}</span>
-      <span>سود ۲۴ساعت: <b class="num ${p24==null?"mut":parseFloat(p24)>=0?"pos":"neg"}">${p24==null?"—":p24}</b></span>
+      <span>سود از خرید:${buyAge} <b class="num ${h.profit_pct==null?"mut":h.profit_pct>0?"pos":h.profit_pct<0?"neg":"mut"}" title="درصد سود = (ارزش − مبلغ خرید) ÷ مبلغ خرید — روی میانگین خرید همین ردیف | مبلغ دقیق: ${h.pnl_exact!=null?fmt(h.pnl_exact,2):"—"} ${/USDT$/.test(sym)?"$":"ت"}">${h.profit_pct==null?"—":(h.profit_pct>0?"+":"")+h.profit_pct.toFixed(2)+"%"}</b> ${pnlCell(rowMoney(h),sym)}</span>
+      <span>سود ۲۴ساعت: <b class="num ${p24==null?"mut":parseFloat(p24)>=0?"pos":"neg"}" title="تغییر قیمت ۲۴ساعتِ همین سکه روی مقدار فعلی — همان مبنایی که کیف پول نوبیتکس برای «سود/زیان ۲۴ساعته» نشان می‌دهد">${p24==null?"—":p24}</b> ${p24Money==null?"":pnlCell(p24Money,sym)}</span>
       <span>حد: ${stopPctCell(h,"stop")} ${stopPctCell(h,"profit")}</span>
       <span style="flex:1"></span>
       <button class="btn-buynow" data-sym="${esc(sym)}" title="خرید همین سکه در بازار «بازار معاملات» انتخاب‌شده (تتری یا تومانی) — مبلغ پیشنهادی از موجودی نقد همان بازار، قابل تغییر">خرید</button>

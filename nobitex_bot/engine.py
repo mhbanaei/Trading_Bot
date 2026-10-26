@@ -156,6 +156,18 @@ class TradingEngine:
         self.started_at = utc_now_iso()
         self.auto_trading = True
         self._ticker_cache: dict = {}   # market -> (price, fetched_at)
+        # exact exchange wallet valuations: ASSET -> {amount, value_irt,
+        # price_irt}. Filled by sync_real_wallet() from the exchange's own
+        # rialBalance, so the holdings box and portfolio use the SAME Toman
+        # numbers the Nobitex wallet shows (and coins with no live market,
+        # e.g. XIRT, are never valued at zero).
+        self._wallet_valuations: dict = {}
+        # wallet currency -> the market its balance is really held in.
+        # Nobitex wallet tickers do not always equal the market base:
+        # wallet «x» is X Empire, traded as XEMPIREIRT. The sync records
+        # this mapping so the row can use the wallet's exact rialBalance
+        # instead of a same-named (but different) ticker.
+        self._wallet_market_assets: dict = {}
         # live market universe (universe.py): EVERY market the exchange
         # lists, in one cached public call — the snapshot-free price/catalog
         # source for holdings, exits, manual orders and the scanner. It is
@@ -200,15 +212,29 @@ class TradingEngine:
             return None
 
     def _backfill_last_buy_from_fills(self) -> None:
-        """Fill empty positions.last_buy_at from recorded BUY fills."""
+        """Fill empty positions.last_buy_at from recorded BUY fills.
+
+        Scoped to the SAME coin + quote asset: `fills_by_base` is a
+        prefix query, so the one-letter base of XIRT also matched
+        XRPIRT/XLMIRT/XAUTIRT fills. On the next restart the newest XRP
+        buy was written into XIRT's «قیمت خرید» (346,584 for a ~1.37
+        coin), turning the row into a fake «ـ۱۰۰٪ / ‎-۳۵ میلیارد تومان»
+        loss. Alias spellings of the SAME coin (ARBIRT/ARBITRUMIRT) still
+        match because both sides pass through canonical_symbol+
+        split_symbol.
+        """
         for p in self.storage.positions():
             if p.get("last_buy_at") or d(p["amount"]) <= 0:
                 continue
             market = p["market"]
-            base = market[:-4] if market.endswith("USDT") else market[:-3]
+            want = split_symbol(canonical_symbol(market))
+            base = want[0]
             latest = None
             latest_price = None
             for f in self.storage.fills_by_base(base, limit=200):
+                if split_symbol(canonical_symbol(
+                        f.get("market") or "")) != want:
+                    continue
                 if (f.get("side") or "").upper() == "BUY" and f.get(
                         "timestamp"):
                     if latest is None or f["timestamp"] > latest:
@@ -2575,7 +2601,7 @@ class TradingEngine:
             # only: `real_now` keeps demo-ledger points apart from the real
             # wallet, so switching accounts can never be read as profit or
             # a −99% loss. coverage tells the UI honest/waiting.
-            "profit_24h": self._profit_24h(
+            "profit_24h": self._profit_24h_payload(
                 (hp_now.get("total_irt") or equity_24h_irt), hist_24h,
                 (hp_now.get("deposited_irt") or
                  self._known_deposited_irt()), self._real_attached),
@@ -2787,6 +2813,127 @@ class TradingEngine:
         if (base + "USDT") in markets:
             return base + "USDT"
         return base + "IRT"
+
+    def _live_fill_quantities(self) -> dict:
+        """Net live quantity of every market, from the bot's own fills.
+
+        One read serves the whole wallet sync: the wallet reports ONE
+        balance per coin, and for a wallet ticker that is not the market
+        base (wallet «x» = XEMPIREIRT) the matching quantity is the only
+        honest link between the two. Demo fills (trade ids without the
+        `live_` prefix) never enter: they are not exchange balances.
+        """
+        out: dict = {}
+        try:
+            fills = self.storage.fills(limit=5000)
+        except Exception:
+            return out
+        for f in fills:
+            if not str(f.get("trade_id") or "").startswith("live_"):
+                continue
+            side = (f.get("side") or "").upper()
+            if side not in ("BUY", "SELL"):
+                continue
+            mk = canonical_symbol(f.get("market") or "")
+            if not mk:
+                continue
+            try:
+                amt = d(str(f.get("amount") or 0))
+            except Exception:
+                continue
+            cur = out.setdefault(mk, {"net": ZERO, "last": ""})
+            cur["net"] += amt if side == "BUY" else -amt
+            ts = f.get("timestamp") or ""
+            if ts > cur["last"]:
+                cur["last"] = ts
+        return out
+
+    def _wallet_market_for(self, asset: str, amount, markets,
+                           live: dict | None = None,
+                           hist: dict | None = None) -> str | None:
+        """The ONE market a wallet balance is really held in.
+
+        Exact ticker markets win when the bot has actually bought there.
+        Otherwise match the wallet quantity against the NET live quantity
+        of markets whose base starts with the wallet ticker — that is how
+        the wallet's `x` (397k X Empire) is recognised as XEMPIREIRT even
+        though no XIRT market exists. The prefix match is deliberately
+        restricted to a close quantity ratio so a one-letter ticker can
+        never bind to an unrelated coin (XRP/LTC/…) that merely shares the
+        first letter.
+        """
+        asset = (asset or "").strip().upper()
+        if not asset:
+            return None
+        try:
+            amount = d(str(amount or 0))
+        except Exception:
+            amount = ZERO
+        if live is None:
+            live = self._live_fill_quantities()
+        # The exchange's own transaction history is the strongest evidence
+        # of the quote side the REMAINING quantity was bought in — stronger
+        # than a local fill that may since have been sold, and stronger
+        # than the configured preference. For wallet «x» this also maps
+        # XEMPIRE/X to the real XIRT market.
+        hist_quote = str((hist or {}).get("quote") or "").upper()
+        if hist_quote in ("IRT", "USDT"):
+            cand = canonical_symbol(asset + hist_quote)
+            if cand and (cand in markets or self._known_market(cand)):
+                return cand
+        exact = (asset + "USDT", asset + "IRT")
+        # If BOTH sides have real buys, the row that is already tracked
+        # keeps the wallet balance (the alternative would move a live
+        # position between boxes on every sync). The exchange-history
+        # quote above is still authoritative when it exists.
+        tracked_live = [mk for mk in exact
+                        if d(str((live.get(mk) or {}).get("net") or 0)) > 0
+                        and (self.storage.position(mk) or {}).get("amount")
+                        and d(str(self.storage.position(mk).get("amount")
+                                 or 0)) > 0]
+        if tracked_live:
+            tracked_live.sort(
+                key=lambda mk: str((live.get(mk) or {}).get("last") or ""),
+                reverse=True)
+            return tracked_live[0]
+        exact_live = [(str((live.get(mk) or {}).get("last") or ""), mk)
+                      for mk in exact
+                      if d(str((live.get(mk) or {}).get("net") or 0)) > 0]
+        if exact_live:
+            # most recent real purchase decides the quote side
+            exact_live.sort(reverse=True)
+            return exact_live[0][1]
+        if amount > 0:
+            best = None
+            for mk, val in live.items():
+                q = d(str((val or {}).get("net") or 0))
+                if q <= 0:
+                    continue
+                mk_base = split_symbol(canonical_symbol(mk))[0]
+                if not mk_base.startswith(asset):
+                    continue
+                ratio = float(q / amount)
+                if ratio < 0.5 or ratio > 2.0:
+                    continue
+                key = (abs(1.0 - ratio), str((val or {}).get("last") or ""))
+                if (best is None or key[0] < best[0][0] or
+                        (key[0] == best[0][0] and key[1] > best[0][1])):
+                    best = (key, mk)
+            if best:
+                return best[1]
+        # no live history: only a market that really exists may be used;
+        # the old fallback invented «XIRT» for wallet x and valued 397k X
+        # at the price of a same-named token that was never held.
+        for mk in exact:
+            if mk in markets:
+                return mk
+        return None
+
+    def _known_market(self, symbol: str) -> bool:
+        try:
+            return bool(self.market_universe().row(symbol))
+        except Exception:
+            return False
 
     def _decision_brief(self, d_: dict) -> dict:
         """خلاصهٔ تصمیم برای داشبورد — کمیتهٔ چندمدلی هم دیده می‌شود.
@@ -3260,6 +3407,210 @@ class TradingEngine:
         self.collector.exchange = new_exchange
         self.executor.exchange = new_exchange
         self._real_attached = isinstance(new_exchange, NobitexAPI)
+        # never let a previous account's wallet valuations leak into a new
+        # adapter (demo or another login); the next sync fills them again.
+        self._wallet_valuations = {}
+        self._wallet_market_assets = {}
+        try:
+            self.portfolio.exchange_valuations_irt = {}
+        except Exception:
+            pass
+
+    #: the exchange transaction history is rate-limited (60 calls/hour), so
+    #: its per-coin cost basis is cached. Positions repaired from it stay
+    #: exact; only a new trade can move the average, and that fill updates
+    #: the ledger itself in the normal path.
+    WALLET_COST_TTL_S = 6 * 3600
+
+    def _wallet_cost_bases_cached(self, usdt_toman: float) -> dict:
+        """Exchange cost basis, cached; never raises into the wallet sync."""
+        cached = self.storage.kv_get("wallet_cost_bases", {}) or {}
+        if not isinstance(cached, dict):
+            cached = {}
+        at = cached.get("at")
+        if cached.get("assets") and at:
+            try:
+                age = (datetime.now(timezone.utc) - parse_iso(at))
+                if 0 <= age.total_seconds() < self.WALLET_COST_TTL_S:
+                    return cached
+            except Exception:
+                pass
+        fn = getattr(self.exchange, "wallet_cost_bases", None)
+        if not callable(fn):
+            return cached
+        try:
+            assets = fn(usdt_toman=usdt_toman) or {}
+        except Exception as exc:
+            self.events.error("ENGINE", "WALLET_COST_BASIS_FAILED",
+                              "WARNING", str(exc))
+            return cached
+        if not assets:
+            return cached
+        doc = {"at": utc_now_iso(), "usdt_toman": float(usdt_toman or 0),
+               "assets": assets}
+        self.storage.kv_set("wallet_cost_bases", doc)
+        self.events.publish("WALLET_COST_BASIS_READ", "engine", "",
+                            {"assets": sorted(assets.keys())})
+        return doc
+
+    #: the portfolio daily report changes once a day; a short cache keeps
+    #: the dashboard poll from hitting the exchange on every status read.
+    EXCHANGE_DAILY_PNL_TTL_S = 15 * 60
+
+    def _profit_24h_payload(self, total_irt, hist, deposited, real) -> dict:
+        """The «سود ۲۴ساعت» card: exchange daily report when available.
+
+        The local equity-history calculation is kept as the fallback, but
+        on the real account the wallet's own daily P&L is authoritative —
+        it already accounts for every manual trade, fee and transfer, so
+        it is exactly the number the Nobitex portfolio view prints. Using
+        it also removes the fake jumps caused by a deposit landing between
+        two local history points.
+        """
+        local = self._profit_24h(total_irt, hist, deposited, real)
+        if not real:
+            return local
+        daily = self._exchange_daily_pnl_cached()
+        pnl = daily.get("profit_irt")
+        if pnl is None:
+            return local
+        pct = daily.get("pct")
+        bal = daily.get("balance_irt")
+        if pct is None and bal and float(bal) != 0:
+            pct = round(float(pnl) / float(bal) * 100, 2)
+        return {
+            "coverage": "exact", "basis": "exchange_daily",
+            "real": True, "source": daily.get("source"),
+            "report_date": daily.get("report_date"),
+            "pnl_irt": float(pnl), "pct": pct,
+            "pct_raw": pct, "pct_base": "balance",
+            "total_irt": float(bal) if bal is not None else None,
+            "waiting_reason": None,
+        }
+
+    def _exchange_daily_pnl_cached(self) -> dict:
+        """Latest exchange daily P&L (wallet/portfolio panel), cached."""
+        cached = self.storage.kv_get("exchange_daily_pnl", {}) or {}
+        if not isinstance(cached, dict):
+            cached = {}
+        at = cached.get("at")
+        if cached.get("data") and at:
+            try:
+                age = (datetime.now(timezone.utc) - parse_iso(at))
+                if 0 <= age.total_seconds() < self.EXCHANGE_DAILY_PNL_TTL_S:
+                    return cached.get("data") or {}
+            except Exception:
+                pass
+        fn = getattr(self.exchange, "portfolio_daily_profit", None)
+        if not callable(fn):
+            return cached.get("data") or {}
+        try:
+            data = fn() or {}
+        except Exception as exc:
+            self.events.error("ENGINE", "EXCHANGE_DAILY_PNL_FAILED",
+                              "WARNING", str(exc))
+            return cached.get("data") or {}
+        if data:
+            self.storage.kv_set("exchange_daily_pnl",
+                                {"at": utc_now_iso(), "data": data})
+        return data
+
+    def _apply_wallet_cost_bases(self, costs: dict, usdt_toman: float,
+                                 as_of: str | None = None) -> int:
+        """Rewrite the ledger's average entry from the exchange ledger.
+
+        The exchange knows every BUY/SELL — including manual ones the bot
+        never recorded — and its wallet P&L is computed from that same
+        history. Copying the remaining cost into the position makes the
+        row's «ارزش − مبلغ خرید» (Toman money and percent) match the
+        wallet instead of a local weighted average that survived a partial
+        sell or a re-buy.
+
+        Guards: only when the history's remaining quantity equals the
+        position amount and the position has no NEWER local buy (a fresh
+        fill that the cached history does not contain yet).
+        """
+        applied = 0
+        if not costs:
+            return 0
+        inverse = {str(a).upper(): mk for mk, a in
+                   (getattr(self, "_wallet_market_assets", None) or {}).items()}
+        try:
+            as_of_dt = parse_iso(as_of) if as_of else None
+        except Exception:
+            as_of_dt = None
+        for asset, c in costs.items():
+            if not isinstance(c, dict):
+                continue
+            # A partial history (page cap, older rows not read, or a price
+            # missing from a description) gives an AVERAGE OF ONLY THE
+            # NEWEST TRADES. Using it would move the row away from the
+            # exchange's own P&L, so keep the existing book instead.
+            if c.get("complete") is False:
+                continue
+            asset_u = str(asset).upper()
+            market = inverse.get(asset_u)
+            if not market:
+                q = str(c.get("quote") or "").upper()
+                if q in ("IRT", "USDT"):
+                    market = canonical_symbol(asset_u + q)
+            pos = self.storage.position(market) if market else None
+            if not pos:
+                continue
+            try:
+                amount = d(str(pos.get("amount") or 0))
+                hist_qty = d(str(c.get("amount") or 0))
+                cost_irt = d(str(c.get("cost_irt") or 0))
+            except Exception:
+                continue
+            if amount <= 0 or hist_qty <= 0 or cost_irt <= 0:
+                continue
+            # one wallet balance is ONE lot: a mismatch means deposits/
+            # withdrawals or a fill missing from the cached history — keep
+            # the local book rather than copying a cost for another size.
+            diff = abs(amount - hist_qty)
+            if diff > max(Decimal("0.00000001"), amount * Decimal("0.000001")):
+                continue
+            # a local BUY newer than the cached history is not in it yet
+            lb = pos.get("last_buy_at") or ""
+            if as_of_dt and lb:
+                try:
+                    if parse_iso(lb) > as_of_dt + timedelta(seconds=60):
+                        continue
+                except Exception:
+                    pass
+            quote = quote_of_market(market) or str(c.get("quote") or "IRT")
+            if quote == "USDT":
+                if not usdt_toman or usdt_toman <= 0:
+                    continue
+                avg = cost_irt / amount / d(str(usdt_toman))
+                lbp = d(str(c.get("last_buy_price") or 0))
+                if str(c.get("last_quote") or "").upper() != "USDT" or lbp <= 0:
+                    lbp = avg
+            else:
+                avg = cost_irt / amount
+                lbp = d(str(c.get("last_buy_price_irt") or 0))
+                if str(c.get("last_quote") or "").upper() != "IRT" or lbp <= 0:
+                    lbp = avg
+            if avg <= 0:
+                continue
+            old = d(str(pos.get("avg_entry") or 0))
+            if old > 0 and abs(old - avg) / old < Decimal("0.0000001"):
+                continue
+            self.storage.upsert_position(
+                market, str(amount), str(avg),
+                pos.get("realized_pnl") or "0",
+                pos.get("side") or "LONG",
+                last_buy_at=c.get("last_buy_at") or None,
+                total_buys_irt=avg * amount,
+                last_buy_price=lbp)
+            applied += 1
+            self.events.publish(
+                "POSITION_COST_BASIS_FIXED", "engine", market,
+                {"from": float(old), "to": float(avg),
+                 "amount": float(amount),
+                 "source": "nobitex-wallet-history"})
+        return applied
 
     def sync_real_wallet(self) -> dict:
         """Pull the real spot wallet and mirror it into the paper ledger.
@@ -3279,15 +3630,46 @@ class TradingEngine:
             return {"ok": False, "error": doc["error"]}
         assets = doc.get("assets") or []
         mapped = {}
+        valuations = {}
+        # live Toman value of one USDT, taken from the same exchange wallet
+        # read — used to translate Tether-priced BOYs in the cost history
+        # into the Toman basis the wallet P&L is compared against.
+        usdt_toman = 0.0
+        for a in assets:
+            if (a.get("asset") or "").upper() == "USDT":
+                try:
+                    total = float(a.get("total") or 0)
+                    val = float(a.get("value_irt") or 0)
+                except (TypeError, ValueError):
+                    total = val = 0.0
+                if total > 0 and val > 0:
+                    usdt_toman = val / total
+                break
         for a in assets:
             try:
                 amt = d(str(a.get("available") or 0))
                 locked = d(str(a.get("locked") or 0))
+                total = d(str(a.get("total") or 0))
+                val = d(str(a.get("value_irt") or 0))
             except Exception:
                 continue
+            asset = (a.get("asset") or "").upper()
             if amt + locked > 0:
-                mapped[(a.get("asset") or "").upper()] = {
-                    "available": amt, "locked": locked}
+                mapped[asset] = {"available": amt, "locked": locked}
+            # rialBalance / divisor — the exact number the exchange wallet
+            # page shows; zero/absent fields fall back to the ticker path.
+            if asset and total > 0 and val > 0:
+                valuations[asset] = {
+                    "amount": float(total), "value_irt": float(val),
+                    "price_irt": float(val / total),
+                    "source": a.get("value_source") or "wallet",
+                }
+        self._wallet_valuations = valuations
+        try:
+            self.portfolio.exchange_valuations_irt = {
+                k: v["value_irt"] for k, v in valuations.items()}
+        except Exception:
+            pass
         if not mapped:
             return {"ok": False,
                     "error": "wallet returned no balances (empty account?)"}
@@ -3324,17 +3706,30 @@ class TradingEngine:
             self.backfill_real_fills()
         except Exception:
             pass
-        seeded = self._seed_positions_from_wallet(mapped)
+        # The exchange's OWN transaction ledger is the authority for
+        # «مبلغ خرید» / «سود از خرید»: local average entries drifted after
+        # partial sells and re-buys (ATOM: local 433,564 vs the exchange's
+        # actual 447,284 Toman for the coins still held), so both the Toman
+        # profit and its percentage disagreed with the wallet. Read it
+        # (cached for a few hours) and repair the ledger from it.
+        cost_doc = self._wallet_cost_bases_cached(usdt_toman)
+        costs = cost_doc.get("assets") or {}
+        seeded = self._seed_positions_from_wallet(mapped, costs=costs)
+        cost_fixed = self._apply_wallet_cost_bases(
+            costs, usdt_toman, cost_doc.get("at"))
         self.events.publish("WALLET_SYNCED", "engine", "",
                             {"assets": sorted(mapped.keys()),
                              "positions_seeded": seeded,
+                             "positions_cost_fixed": cost_fixed,
                              "positions_stale_removed": mirrored})
         return {"ok": True, "assets": sorted(mapped.keys()),
                 "positions_seeded": seeded,
+                "positions_cost_fixed": cost_fixed,
                 "positions_stale_removed": mirrored,
                 "timestamp": doc.get("timestamp")}
 
-    def _seed_positions_from_wallet(self, balances: dict) -> int:
+    def _seed_positions_from_wallet(self, balances: dict,
+                                    costs: dict | None = None) -> int:
         """Register held coins as positions with real avg entries.
 
         Driven by the WALLET holdings (not the snapshot), so it works even
@@ -3351,6 +3746,10 @@ class TradingEngine:
             if m.get("last_price"):
                 market_prices[m["symbol"]] = m["last_price"]
         markets = set(market_prices.keys())
+        try:                             # the whole live catalog, not just
+            markets |= self.market_universe().symbols()  # the cycle snapshot
+        except Exception:
+            pass
         # wallet-driven: map every held coin to its ONE canonical market —
         # the market the user REALLY bought it in (our own real fills),
         # never both. The old loop walked every market of the snapshot and
@@ -3358,19 +3757,63 @@ class TradingEngine:
         # was seeded into the Tether AND the Toman box at once and showed
         # up in a section the user never bought in.
         targets = {}
+        wallet_market_assets = {}
+        live = self._live_fill_quantities()
         for base, b in balances.items():
-            if base in ("USDT", "IRT", "") or d(str(
-                    b.get("available", 0))) <= 0:
+            try:
+                total_amt = d(str(b.get("available", 0))) + d(str(
+                    b.get("locked", 0)))
+            except Exception:
+                total_amt = ZERO
+            if base in ("USDT", "IRT", "") or total_amt <= 0:
                 continue
-            market = self._market_for_base(base, markets)
+            market = self._wallet_market_for(
+                base, total_amt, markets, live,
+                hist=(costs or {}).get(str(base).upper()))
             if not market:
                 continue
             targets[market] = base
+            wallet_market_assets[market] = base
             markets.add(market)
+        # the row's exact wallet valuation is looked up by this mapping
+        self._wallet_market_assets = wallet_market_assets
+        # A wallet ticker can have been seeded earlier under a made-up
+        # market (wallet x -> XIRT). Now that its real market is known,
+        # zero those rows — but only when that market has NO live buys of
+        # its own, so a genuine dual holding is never destroyed.
+        stale = 0
+        target_of_base = {base: mk for mk, base in targets.items()}
+        plans = None
+        for pos in list(self.storage.positions()):
+            mk = (pos.get("market") or "").upper()
+            if not mk or mk in targets:
+                continue
+            try:
+                cur = d(str(pos.get("amount") or 0))
+            except Exception:
+                cur = ZERO
+            if cur <= 0:
+                continue
+            pos_base = split_symbol(canonical_symbol(mk))[0]
+            target = target_of_base.get(pos_base)
+            if not target or target == mk:
+                continue
+            if d(str((live.get(mk) or {}).get("net") or 0)) > 0:
+                continue        # this quote side has real buys — keep it
+            self.storage.upsert_position(
+                mk, ZERO, pos.get("avg_entry") or ZERO,
+                pos.get("realized_pnl") or ZERO, pos.get("side") or "LONG",
+                total_buys_irt=0, last_buy_price=0)
+            if plans is None:
+                plans = self.storage.kv_get("exit_plans", {}) or {}
+            if isinstance(plans, dict) and mk in plans:
+                plans.pop(mk, None)
+                self.storage.kv_set("exit_plans", plans)
+            stale += 1
         for market in sorted(targets):
             base = targets[market]
-            amt = balances.get((base or "").upper(), {}).get(
-                "available", ZERO)
+            b = balances.get((base or "").upper(), {}) or {}
+            amt = d(str(b.get("available", 0))) + d(str(b.get("locked", 0)))
             if amt <= 0:
                 continue
             pos = self.storage.position(market)
@@ -3443,12 +3886,12 @@ class TradingEngine:
                     plans[market] = plan
                     self.storage.kv_set("exit_plans", plans)
             seeded += 1
-        refiled = self._refile_misplaced_positions(targets)
+        refiled = self._refile_misplaced_positions(targets, costs=costs)
         # هر سکه = یک ردیف: مجموع ردیف‌های یک سکه هرگز نمی‌تواند از موجودی
         # کیف پول بیشتر باشد — وگرنه همان دارایی هم در بخش تتری و هم در بخش
         # تومانی دیده می‌شود (با دو قیمت مختلف).
         refiled += self._reconcile_wallet_totals(balances, targets)
-        return seeded + refiled
+        return seeded + refiled + stale
 
     def _reconcile_wallet_totals(self, balances: dict, targets: dict) -> int:
         """یک سکه فقط در یک بازار می‌نشیند: جمع ردیف‌ها ≤ موجودی کیف پول.
@@ -3540,7 +3983,8 @@ class TradingEngine:
                                (total, base)})
         return out
 
-    def _refile_misplaced_positions(self, targets: dict) -> int:
+    def _refile_misplaced_positions(self, targets: dict,
+                                    costs: dict | None = None) -> int:
         """Zero stale rows of a coin tracked in the WRONG quote market.
 
         The wallet reports ONE balance per coin, so the same coin cannot
@@ -3552,13 +3996,29 @@ class TradingEngine:
         """
         refiled = 0
         for market, base in sorted(targets.items()):
+            hist = (costs or {}).get(str(base).upper()) or {}
+            hist_quote = str(hist.get("quote") or "").upper()
+            q_by = hist.get("qty_by_quote") or {}
             for other in (base + "USDT", base + "IRT"):
                 if other == market:
                     continue
                 p = self.storage.position(other)
                 if not p or d(str(p.get("amount") or 0)) <= 0:
                     continue
-                if quote_of_market(other) in self._real_buy_activity(base):
+                other_q = str(quote_of_market(other) or "").upper()
+                # the exchange ledger says the coins still held came from
+                # the TARGET quote and none remain on this side — that is
+                # stronger than a local fill which has already been sold
+                # (ZEC was bought in Toman but a stale local row filed it
+                # under ZECUSDT, so the 24h change was the wrong market's).
+                try:
+                    left = float(q_by.get(other_q) or 0)
+                except (TypeError, ValueError):
+                    left = 0.0
+                force_other_empty = (hist_quote and
+                                     hist_quote != other_q and left <= 0.0)
+                if not force_other_empty and \
+                        quote_of_market(other) in self._real_buy_activity(base):
                     continue        # real buys exist there too — keep it
                 self.storage.upsert_position(
                     other, ZERO, p.get("avg_entry") or ZERO,
@@ -4240,8 +4700,9 @@ class TradingEngine:
         """LIVE سود کل over the holdings box — built from exactly the
         same per-row «سود از خرید» numbers the holdings table shows:
         for every held coin, profit = value − invested (invested at the
-        display entry the row uses). Recomputed on every status() call,
-        so the KPI moves with the rows in real time.
+        row's weighted average cost — the same basis as its percent).
+        Recomputed on every status() call, so the KPI moves with the rows
+        in real time.
 
         PER-MARKET SPLIT (`by_market`): Toman (IRT) and Tether (USDT)
         are two different moneys and are NEVER summed into one number.
@@ -4412,6 +4873,10 @@ class TradingEngine:
             uni = self.market_universe()
         except Exception:
             return None
+        # A stale/alias row name (XEMPIREIRT for the XIRT market) must still
+        # read the coin's real 24h move — otherwise the column is blank or
+        # shows another market's change.
+        market = canonical_symbol(market)
         for sym in [market] + MarketUniverse.alternates(market):
             try:
                 row = uni.row(sym)
@@ -4468,12 +4933,19 @@ class TradingEngine:
             r = self._position_row(p, prices, irt_rate)
             quote = r.get("quote") or (quote_of_market(mk) or "IRT")
             mul = 1.0 if quote == "IRT" else toman_per_usdt
+            # display numbers (2dp dollars / whole Toman) for the rendered
+            # row, but CONVERT FROM THE RAW valuation: rounding $3.85 to
+            # $3.85 then multiplying by ~۲۶۹٬۵۰۰ can shift the Toman value by
+            # thousands. The raw numbers are the exchange rialBalance and
+            # the weighted cost, so use them for money/percent/24h.
             value_q = r.get("value_disp")
             invested_q = r.get("invested_disp")
-            value_irt = (float(d(str(value_q)) * d(str(mul)))
-                         if (value_q is not None and mul > 0) else None)
-            invested_irt = (float(d(str(invested_q)) * d(str(mul)))
-                            if (invested_q is not None and mul > 0) else None)
+            value_raw = r.get("value_irt")
+            invested_raw = r.get("invested_irt")
+            value_irt = (float(d(str(value_raw)) * d(str(mul)))
+                         if (value_raw is not None and mul > 0) else None)
+            invested_irt = (float(d(str(invested_raw)) * d(str(mul)))
+                            if (invested_raw is not None and mul > 0) else None)
             pnl_irt = (value_irt - invested_irt
                        if (value_irt is not None and invested_irt is not None)
                        else None)
@@ -4488,7 +4960,7 @@ class TradingEngine:
                 ch24_irt = value_irt - (value_irt / (1.0 + chg / 100.0))
             value_usdt = None
             if quote == "USDT":
-                value_usdt = value_q
+                value_usdt = value_raw
             elif value_irt is not None and toman_per_usdt > 0:
                 value_usdt = value_irt / toman_per_usdt
             rows.append({
@@ -4512,6 +4984,8 @@ class TradingEngine:
                              if ch24_irt is not None else None),
                 "last_buy_at": r.get("last_buy_at"),
                 "holding_fa": r.get("holding_fa"),
+                "price_source": r.get("price_source"),
+                "ch24_quote": r.get("ch24_money"),
                 "stop": r.get("stop"), "take_profit": r.get("take_profit"),
             })
         coins_irt = sum(r["value_irt"] for r in rows
@@ -4573,22 +5047,59 @@ class TradingEngine:
         most recent BUY fill (last_buy_at), so every top-up restarts it.
         """
         market = p["market"]
-        coin = re.sub(r"(USDT|IRT)$", "", market)
+        wallet_vals = getattr(self, "_wallet_valuations", None) or {}
+        # A wallet-only coin can itself end in IRT/USDT (XIRT is the whole
+        # ticker, not X + IRT). When the exchange wallet reports that exact
+        # asset name, keep it as the base; otherwise strip the real market
+        # quote (XRPIRT -> XRP, ATOMUSDT -> ATOM). The old blind rstrip
+        # turned XIRT into «X», so its wallet valuation could never match
+        # and the row showed price/value «—».
+        if market.upper() in wallet_vals:
+            coin = market.upper()
+        else:
+            coin = re.sub(r"(USDT|IRT)$", "", market)
         amount = d(p["amount"])
         price = d(str(prices.get(market) or 0))
+        price_source = "market"
+        # EXACT exchange valuation first (Nobitex wallet rialBalance). The
+        # ticker is only a fallback: for a coin with no live market (XIRT)
+        # it used to value the holding at ~۱٫۳۸ T while the wallet showed
+        # ~۵٫۴ T, so every Toman profit/24h number built on it was wrong.
+        # use the wallet's own ticker when it differs from the market base
+        # (wallet «x» = XEMPIREIRT): the value/price is keyed by the wallet
+        # asset there, not by the market name.
+        wallet_asset = (getattr(self, "_wallet_market_assets", None) or {}).get(
+            market.upper())
+        wv = wallet_vals.get((wallet_asset or coin).upper())
+        if wv:
+            unit_irt = d(str(wv.get("price_irt") or 0))
+            if unit_irt > 0:
+                if market.endswith("USDT"):
+                    # row values for USDT markets are in dollars; convert
+                    # the wallet's Toman-per-unit with the live USDT rate
+                    # (usdtirt here = USDT per Toman).
+                    if usdtirt and usdtirt > 0:
+                        price = unit_irt * d(str(usdtirt))
+                        price_source = "wallet"
+                else:
+                    price = unit_irt
+                    price_source = "wallet"
         entry = d(p["avg_entry"])
         # SS100d: after a NEW buy the UI «قیمت خرید» shows the LAST buy
-        # price (the number the user just paid) and سود از خرید resets to
-        # ~0 — while avg_entry stays the weighted mean for correct P&L
-        # and for the risk engine
+        # price (the number the user just paid). P&L — both the money and
+        # the percent — always reads the WEIGHTED average cost (avg_entry),
+        # which is what the coins actually cost; using the last buy price
+        # for the percent made it disagree with the money (a loss showed
+        # «+۰٫۳۷٪» and a profit showed «−۴٫۵۵٪»).
         last_buy_price = d(str(p.get("last_buy_price") or 0))
         display_entry = last_buy_price if last_buy_price > 0 else entry
         # مبلغ خرید = پولی که واقعاً برای همین تعداد سکه داده‌ایم:
         # تعداد × میانگین خرید — همان عددی که دفتر با هر فیل خرید
-        # می‌سازد و در فروش هم مبنای «سود محقق‌شده» است. «قیمت خرید» و
-        # «سود از خرید» ردیف (طبق SS100d) آخرین خرید را نشان می‌دهند،
-        # ولی «مبلغ خرید» هرگز از میانگین خرید جدا نمی‌شود؛ وگرنه جمع
-        # «ارزش منهای مبلغ خرید» روی ردیف‌ها هزینهٔ واقعی نمی‌شود.
+        # می‌سازد و در فروش هم مبنای «سود محقق‌شده» است. «قیمت خرید» ردیف
+        # (طبق SS100d) آخرین خرید را نشان می‌دهد، ولی «مبلغ خرید» و
+        # «سود از خرید» (هم مبلغ، هم درصد) هرگز از میانگین خرید جدا
+        # نمی‌شوند؛ وگرنه جمع «ارزش منهای مبلغ خرید» روی ردیف‌ها هزینهٔ
+        # واقعی نمی‌شود.
         # (ریشهٔ باگ ‎-۲۳۳٫۵۹$: میانگین خریدِ SUSDT در دفتر ۱۶٫۵$ مانده
         # بود در حالی که همهٔ خریدهایش ‎~۰٫۰۴$ بود — عدد خراب از خودِ
         # دفتر تعمیر می‌شود (`_repair_position_entry`)، نه اینکه نمایش
@@ -4596,11 +5107,17 @@ class TradingEngine:
         entry_basis = entry if entry > 0 else display_entry
         buys_irt = amount * entry_basis if entry_basis > 0 else ZERO
         value_irt = amount * price
-        profit_pct = None
-        if display_entry > 0 and price > 0:
-            profit_pct = float(((price - display_entry) /
-                                display_entry * 100)
-                               .quantize(Decimal("0.01")))
+        # 24h move of THIS coin applied to MY amount — the SAME definition
+        # the Nobitex wallet uses, and independent of when I bought the
+        # coin. The UI used to show «profit since purchase» for positions
+        # younger than 24h, so the ۲۴ساعت column silently switched meaning
+        # (and jumped at the 24h mark). That fallback is gone.
+        chg24 = self._market_change_24h(market)
+        ch24_money = None
+        if chg24 is not None and value_irt > 0:
+            chg_d = d(str(chg24))
+            if (1 + chg_d / 100) > 0:
+                ch24_money = value_irt - value_irt / (1 + chg_d / 100)
         last_buy = p.get("last_buy_at")
         age_h = None
         if last_buy:
@@ -4699,6 +5216,20 @@ class TradingEngine:
         pnl_disp = (value_disp - invested_disp
                     if (value_disp is not None and
                         invested_disp is not None) else None)
+        ch24_disp = (d(str(ch24_money)).quantize(row_step,
+                                                rounding=ROUND_HALF_UP)
+                     if (ch24_money is not None and row_step) else None)
+        # «سود از خرید» در درصد = (ارزش − مبلغ خرید) ÷ مبلغ خرید روی
+        # اعدادِ دقیق (نه دو عدد گِردشدهٔ نمایش): درصد باید همان درصدی
+        # باشد که کیف پول نوبیتکس از ارزش واقعی حساب می‌دهد. علامتش هم
+        # همیشه با علامت همان پول یکی است (قبلاً درصد نسبت به «آخرین
+        # قیمت خرید» بود و زیان را «+» نشان می‌داد).
+        profit_pct = None
+        if entry_basis > 0 and buys_irt > 0:
+            profit_pct = float(((value_irt - buys_irt) / buys_irt * 100)
+                               .quantize(Decimal("0.01")))
+            if profit_pct == 0:
+                profit_pct = 0.0      # no «-0.00» / «+0.00» from a zero
 
         return {
             "symbol": market, "coin": coin,
@@ -4729,6 +5260,17 @@ class TradingEngine:
             # (هر دو بر یک مبنا: همان entry_basis بالا و با دقتِ همان نمایش)
             "pnl_money": (float(pnl_disp) if pnl_disp is not None else None),
             "profit_pct": profit_pct,
+            # اعدادِ خام (بدون گِردکردن نمایش) برای تولتیپ/بررسی دقیق:
+            # همان چیزی که از rialBalance صرافی و میانگین خرید آمده است.
+            "value_exact": (float(value_irt) if price > 0 else None),
+            "invested_exact": (float(buys_irt) if buys_irt > 0 else None),
+            "pnl_exact": (float(value_irt - buys_irt) if price > 0 else None),
+            "price_source": price_source,
+            # سود/زیان ۲۴ساعت همین سکه روی مقدار فعلی — هم درصد و هم مبلغ
+            # (مبلغ در واحد پول همین بازار: تومان یا دلار).
+            "ch24_pct": (round(chg24, 2) if chg24 is not None else None),
+            "ch24_money": (float(ch24_disp) if ch24_disp is not None
+                           else None),
             "last_buy_at": last_buy,
             "holding_fa": _fa_h(age_h),
             "stop": float(stop_v) if stop_v > 0 else None,

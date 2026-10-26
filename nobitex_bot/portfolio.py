@@ -36,6 +36,10 @@ class PaperPortfolio:
         # واریزی) is stale at that instant and must be re-read, otherwise
         # the value gap shows up as fake profit/loss (SS: برداشت)
         self.flow_dirty = False
+        # Exact per-asset Toman valuations read from the exchange wallet
+        # (``rialBalance`` / divisor). Set by Engine.sync_real_wallet(); an
+        # empty dict keeps the paper/demo valuation path unchanged.
+        self.exchange_valuations_irt = {}
         self._load()
 
     # ------------------------------------------------------------- state
@@ -255,6 +259,7 @@ class PaperPortfolio:
         """
         usdtirt = usdt_rates.get("IRT")
         irt_per_usdt = (1.0 / float(usdtirt)) if usdtirt else 0.0
+        exact_values = getattr(self, "exchange_valuations_irt", None) or {}
         now = utc_now_iso()
         assets_out = []
         total_value = ZERO
@@ -264,6 +269,17 @@ class PaperPortfolio:
             if total_amt == 0 and asset not in prices:
                 continue
             rate = d(str(usdt_rates.get(asset, "1" if asset == self.base else "0")))
+            exact_irt = exact_values.get(asset)
+            source = "market"
+            if (exact_irt is not None and float(exact_irt) > 0
+                    and total_amt > 0 and irt_per_usdt > 0):
+                # exchange wallet value is authoritative: derive the USDT
+                # rate that reproduces it exactly, so equity, weights and
+                # exposure all share the wallet's number (including coins
+                # like XIRT that have no live market at all).
+                rate = (d(str(exact_irt)) / total_amt
+                        / d(str(irt_per_usdt)))
+                source = "wallet"
             market_value = total_amt * rate
             total_value += market_value
             assets_out.append({
@@ -274,6 +290,11 @@ class PaperPortfolio:
                 "quote_asset": "USDT",
                 "current_price": float(rate),
                 "market_value": float(market_value),
+                "value_irt": (float(round(market_value * d(str(irt_per_usdt)), 2))
+                              if irt_per_usdt else None),
+                "price_irt": (float(round(rate * d(str(irt_per_usdt)), 8))
+                              if irt_per_usdt else None),
+                "value_source": source,
                 "portfolio_weight": 0.0,  # filled below
             })
 

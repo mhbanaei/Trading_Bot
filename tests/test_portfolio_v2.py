@@ -24,6 +24,7 @@ import sys
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -31,6 +32,8 @@ from tests.test_contract import TempCase  # noqa: E402
 from tests.test_live_universe import FakeExchange, _row  # noqa: E402
 from nobitex_bot.config import PaperCfg  # noqa: E402
 from nobitex_bot.engine import TradingEngine  # noqa: E402
+from nobitex_bot.nobitex_api import NobitexAPI  # noqa: E402
+from nobitex_bot.utils import utc_now_iso  # noqa: E402
 from nobitex_bot.web import STATIC_DIR  # noqa: E402
 
 
@@ -252,6 +255,175 @@ class TestSharesAndTotals(PvCase):
                          st["portfolio"]["account"]["irt_available"])
 
 
+class TestRowProfitPercentMatchesTheMoney(PvCase):
+    """«سود از خرید» percent = the SAME (ارزش − مبلغ خرید) ÷ مبلغ خرید.
+
+    Live account truth (2026-10-25): XRPIRT showed «+۰٫۳۷٪» next to
+    ‎-۱٬۷۷۴ تومان and CVXIRT showed «−۴٫۵۵٪» next to +۱۵٬۵۳۷ تومان — the
+    percent read the LAST buy price while the money read the weighted
+    average cost. The user's rule: our value minus our purchase amount is
+    the profit, and the percent must be that same profit over the same
+    purchase amount (a loss can never carry a plus sign).
+    """
+
+    def test_a_cheaper_topup_never_turns_a_loss_into_a_plus_percent(self):
+        e = self._engine()
+        self._use_fake(e, catalog(ATOMUSDT=_row("ATOMUSDT", 60.0)))
+        # میانگین خرید ۱۰۰، آخرین خرید ۵۰ → قیمت ۶۰ یعنی هنوز زیان
+        self._plant(e, "ATOMUSDT", "2", "100")
+        e.storage.upsert_position("ATOMUSDT", Decimal("2"),
+                                  Decimal("100"), Decimal("0"),
+                                  last_buy_price=Decimal("50"))
+        row = e._position_row(e.storage.position("ATOMUSDT"),
+                              {"ATOMUSDT": 60.0}, 0.0)
+        self.assertEqual(row["invested_disp"], 200.0)
+        self.assertEqual(row["value_disp"], 120.0)
+        self.assertEqual(row["pnl_money"], -80.0)
+        self.assertEqual(row["profit_pct"], -40.0)   # نه ‎+۲۰٪
+        self.assertEqual(row["profit_pct"] > 0, row["pnl_money"] > 0)
+
+    def test_a_richer_topup_never_turns_a_profit_into_a_negative_percent(self):
+        e = self._engine()
+        self._use_fake(e, catalog(CVXIRT=_row("CVXIRT", 650000.0)))
+        # میانگین خرید ۵۸۰٬۰۰۰، آخرین خرید ۶۸۸٬۰۰۰ → قیمت ۶۵۰٬۰۰۰ یعنی سود
+        self._plant(e, "CVXIRT", "0.2", "580000")
+        e.storage.upsert_position("CVXIRT", Decimal("0.2"),
+                                  Decimal("580000"), Decimal("0"),
+                                  last_buy_price=Decimal("688000"))
+        row = e._position_row(e.storage.position("CVXIRT"),
+                              {"CVXIRT": 650000.0}, 0.0)
+        self.assertEqual(row["pnl_money"], 14000.0)
+        self.assertEqual(row["profit_pct"], 12.07)   # نه ‎-۵٫۵۲٪
+        self.assertEqual(row["profit_pct"] > 0, row["pnl_money"] > 0)
+
+    def test_the_section_total_has_the_same_sign_as_its_rows(self):
+        e = self._engine()
+        self._use_fake(e, catalog(ATOMUSDT=_row("ATOMUSDT", 60.0)))
+        self._plant(e, "ATOMUSDT", "2", "100")
+        e.storage.upsert_position("ATOMUSDT", Decimal("2"),
+                                  Decimal("100"), Decimal("0"),
+                                  last_buy_price=Decimal("50"))
+        m = e._holdings_pnl({"ATOMUSDT": 60.0})["by_market"]["USDT"]
+        self.assertLess(m["pnl"], 0)
+        self.assertLess(m["pnl_pct"], 0)
+
+
+class TestExchangeWalletValuation(PvCase):
+    """Toman numbers come from the exchange wallet, not a guessed ticker.
+
+    Live account (2026-10-25): XIRT had no live market and was valued at
+    1.38 T while Nobitex's own wallet showed ~5.4 T per unit; the Toman
+    profit/value of that row (and the account equity) was therefore wrong.
+    These tests pin rialBalance/divisor as the authoritative per-unit
+    value, including the USDT-market conversion, and pin the 24h column to
+    the coin's market move even for a holding bought seconds ago.
+    """
+
+    def _holding(self, st: dict, market: str) -> dict:
+        return next(h for h in st["holdings"] if h["symbol"] == market)
+
+    def test_irt_wallet_value_overrides_a_missing_ticker(self):
+        e = self._engine()
+        self._use_fake(e, catalog())
+        e.portfolio.overwrite_balances({
+            "IRT": {"available": 1_000, "locked": 0},
+            "XIRT": {"available": 100, "locked": 0}})
+        # exactly what sync_real_wallet() caches from rialBalance/10
+        e._wallet_valuations = {"XIRT": {
+            "amount": 100.0, "value_irt": 500.0, "price_irt": 5.0,
+            "source": "wallet"}}
+        e.portfolio.exchange_valuations_irt = {"IRT": 1_000.0,
+                                               "XIRT": 500.0}
+        self._plant(e, "XIRT", "100", "0")
+        st = e.status()
+        h = self._holding(st, "XIRT")
+        self.assertEqual(h["price"], 5.0)
+        self.assertEqual(h["value_irt"], 500.0)
+        self.assertEqual(h["price_source"], "wallet")
+        self.assertIsNone(h["profit_pct"])       # cost basis unknown
+        self.assertIsNone(h["ch24_pct"])         # no 24h market exists
+        self.assertEqual(st["portfolio_v2"]["rows"][0]["value_irt"], 500.0)
+        # equity is the exchange wallet total, not the un-priced ticker sum
+        self.assertEqual(st["portfolio"]["account"]["equity_irt"], 1_500.0)
+
+    def test_usdt_wallet_value_is_converted_to_exact_toman(self):
+        e = self._engine()
+        self._use_fake(e, catalog(
+            USDTIRT=_row("USDTIRT", 269_507.0),
+            ATOMUSDT=_row("ATOMUSDT", 100.0, change=10.0)))
+        e.portfolio.overwrite_balances({
+            "USDT": {"available": 10, "locked": 0},
+            "ATOM": {"available": 1, "locked": 0}})
+        e._wallet_valuations = {
+            "USDT": {"amount": 10.0, "value_irt": 2_695_070.0,
+                     "price_irt": 269_507.0, "source": "wallet"},
+            "ATOM": {"amount": 1.0, "value_irt": 26_950_700.0,
+                     "price_irt": 26_950_700.0, "source": "wallet"}}
+        e.portfolio.exchange_valuations_irt = {
+            "USDT": 2_695_070.0, "ATOM": 26_950_700.0}
+        self._plant(e, "ATOMUSDT", "1", "100")
+        st = e.status()
+        pv = st["portfolio_v2"]
+        rate = pv["toman_per_usdt"]
+        row = pv["rows"][0]
+        self.assertEqual(row["quote"], "USDT")
+        self.assertEqual(row["value_irt"], 26_950_700.0)
+        # the cost is my $100 buy converted at the live Toman rate;
+        # the VALUE is the exchange wallet's own rialBalance (exact).
+        self.assertAlmostEqual(row["invested_irt"], 100.0 * rate, delta=2)
+        self.assertAlmostEqual(row["pnl_irt"],
+                               26_950_700.0 - 100.0 * rate, delta=2)
+        self.assertEqual(row["ch24_pct"], 10.0)
+        self.assertAlmostEqual(row["ch24_irt"],
+                               26_950_700.0 - 26_950_700.0 / 1.1,
+                               delta=2)
+        self.assertEqual(st["portfolio"]["account"]["equity_irt"],
+                         29_645_770.0)
+
+    def test_24h_is_the_market_move_even_when_bought_just_now(self):
+        e = self._engine()
+        self._use_fake(e, catalog(ATOMUSDT=_row("ATOMUSDT", 110.0,
+                                                change=10.0)))
+        self._plant(e, "ATOMUSDT", "1", "100")
+        # bought seconds ago: the old UI showed profit-since-purchase (0%)
+        # instead of the coin's 24h move (10%) for exactly this case.
+        e.storage.upsert_position(
+            "ATOMUSDT", Decimal("1"), Decimal("100"), Decimal("0"),
+            last_buy_at=utc_now_iso())
+        st = e.status()
+        h = self._holding(st, "ATOMUSDT")
+        self.assertEqual(h["ch24_pct"], 10.0)
+        self.assertAlmostEqual(h["ch24_money"], 110.0 - 110.0 / 1.1,
+                               places=2)
+        self.assertEqual(h["profit_pct"], 10.0)   # since purchase, separate
+
+
+class TestAdapterRialBalance(unittest.TestCase):
+    """NobitexAPI.portfolio must read rialBalance, not re-price the ticker."""
+
+    def test_wallet_rialbalance_is_the_exact_toman_value(self):
+        api = NobitexAPI.__new__(NobitexAPI)
+        api.cfg = SimpleNamespace(rls_to_irt_divisor=10)
+        api._irt_divisor = 10
+        api._get = lambda path, params=None: {"wallets": [
+            {"currency": "rls", "activeBalance": "5000000",
+             "blockedBalance": "0", "rialBalance": 5000000},
+            {"currency": "xirt", "activeBalance": "100",
+             "blockedBalance": "0", "rialBalance": 500000},
+            {"currency": "usdt", "activeBalance": "0.5",
+             "blockedBalance": "0", "rialBalance": 500000},
+        ]}
+        api._stats_all = lambda: {"usdt-rls": {"latest": "1000000"}}
+        doc = api.portfolio()
+        by = {a["asset"]: a for a in doc["assets"]}
+        self.assertEqual(by["IRT"]["value_irt"], 500_000.0)
+        self.assertEqual(by["XIRT"]["value_irt"], 50_000.0)
+        self.assertEqual(by["XIRT"]["price_irt"], 500.0)
+        self.assertEqual(by["XIRT"]["value_source"], "wallet")
+        self.assertEqual(by["USDT"]["value_irt"], 50_000.0)
+        self.assertEqual(doc["account"]["equity_irt"], 600_000.0)
+
+
 class TestDashboardPanel(unittest.TestCase):
     """پنل پرتفوی نوبیتکسی که کاربر می‌بیند (HTML/داشبورد)."""
 
@@ -302,6 +474,15 @@ class TestDashboardPanel(unittest.TestCase):
         self.assertIn('localStorage.setItem("pvHidden"', self.html)
         self.assertIn('localStorage.setItem("pvUnit"', self.html)
         self.assertIn("pvMoneySigned", self.html)
+
+    def test_holdings_24h_is_the_coin_move_and_shows_the_money(self):
+        self.assertIn("ch24_pct", self.html)
+        self.assertIn("ch24_money", self.html)
+        self.assertIn("p24MoneyFor", self.html)
+        self.assertIn("value_exact", self.html)
+        # the old «bought <24h -> profit since purchase» branch is gone:
+        # it made the ۲۴ساعت column change meaning and jump at 24h.
+        self.assertNotIn("age<24&&h.value_irt", self.html)
 
     def test_theme_is_the_brand_teal(self):
         login = (STATIC_DIR / "login.html").read_text(encoding="utf-8")
