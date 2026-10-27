@@ -156,7 +156,7 @@ canvas{width:100%; height:220px; display:block}
 @media (min-width:1600px){
   .hrow{padding:9px 6px; gap:4px 6px}
   .hrow .sym{min-width:96px}
-  .hrow .stop-num{width:140px} .hrow .stop-pct{width:70px}
+  .hrow .stop-num{width:140px} .hrow .stop-pct{width:88px}
   .hrow .stop-money{width:104px}
 }
 @media (min-width:1920px){
@@ -206,7 +206,7 @@ canvas{width:100%; height:220px; display:block}
 .dust-convert-btn:hover{background:rgba(14,158,194,.1)}
 .hrow .stop-pair{display:inline-flex; gap:4px; direction:ltr}
 .hrow .stop-num{width:118px}
-.hrow .stop-pct{width:58px}
+.hrow .stop-pct{width:88px}
 .hrow .stop-money{width:92px}
 .hrow .stop-num,.hrow .stop-pct,.hrow .stop-money{background:var(--panel2); border:1px solid var(--accent);
   color:var(--text); border-radius:6px; padding:3px 6px; font-family:inherit;
@@ -302,6 +302,7 @@ canvas{width:100%; height:220px; display:block}
 <header>
   <h1>🤖 ربات معاملاتی هوشمند</h1>
   <span id="modeBadge" class="badge demo">حالت آزمایشی</span>
+  <span id="uiBuildBadge" class="badge off" style="font-size:10px;opacity:.72;direction:ltr" title="نسخهٔ رابط کاربری. اگر این عدد را نمی‌بینی یا قدیمی است، صفحه را با Ctrl+Shift+R تازه کن">UI 74</span>
   <span id="connBadge" class="badge off" style="cursor:pointer" title="کلیک: رفتن به تب حساب نوبیتکس" onclick="document.querySelector('#tabs button[data-tab=exchange]')?.click()">اتصال: —</span>
   <span id="engineBadge" class="badge off">موتور: متوقف</span>
   <span id="safeBadge" class="badge ok" style="display:none" title="حالت امن = حالت ریسک خاموش (پروفایل محافظه‌کار)">حالت امن</span>
@@ -1577,7 +1578,9 @@ function renderCfg(c){
         html+=`<select data-sec="${sec}" data-k="${k}">`+["true","false"].map(o=>
           `<option ${String(v)===o?"selected":""}>${o}</option>`).join("")+"</select>";
       }else{
-        const shown=isPct?(Number(v)*100).toFixed(Number(v)<0.01?3:2):String(v);
+        /* درصدهای کسری تا ۴ رقم اعشار دیده شوند (‎-2.375 نه ‎-2.38) */
+        const shown=isPct?(isFinite(Number(v))
+          ?String(Math.round(Number(v)*1e6)/1e4):String(v)):String(v);
         html+=`<input data-sec="${sec}" data-k="${k}" value="${masked?"***":esc(shown)}" ${masked?"data-masked='1'":""} ${isPct?'data-pct="1"':''}>`;
       }
       html+=`</div>`;
@@ -1590,6 +1593,20 @@ function renderCfg(c){
     out.exchange=out.exchange||{};out.exchange.trade_quote_markets="both";
     openMarketModeModal(out);};
 }
+/* عدد از هر ورودی کاربر: ارقام فارسی/عربی، ممیز «٫»، هزارگان «٬» یا
+   ویرگول، منفیِ یونیکد و علامت درصد — همه به یک عدد لاتین تبدیل می‌شوند.
+   بدون این، «۲٫۵» با کیبورد فارسی NaN می‌شد و مقدار قبلی می‌ماند. */
+function faNum(t){
+  let s=String(t==null?"":t)
+    .replace(/[۰-۹]/g,ch=>String(ch.charCodeAt(0)-0x06F0))
+    .replace(/[٠-٩]/g,ch=>String(ch.charCodeAt(0)-0x0660))
+    .replace(/[٪%]/g,"").trim().replace(/[٬\s]/g,"")
+    .replace(/[−–—]/g,"-");
+  if(!s)return NaN;
+  if(/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,"");
+  else s=s.replace(/[٫,]/g,".");
+  return parseFloat(s);
+}
 /* مقدار فعلی فرم تنظیمات به‌صورت یک کپی از cfg (با همان قواعد تبدیل
    درصد/بولین/عدد) — هم دکمهٔ ذخیره و هم پاپ‌آپ Both از همین می‌خوانند */
 function collectCfg(){
@@ -1597,9 +1614,11 @@ function collectCfg(){
   document.querySelectorAll("#cfgForm [data-sec]").forEach(el=>{
     const sec=el.dataset.sec,k=el.dataset.k;let v=el.value;
     if(el.tagName==="INPUT"&&el.dataset.masked)return;
-    if(el.dataset.pct){out[sec][k]=Number(v)/100;return;}
+    if(el.dataset.pct){const p=faNum(v);
+      out[sec][k]=isNaN(p)?cfg[sec][k]:p/100;return;}
     if(cfg[sec][k]===true||cfg[sec][k]===false)v=v==="true";
-    else if(typeof cfg[sec][k]==="number")v=Number(v);
+    else if(typeof cfg[sec][k]==="number"){const n=faNum(v);
+      v=isNaN(n)?cfg[sec][k]:n;}
     else if(typeof cfg[sec][k]==="object")return;
     out[sec][k]=v});
   return out;
@@ -2146,7 +2165,7 @@ document.addEventListener("click",e=>{
       const pv=prompt(usdMode?"مرجع پله (حد نردبان) جدید ($) — حد ضرر/حد سود دست نمی‌خورند:"
                              :"مرجع پله (حد نردبان) جدید (تومان) — حد ضرر/حد سود دست نمی‌خورند:",shownCur);
       if(pv==null)return;
-      const pvNum=parseFloat(String(pv).replace(/[٫,]/g,"."));
+      const pvNum=faNum(pv);
       if(isNaN(pvNum)||pvNum<=0){toast("قیمت حد نامعتبر است");return}
       hv=mkt(pvNum);
     }
@@ -2171,7 +2190,7 @@ document.addEventListener("click",e=>{
       (isProfit?"حد سود یکجا برای همه‌ی سکه‌ها — درصد (مثبت، مثل ‎+5؛ اعشار هم مجاز است):\nحد سود هر سکه = «پلهٔ فعال» همان سکه × (۱ + درصد)"
                :"حد ضرر یکجا برای همه‌ی سکه‌ها — درصد (منفی، مثل ‎-3؛ اعشار هم مجاز است):\nحد ضرر هر سکه = «پلهٔ فعال» همان سکه × (۱ + درصد)\n(رسیدن قیمت به حد سود، پله را یکی بالا می‌برد)"),"");
     if(v==null)return;
-    const p=parseFloat(String(v).replace(/[٫,]/g,"."));
+    const p=faNum(v);
     if(isNaN(p)||p===0||(isProfit?p<0:p>0)){toast(isProfit?"درصد را مثبت بده (مثلاً ‎+5)":"درصد را منفی بده (مثلاً ‎-3)");return}
     if(!confirm((isProfit?"حد سود همه‌ی سکه‌ها با درصد "+p+"٪ از پلهٔ فعال هر سکه تنظیم شود؟"
                          :"حد ضرر همه‌ی سکه‌ها با درصد "+p+"٪ از پلهٔ فعال هر سکه تنظیم شود؟ (با تغییر قیمت لحظه‌ای جابه‌جا نمی‌شود)")))return;
@@ -2204,7 +2223,7 @@ document.addEventListener("click",e=>{
   const moneyOn=(kind==="stop");
   el.innerHTML=`<span class="stop-pair">
     <input class="stop-num" value="${esc(val0)}" placeholder="${unit}" title="قیمت ${unit} حد — درصد (نسبت به پلهٔ فعال) خودکار از همین محاسبه می‌شود">
-    <input class="stop-pct" value="${esc(pct0)}" placeholder="درصد" title="درصد نسبت به «پلهٔ فعال» (‎-3 = ۳٪ زیر مرجع پله؛ اعشار هم مجاز است مثل ‎-2.5) — قیمت خودکار محاسبه می‌شود">
+    <input class="stop-pct" value="${esc(pct0)}" placeholder="درصد" title="درصد نسبت به «پلهٔ فعال» — اعشار مجاز است (‎-2.35). برای حد سود، درصد منفی یعنی سطح پایین‌تر از قیمت حد؛ قیمت خودکار محاسبه می‌شود">
     ${moneyOn?`<input class="stop-money" value="${esc(money0)}" placeholder="مبلغ" title="مبلغ قفل‌شده نسبت به قیمت خرید (در واحد پول همان بازار): مثبت = سود قفل‌شده، منفی = پول در ریسک — با تایپ همان مبلغ، قیمت حد ضرر تنظیم می‌شود">`:''}
   </span>`;
   const inpNum=el.querySelector(".stop-num"), inpPct=el.querySelector(".stop-pct"), inpMoney=el.querySelector(".stop-money");
@@ -2219,16 +2238,29 @@ document.addEventListener("click",e=>{
   const base=parseFloat(el.dataset.entry)||0;
   const buyBase=parseFloat(el.dataset.buy||"")||0;
   const amt=parseFloat(el.dataset.amount||"0")||0;
-  const stopSign=kind==="profit"?1:-1;
-  const numOf=t=>parseFloat(String(t).replace(/[٫,]/g,"."));
-  const pctOf=v=>{const p=(v-base)/base*100; return p>0?"+"+(Math.round(p*100)/100):(Math.round(p*100)/100)+""};
-  const absOf=p=>base*(1+stopSign*Math.abs(p)/100);
+  /* عدد از ورودی (فارسی/عربی، اعشار «٫»، هزارگان، منفی یونیکد) */
+  const numOf=t=>faNum(t);
+  /* عدد را بدون گردکردن و بدون صفرهای انتهایی بچسبان (۸ رقم اعشار) */
+  const levelOf=v=>String(Math.round(v*1e8)/1e8);
+  /* درصد تا ۴ رقم اعشار — همان دقتی که سرور ذخیره می‌کند */
+  const pctOf=v=>{const p=(v-base)/base*100;
+    const r=Math.round(p*1e4)/1e4;
+    return r>0?"+"+r:String(r)};
+  /* علامت درصد: حد سود با علامت خودش معنی می‌شود (منفی = پایین‌تر از
+     قیمت حد)؛ حد ضرر همیشه زیر قیمت حد می‌نشیند. */
+  const signedPct=p=>kind==="profit"?p:-Math.abs(p);
+  const absOf=p=>base*(1+signedPct(p)/100);
   const moneyOf=v=>(amt>0&&buyBase>0)?(v-buyBase)*amt:null;
   const absOfMoney=m=>(amt>0&&buyBase>0)?buyBase+m/amt:null;
   const fillFromNum=v=>{if(!(base>0))return;inpPct.value=pctOf(v);
     const m=moneyOf(v);if(inpMoney&&m!=null)inpMoney.value=Math.round(m*100)/100;};
+  /* وقتی کاربر در فیلد درصد تایپ می‌کند، همین فیلد را بازنویسی نکن:
+     با هر کلید مقدار دوباره ساخته می‌شد و نقطهٔ اعشار (و علامت منفیِ
+     نیمه‌کاره) پاک می‌شد — «3.» تبدیل می‌شد به «+3»، پس 3.5 تایپ
+     نمی‌شد. فقط قیمت و مبلغ را از همان درصد به‌روز کن. */
   const fillFromPct=p=>{if(!(base>0))return;const v=absOf(p);
-    inpNum.value=Math.round(v);fillFromNum(v);};
+    inpNum.value=levelOf(v);
+    const m=moneyOf(v);if(inpMoney&&m!=null)inpMoney.value=Math.round(m*100)/100;};
   let lastField="num";   /* فیلدی که کاربر آخرین بار تایپ کرده */
   inpPct.addEventListener("input",()=>{
     lastField="pct";
@@ -2244,7 +2276,7 @@ document.addEventListener("click",e=>{
     lastField="money";
     const m=numOf(inpMoney.value);
     if(!isNaN(m)&&buyBase>0&&amt>0){const v=absOfMoney(m);
-      if(v>0){inpNum.value=Math.round(v);if(base>0)inpPct.value=pctOf(v);}}
+      if(v>0){inpNum.value=levelOf(v);if(base>0)inpPct.value=pctOf(v);}}
   });
   const commit=async()=>{
     /* take the field the user last touched: prefer an edited percent,
@@ -2277,11 +2309,11 @@ document.addEventListener("click",e=>{
       if(!(abs>0)){toast("مبلغ نامعتبر است");el.innerHTML="<span class='mut'>…</span>";poll();return}
       body={symbol:sym,kind,stop:abs};
     }else if(lastField==="pct"&&pctSet){
-      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"hadd"};
+      body={symbol:sym,kind,pct:signedPct(pctV),base:"hadd"};
     }else if(numSet){
       body={symbol:sym,kind,stop:numV};
     }else{
-      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"hadd"};
+      body={symbol:sym,kind,pct:signedPct(pctV),base:"hadd"};
     }
     toast("در حال ثبت "+kindFa+"…");
     try{const r=await jpost("/api/control/set_stop",body);

@@ -116,7 +116,13 @@ class Handler(BaseHTTPRequestHandler):
         body = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-cache")
+        # no-store: a dashboard tab left open for days must never keep an
+        # old JS copy after the HTML is updated (the reload then shows the
+        # new editor immediately).
+        self.send_header("Cache-Control",
+                         "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self._security_headers()
         if self._wants_gzip() and path.suffix.lower() in (
                 ".html", ".js", ".css") and len(body) > 512:

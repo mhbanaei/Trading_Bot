@@ -353,6 +353,9 @@ class TradingEngine:
         else:
             tp_pct = d(str(getattr(self.cfg.risk, "default_take_profit_pct",
                                    20.0) or 0))
+        # TP تازهٔ خودکار: نشانهٔ ویرایش دستی قبلی پاک می‌شود
+        plan.pop("manual_tp_price", None)
+        plan.pop("manual_tp_armed_below", None)
         if tp_pct > 0:
             tp = (buy_price * (1 + tp_pct / d("100"))).quantize(
                 Decimal("0.000001"))
@@ -766,8 +769,29 @@ class TradingEngine:
                         plans[symbol] = plan
                         self.storage.kv_set("exit_plans", plans)
                     if cur_d < tp:
-                        # قیمت به حد سودِ ثابت نرسیده: هیچ سطحی عوض نمی‌شود
+                        # قیمت به حد سودِ ثابت نرسیده: هیچ سطحی عوض نمی‌شود.
+                        # اگر همین حد سود را دستی و بالاتر از قیمت آن لحظه
+                        # گذاشته بودیم، از حالا «مسلح» است و با برگشت قیمت
+                        # به آن، پله فعال می‌شود.
+                        if (plan.get("manual_tp_price") is not None and
+                                not plan.get("manual_tp_armed_below")):
+                            plan["manual_tp_armed_below"] = True
+                            plans[symbol] = plan
+                            self.storage.kv_set("exit_plans", plans)
                         continue
+                    # حد سود دستیِ زیر قیمت فعلی (در لحظهٔ ثبت از قبل رد
+                    # شده بود): عدد دست‌نخورده می‌ماند تا قیمت یک‌بار زیر
+                    # آن برود و بعد به آن برگردد.
+                    if (plan.get("manual_tp_price") is not None and
+                            not plan.get("manual_tp_armed_below")):
+                        try:
+                            manual_tp = d(str(plan.get("manual_tp_price")))
+                        except Exception:
+                            manual_tp = ZERO
+                        if manual_tp > 0 and abs(manual_tp - tp) <= max(
+                                Decimal("0.00000001"),
+                                abs(tp) * Decimal("0.000000001")):
+                            continue
                     # قیمت به حد سودِ ثابت رسید: پله فعال شد. استرایک فقط
                     # **یک** قدم بالا می‌رود (نه چند پله در یک چرخه) و
                     # سطحِ رسیده‌شده لنگر پلهٔ تازه می‌شود — این تنها جایی
@@ -801,6 +825,8 @@ class TradingEngine:
                     plan["locked_stop"] = float(new_base)
                     plan["stage"] = int(new_stage)
                     plan["take_profit_manual"] = float(nxt)
+                    plan.pop("manual_tp_price", None)
+                    plan.pop("manual_tp_armed_below", None)
                     plan["take_profit_manual_pct"] = float(
                         step.quantize(Decimal("0.01")))
                     if ladder_on:
@@ -5207,19 +5233,21 @@ class TradingEngine:
         buy_stop_pct = None
         if stop_anchor > 0 and stop_v > 0:
             buy_stop_pct = float(((stop_v - stop_anchor) / stop_anchor
-                                  * 100).quantize(Decimal("0.01")))
+                                  * 100).quantize(Decimal("0.0001")))
         # the percent the row SHOWS (and the editor opens with): vs the
-        # حد (falling back to the buy anchor when no hadd exists yet)
+        # حد (falling back to the buy anchor when no hadd exists yet).
+        # ۴ رقم اعشار تا درصدی که کاربر با دست وارد کرده (مثل ‎-2.375)
+        # روی ردیف هم همان دیده شود، نه گردشده به دو رقم.
         hadd_stop_pct = None
         if stop_v > 0:
             pct_base = hadd if hadd > 0 else stop_anchor
             if pct_base > 0:
                 hadd_stop_pct = float(((stop_v - pct_base) / pct_base * 100)
-                                      .quantize(Decimal("0.01")))
+                                      .quantize(Decimal("0.0001")))
         hadd_tp_pct = None
         if hadd > 0 and tp_v > 0:
             hadd_tp_pct = float(((tp_v - hadd) / hadd * 100)
-                                .quantize(Decimal("0.01")))
+                                .quantize(Decimal("0.0001")))
         # «قیمت حد» نمایشی ردیف نمای کلی = قیمت لحظه‌ای همین سکه (درخواست
         # کاربر: «قیمت حد باید دقیقاً قیمت فعلی توکن باشد»). مرجع پله/
         # نردبان همان `hadd` بالا می‌ماند و دست نمی‌خورد؛ فقط عددی که ردیف
@@ -6017,10 +6045,10 @@ class TradingEngine:
                         "error": "درصد نامعتبر یا قیمت مرجع (قیمت خرید) موجود نیست"}
             if kind == "stop" and pct_d > 0:
                 return {"ok": False,
-                        "error": "درصد حد ضرر فروش باید منفی باشد (مثلاً ‎-2 = ۲٪ زیر قیمت خرید)"}
-            if kind == "profit" and pct_d < 0:
-                return {"ok": False,
-                        "error": "درصد حد سود باید مثبت باشد (مثلاً ‎+5 = ۵٪ بالاتر از قیمت حد)"}
+                        "error": "درصد حد ضرر فروش باید منفی باشد (مثلاً ‎-2.35 = ۲٫۳۵٪ زیر قیمت حد)"}
+            # حد سود با درصد منفی هم مجاز است: یعنی سطحِ حد سود **پایین‌تر
+            # از «قیمت حد»** (درخواست کاربر: «بتونم حد سود را کمتر از قیمت
+            # حد تعیین کنم»). علامت، دقیقاً همان چیزی است که کاربر می‌خواهد.
             # percent base: kind-dependent (buy anchor for the stop, the
             # hadd for the profit trigger) or the coin's current price
             # (base_mode="current").
@@ -6033,7 +6061,9 @@ class TradingEngine:
             else:
                 base_eff = base
             stop_d = base_eff * (1 + pct_d / 100)
-            stop_d = stop_d.quantize(Decimal("0.000001"))
+            # ۸ رقم اعشار: قیمت‌های خرد تتری (مثل 0.00001234) هم دقیق
+            # همان چیزی می‌مانند که کاربر خواسته — نه گردشده به ۶ رقم.
+            stop_d = stop_d.quantize(Decimal("0.00000001"))
         else:
             try:
                 stop_d = d(str(stop))
@@ -6049,11 +6079,13 @@ class TradingEngine:
                     if stop_d >= pct_ref and cur and cur > 0:
                         pct_ref = cur
                 plan[key_pct] = float(((stop_d - pct_ref) / pct_ref * 100)
-                                      .quantize(Decimal("0.01")))
+                                      .quantize(Decimal("0.0001")))
         if stop_d <= 0:
             if symbol in plans:
                 plans[symbol].pop(key_stop, None)
                 plans[symbol].pop(key_pct, None)
+                plans[symbol].pop("manual_tp_price", None)
+                plans[symbol].pop("manual_tp_armed_below", None)
                 # sweep the removed buy-side keys of earlier versions
                 plans[symbol].pop("buy_stop", None)
                 plans[symbol].pop("buy_stop_pct", None)
@@ -6069,36 +6101,14 @@ class TradingEngine:
         # price when it is within 5x..1/5x of the entry.
         price_ok = bool(cur and cur > 0 and base > 0
                         and (cur <= base * 5) and (cur >= base / 5))
-        clamped = False
-        if kind == "stop":
-            if price_ok and stop_d >= cur:
-                # Clamp instead of rejecting: a position bought higher can
-                # already sit below its own -2% line (e.g. entry=100k,
-                # now=96k -> -2% stop=98k > now). Refusing it left the
-                # position UNPROTECTED; clamping arms it at the current
-                # price (≈ instant guard) and the user's percent still
-                # arms correctly on the next re-buy.
-                stop_d = (cur * Decimal("0.999")).quantize(
-                    Decimal("0.000001"))
-                if pct is not None:
-                    eff_pct = ((stop_d - base) / base * 100).quantize(
-                        Decimal("0.01"))
-                    plan[key_pct] = float(eff_pct)
-                clamped = True
-        else:
-            if price_ok and stop_d <= cur:
-                # Same clamping for the profit side: if the coin already
-                # sits ABOVE the requested trigger (e.g. -20% relative to
-                # a much higher entry), the take-profit must still sit
-                # ABOVE the current price to be reachable — park it just
-                # above current instead of refusing.
-                stop_d = (cur * Decimal("1.001")).quantize(
-                    Decimal("0.000001"))
-                if pct is not None:
-                    eff_pct = ((stop_d - base) / base * 100).quantize(
-                        Decimal("0.01"))
-                    plan[key_pct] = float(eff_pct)
-                clamped = True
+        # کاربر: «می‌خواهم درصد و قیمت حد ضرر/حد سود را به هر میزانی که
+        # می‌خواهم تغییر بدهم» — عددِ واردشده دقیقاً همان‌جا می‌نشیند؛
+        # دیگر به قیمت فعلی "چسبانده" یا گرد نمی‌شود. اگر سطح از قیمت
+        # فعلی گذشته باشد فقط یک توضیح برمی‌گردد (چرخهٔ بعد همان را
+        # اجرا می‌کند: حد ضرر = فروش کامل، حد سود = فعال شدن پله).
+        crossed = False
+        if price_ok:
+            crossed = (stop_d >= cur) if kind == "stop" else (stop_d <= cur)
         plan[key_stop] = float(stop_d)
         if pct is not None:
             plan[key_pct] = float(pct_d)
@@ -6113,10 +6123,10 @@ class TradingEngine:
                     if ref and ref > 0:
                         plan[key_pct] = float(
                             ((stop_d - ref) / ref * 100)
-                            .quantize(Decimal("0.01")))
+                            .quantize(Decimal("0.0001")))
                     if float(plan[key_pct]) >= 0:
                         neg = -abs(float(plan[key_pct]))
-                        plan[key_pct] = neg if neg < 0 else -0.01
+                        plan[key_pct] = neg if neg < 0 else -0.0001
             except (TypeError, ValueError):
                 pass
         # persist the HADD only from a PROFIT-side edit (the strike base
@@ -6125,6 +6135,14 @@ class TradingEngine:
         if (kind == "profit" and base > 0 and
                 d(str(plan.get("base_price", 0) or 0)) <= 0):
             plan["base_price"] = float(base)
+        if kind == "profit":
+            # حد سود دستی: عدد خودش ذخیره می‌شود. اگر در لحظهٔ ثبت، قیمت
+            # از قبل بالای این سطح بوده، تا وقتی قیمت یک‌بار زیرش نرفته
+            # «فعال‌نشده» می‌ماند تا با برگشت قیمت به آن پله بالا برود —
+            # وگرنه همان چرخه پله بالا می‌رفت و عدد کاربر ناپدید می‌شد.
+            plan["manual_tp_price"] = float(stop_d)
+            plan["manual_tp_armed_below"] = bool(
+                cur is None or cur <= 0 or cur < stop_d)
         if not plan.get("tps"):
             plan["tps"] = []
         if not plan.get("stage"):
@@ -6147,15 +6165,15 @@ class TradingEngine:
                "base": ("current" if base_mode == "current"
                         else ("buy" if kind == "stop" and
                               base_mode != "hadd" else "hadd"))}
-        if clamped:
-            # Persian notice: the requested level sat on the wrong side of
-            # the current price (position already deeper than the percent,
-            # or the % base is an older, higher entry) — armed at the
-            # current price instead so the position is never left naked.
+        out["crossed"] = crossed
+        if crossed:
+            # عدد دقیقاً همان است که کاربر خواست؛ فقط می‌گوییم قیمت فعلی
+            # از آن گذشته و در چرخهٔ بعد همان اتفاق می‌افتد.
             out["notice"] = (
-                "چون قیمت فعلی از سطح درخواستی عبور کرده بود، سطح دقیقاً "
-                "روی قیمت فعلی (" + fmt_price(cur) + ") مسلح شد تا موقعیت "
-                "بدون حفاظ نماند")
+                ("قیمت فعلی (" + fmt_price(cur) + ") از این سطح گذشته؛ " +
+                 ("حد ضرر در چرخهٔ بعد کل سکه را می‌فروشد"
+                  if kind == "stop" else
+                  "حد سود در چرخهٔ بعد پله را یکی بالا می‌برد")))
         return out
 
     def set_all_stops(self, pct: float, kind: str = "stop",
