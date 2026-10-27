@@ -1850,7 +1850,7 @@ function holdingsBox(s){
     stop:h=>h.stop,tp:h=>h.take_profit};
   const sorted=sortRows(holdings,"holdings",hget,"value","desc");
   const hA=(k,l,d,tip)=>`<span class="sortable" data-t="holdings" data-k="${k}" data-dir="${d||"asc"}"${tip?` title="${tip}"`:""}>${l}${sortArrow("holdings",k)}</span>`;
-  const head=`<div class="hhead"><span class="sym">${hA("sym","نماد")}</span>${hA("amount","مقدار","desc")}${hA("invested","مبلغ خرید","desc")}${hA("value","ارزش","desc")}${hA("entry","قیمت خرید","desc")}${hA("hadd","قیمت حد","desc","قیمت لحظه‌ای همین سکه — دقیقاً همان قیمتی که اکنون در بازار معامله می‌شود؛ درصد حد ضرر/حد سود هم نسبت به همین عدد سنجیده می‌شود")}${hA("p","سود از خرید","desc")}${hA("p24","سود ۲۴ساعت","desc")}${hA("stop","حد","desc")}<span style="flex:1"></span><span>عملیات</span></div>`;
+  const head=`<div class="hhead"><span class="sym">${hA("sym","نماد")}</span>${hA("amount","مقدار","desc")}${hA("invested","مبلغ خرید","desc")}${hA("value","ارزش","desc")}${hA("entry","قیمت خرید","desc")}${hA("hadd","قیمت حد","desc","قیمت لحظه‌ای همین سکه — دقیقاً همان قیمتی که اکنون در بازار معامله می‌شود؛ درصد حد ضرر/حد سود نسبت به «پلهٔ فعال» (مرجع ثابت پله) سنجیده می‌شود، نه نسبت به این قیمت")}${hA("p","سود از خرید","desc")}${hA("p24","سود ۲۴ساعت","desc")}${hA("stop","حد","desc")}<span style="flex:1"></span><span>عملیات</span></div>`;
   /* مبلغ هر ردیف در واحد پول بازار خودش: دلار برای بازارهای تتری،
      تومان برای بازارهای تومانی — دو بخش هیچ‌وقت واحد پول هم را
      قرض نمی‌گیرند (نه در حالت نمایش دلاری، نه هیچ‌جای دیگر).
@@ -1907,19 +1907,23 @@ function holdingsBox(s){
        take-profit the hadd moves to that price and stop/TP re-derive
        from it */
     /* «قیمت حد» ردیف = قیمت لحظه‌ای همین سکه (سرور `hadd_display` را
-       از قیمت تیکر می‌فرستد)؛ `h.add` مرجع پله/نردبان است و دست‌نخورده
-       می‌ماند — فقط وقتی قیمتی نباشد به آن برمی‌گردیم. */
+       از قیمت تیکر می‌فرستد)؛ مرجع پله/نردبان (`h.hadd`) دست‌نخورده
+       می‌ماند و درصد حد ضرر/حد سود نسبت به همان سنجیده می‌شود (نه
+       نسبت به این قیمت لحظه‌ای). */
     const haddShown=(h.hadd_display!=null?h.hadd_display:(h.hadd!=null?h.hadd:entry));
     /* the (n) bracket is CLICKABLE: edit the strike counter and/or the
        hadd price; a hadd equal to the buy price is always stage 0 */
-    const haddBadge=`<span class="lockb hadd-edit" data-hadd-sym="${esc(sym)}" data-hadd-stage="${h.stage||0}" data-hadd-price="${haddShown||""}" data-hadd-buy="${entry||""}" style="cursor:pointer" title="کلیک: تغییر پله و قیمت حد — حد برابر قیمت خرید یعنی پله ۰ | نردبان: هر پله حد ضرر را روی پلهٔ قبلی می‌برد و سرمایهٔ افزوده روی همان سکه می‌گذارد">(<span class="num">${h.stage||0}</span>)</span>`;
-    /* percent base for BOTH triggers = the HADD (قیمت حد — the strike
-       base shown as «قیمت حد (n)»). Per the user: «حد ضرر از قیمت حد
-       محاسبه شود». The BUY anchor stays the base of «مبلغ» (قفل
-       سود/ریسک) — that is the money actually paid for the coins. */
+    const haddBadge=`<span class="lockb hadd-edit" data-hadd-sym="${esc(sym)}" data-hadd-stage="${h.stage||0}" data-hadd-price="${haddShown||""}" data-hadd-buy="${entry||""}" style="cursor:pointer" title="کلیک: تغییر پله و قیمت حد — حد برابر قیمت خرید یعنی پله ۰ | تغییر پله حد ضرر/حد سود را جابه‌جا نمی‌کند؛ هر پله سرمایهٔ افزوده را روی همان سکه می‌گذارد">(<span class="num">${h.stage||0}</span>)</span>`;
+    /* percent base for BOTH triggers = the plan's FIXED strike base
+       (`h.hadd`: پله ۰ = قیمت آخرین خرید، پلهٔ بالاتر = سطحی که قیمت به
+       آن رسیده). Per the user: «حد ضرر و حد سود نباید با تغییر قیمت حد
+       عوض شوند» — پس مبنای درصد همان عددِ ثابت پله است، نه قیمت
+       لحظه‌ای که ستون «قیمت حد» چاپ می‌کند. The BUY anchor stays the
+       base of «مبلغ» (قفل سود/ریسک) — the money actually paid. */
     const stopBaseVal=(h.avg_entry!=null?h.avg_entry:h.last_buy_price);
-    const profitBaseVal=haddShown;
-    const haddBaseVal=(haddShown!=null?haddShown:stopBaseVal);
+    const strikeBase=((h.hadd!=null&&h.hadd>0)?h.hadd:(entry||null));
+    const profitBaseVal=strikeBase;
+    const haddBaseVal=(strikeBase!=null?strikeBase:stopBaseVal);
     const stopCell=(kind,val,pctVal,money,pctEdit)=>{
       /* val arrives in the ENGINE unit (Toman for IRT markets, $ for USDT
          ones); only the SHOWN text is converted for dollar mode, while
@@ -1941,8 +1945,8 @@ function holdingsBox(s){
       /* قیمت سطح در واحد پول همان بازار (تومان/دلار) — نه تبدیل‌شده */
       const shown=val?`<span class='num ${up?"pos":"neg"}'>${mfmt(dv,sym)}</span>${pctVal!=null?` <span class='mut' style='font-size:11px'>(${pctVal>0?"+":""}${pctVal}٪)</span>`:""}`:"<span class='mut'>— تعیین —</span>";
       const tip=kind==="profit"
-        ?"کلیک: قیمت و درصد — درصد نسبت به «قیمت حد» (= قیمت لحظه‌ای همین سکه)"
-        :"کلیک: سه فیلد — مبلغ (سود قفل‌شده یا ریسک، نسبت به قیمت خرید)، قیمت حد ضرر و درصد نسبت به «قیمت حد» (= قیمت لحظه‌ای) | نردبان: با هر strike حد ضرر روی پلهٔ قبلی بالا می‌رود و هرگز پایین نمی‌آید";
+        ?"کلیک: قیمت و درصد — درصد نسبت به «پلهٔ فعال» (مرجع ثابت پله، نه قیمت لحظه‌ای). با رسیدن قیمت به همین حد سود، پله یکی بالا می‌رود؛ خودِ سطح با تکون قیمت جابه‌جا نمی‌شود"
+        :"کلیک: سه فیلد — مبلغ (سود قفل‌شده یا ریسک، نسبت به قیمت خرید)، قیمت حد ضرر و درصد نسبت به «پلهٔ فعال» (مرجع ثابت). سطح با قیمت لحظه‌ای عوض نمی‌شود؛ رسیدن قیمت به آن تمام سکه را می‌فروشد";
       /* data-entry = the SAME base the tip promises, in ENGINE units:
          percent reads vs the HADD (حد) for both kinds. data-buy +
          data-amount let the editor derive «مبلغ» (قفل سود/ریسک).
@@ -1960,18 +1964,18 @@ function holdingsBox(s){
     /* one call per trigger kind: the PERCENT the cell prints IS the
        percent the editor opens with (both read vs the same «قیمت حد»),
        so merely opening + confirming never shifts the level */
-    /* درصدها همان‌طور که سرور نسبت به «قیمت حد» (= قیمت لحظه‌ای) سنجیده
-       می‌فرستد؛ اگر قیمتی نبود، درصد نسب به پلهٔ نردبان می‌ماند. */
+    /* درصدها نسبت به «پلهٔ فعال» (مرجع ثابت پله) سنجیده می‌شوند — همان
+       عددی که ویرایشگر با آن باز می‌شود. درصدِ نسبت به قیمت لحظه‌ای
+       (`live_*`) عمداً دیگر نمایش داده نمی‌شود: کاربر گفت «حد ضرر و حد
+       سود نباید با تغییر قیمت جابه‌جا شوند»، و درصدِ لحظه‌ای همان چیزی
+       بود که روی صفحه بالا و پایین می‌رفت. */
     const stopPctCell=(h,kind)=>kind==="profit"
       ? stopCell("profit",h.take_profit,
-                 (h.live_tp_pct!=null?h.live_tp_pct
-                  :(h.hadd_tp_pct!=null?h.hadd_tp_pct:h.take_profit_pct)))
+                 (h.hadd_tp_pct!=null?h.hadd_tp_pct:h.take_profit_pct))
       : stopCell("stop",h.stop,
-                 (h.live_stop_pct!=null?h.live_stop_pct
-                  :(h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct)),
+                 (h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct),
                  h.stop_money,
-                 (h.live_stop_pct!=null?h.live_stop_pct
-                  :(h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct)));
+                 (h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct));
     const p24=p24For(h);
     const p24Money=p24MoneyFor(h);
     /* last-buy as RELATIVE time in parentheses: (۵ دقیقه) / (۳ ساعت) /
@@ -2139,8 +2143,8 @@ document.addEventListener("click",e=>{
     if(st>0){
       const curNum=parseFloat(curPrice);
       const shownCur=curPrice===""||isNaN(curNum)?curPrice:String(curNum);
-      const pv=prompt(usdMode?"مرجع پله (حد نردبان) جدید ($) — حد سود جدید از همین محاسبه می‌شود:"
-                             :"مرجع پله (حد نردبان) جدید (تومان) — حد سود جدید از همین محاسبه می‌شود:",shownCur);
+      const pv=prompt(usdMode?"مرجع پله (حد نردبان) جدید ($) — حد ضرر/حد سود دست نمی‌خورند:"
+                             :"مرجع پله (حد نردبان) جدید (تومان) — حد ضرر/حد سود دست نمی‌خورند:",shownCur);
       if(pv==null)return;
       const pvNum=parseFloat(String(pv).replace(/[٫,]/g,"."));
       if(isNaN(pvNum)||pvNum<=0){toast("قیمت حد نامعتبر است");return}
@@ -2164,17 +2168,17 @@ document.addEventListener("click",e=>{
   if(allKind==="stop-all"||allKind==="stop-all-profit"){
     const isProfit=allKind==="stop-all-profit";
     const v=prompt(
-      (isProfit?"حد سود یکجا برای همه‌ی سکه‌ها — درصد (مثبت، مثلاً ‎+5):\nحد سود هر سکه = «قیمت حد» (= قیمت لحظه‌ای همان سکه) × (۱ + درصد)"
-               :"حد ضرر یکجا برای همه‌ی سکه‌ها — درصد (منفی، مثلاً ‎-3):\nحد ضرر هر سکه = «قیمت حد» (= قیمت لحظه‌ای همان سکه) × (۱ − درصد)\n(نردبان: در ادامه هر strike حد ضرر را روی پلهٔ قبلی بالا می‌برد)"),"");
+      (isProfit?"حد سود یکجا برای همه‌ی سکه‌ها — درصد (مثبت، مثل ‎+5؛ اعشار هم مجاز است):\nحد سود هر سکه = «پلهٔ فعال» همان سکه × (۱ + درصد)"
+               :"حد ضرر یکجا برای همه‌ی سکه‌ها — درصد (منفی، مثل ‎-3؛ اعشار هم مجاز است):\nحد ضرر هر سکه = «پلهٔ فعال» همان سکه × (۱ + درصد)\n(رسیدن قیمت به حد سود، پله را یکی بالا می‌برد)"),"");
     if(v==null)return;
     const p=parseFloat(String(v).replace(/[٫,]/g,"."));
     if(isNaN(p)||p===0||(isProfit?p<0:p>0)){toast(isProfit?"درصد را مثبت بده (مثلاً ‎+5)":"درصد را منفی بده (مثلاً ‎-3)");return}
-    if(!confirm((isProfit?"حد سود همه‌ی سکه‌ها با درصد "+p+"٪ از قیمت لحظه‌ای هر سکه تنظیم شود؟"
-                         :"حد ضرر همه‌ی سکه‌ها با درصد "+p+"٪ از «قیمت حد» (قیمت لحظه‌ای) هر سکه تنظیم شود؟ (پله‌های بالاتر خودشان حد را بالا می‌برند)")))return;
+    if(!confirm((isProfit?"حد سود همه‌ی سکه‌ها با درصد "+p+"٪ از پلهٔ فعال هر سکه تنظیم شود؟"
+                         :"حد ضرر همه‌ی سکه‌ها با درصد "+p+"٪ از پلهٔ فعال هر سکه تنظیم شود؟ (با تغییر قیمت لحظه‌ای جابه‌جا نمی‌شود)")))return;
     toast("در حال اعمال روی همه‌ی سکه‌ها…");
-    /* base="current": هر دو حد درصد را از قیمت لحظه‌ای همان سکه می‌خوانند
-       — همان عددی که ردیف به‌عنوان «قیمت حد» چاپ می‌کند */
-    jpost("/api/control/set_all_stops",{pct:p,kind:isProfit?"profit":"stop",base:"current"}).then(r=>{
+    /* base="hadd": هر دو حد درصد را از «پلهٔ فعال» همان سکه می‌خوانند
+       (مرجع ثابت پله) — پس سطح با قیمت لحظه‌ای جابه‌جا نمی‌شود */
+    jpost("/api/control/set_all_stops",{pct:p,kind:isProfit?"profit":"stop",base:"hadd"}).then(r=>{
       if(r.ok&&r.count>0)toast((isProfit?"حد سود روی ":"حد ضرر روی ")+r.count+" سکه اعمال شد"+(r.skipped&&r.skipped.length?(" | رد‌شده: "+r.skipped.map(s=>s.symbol).join("، ")):""));
       else if(r.ok)toast("هیچ سکه‌ای اعمال نشد"+(r.skipped&&r.skipped.length?(" | "+r.skipped.map(s=>s.symbol+": "+s.reason).join(" | ")):""));
       else toast(r.error||"خطا");
@@ -2199,8 +2203,8 @@ document.addEventListener("click",e=>{
     ?String(Math.round(parseFloat(el.dataset.money)*100)/100):"";
   const moneyOn=(kind==="stop");
   el.innerHTML=`<span class="stop-pair">
-    <input class="stop-num" value="${esc(val0)}" placeholder="${unit}" title="قیمت ${unit} حد — درصد (نسبت به قیمت حد) خودکار از همین محاسبه می‌شود">
-    <input class="stop-pct" value="${esc(pct0)}" placeholder="درصد" title="درصد نسبت به «قیمت حد» (‎-3 = ۳٪ زیر قیمت حد) — قیمت خودکار محاسبه می‌شود">
+    <input class="stop-num" value="${esc(val0)}" placeholder="${unit}" title="قیمت ${unit} حد — درصد (نسبت به پلهٔ فعال) خودکار از همین محاسبه می‌شود">
+    <input class="stop-pct" value="${esc(pct0)}" placeholder="درصد" title="درصد نسبت به «پلهٔ فعال» (‎-3 = ۳٪ زیر مرجع پله؛ اعشار هم مجاز است مثل ‎-2.5) — قیمت خودکار محاسبه می‌شود">
     ${moneyOn?`<input class="stop-money" value="${esc(money0)}" placeholder="مبلغ" title="مبلغ قفل‌شده نسبت به قیمت خرید (در واحد پول همان بازار): مثبت = سود قفل‌شده، منفی = پول در ریسک — با تایپ همان مبلغ، قیمت حد ضرر تنظیم می‌شود">`:''}
   </span>`;
   const inpNum=el.querySelector(".stop-num"), inpPct=el.querySelector(".stop-pct"), inpMoney=el.querySelector(".stop-money");
@@ -2273,15 +2277,15 @@ document.addEventListener("click",e=>{
       if(!(abs>0)){toast("مبلغ نامعتبر است");el.innerHTML="<span class='mut'>…</span>";poll();return}
       body={symbol:sym,kind,stop:abs};
     }else if(lastField==="pct"&&pctSet){
-      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"current"};
+      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"hadd"};
     }else if(numSet){
       body={symbol:sym,kind,stop:numV};
     }else{
-      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"current"};
+      body={symbol:sym,kind,pct:(kind==="profit"?Math.abs(pctV):-Math.abs(pctV)),base:"hadd"};
     }
     toast("در حال ثبت "+kindFa+"…");
     try{const r=await jpost("/api/control/set_stop",body);
-      if(r.ok)toast((r.notice?r.notice+" — ":"")+kindFa+" "+sym+" ثبت شد: "+fmtMkt(r.stop,sym)+(r.pct!=null?" ("+(r.pct>0?"+":"")+r.pct+"٪)":"")+(r.base==="current"?" — نسبت به قیمت لحظه‌ای (قیمت حد)":""));
+      if(r.ok)toast((r.notice?r.notice+" — ":"")+kindFa+" "+sym+" ثبت شد: "+fmtMkt(r.stop,sym)+(r.pct!=null?" ("+(r.pct>0?"+":"")+r.pct+"٪)":"")+(r.base==="hadd"?" — درصد نسبت به پلهٔ فعال (مرجع ثابت)":""));
       else toast(r.error||"خطا");
     }catch(err){toast("خطا: "+err)}
     el.innerHTML="<span class='mut'>…</span>"; /* force re-render by poll */

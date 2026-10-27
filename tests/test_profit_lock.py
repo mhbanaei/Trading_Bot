@@ -5,11 +5,12 @@ Model (no on/off switch — the ratchet always runs):
 - Whenever the price reaches the armed take-profit, the stage counter
   goes up, the hadd MOVES to that price and the next take-profit
   re-arms step% above the new hadd.
-- نردبان (risk.ladder_enabled): with every strike the STOP-LOSS moves
-  up to the PREVIOUS rung and never falls — rung 1 lands on the buy
-  price (break-even), rung 2 on rung 1, rung 3 on rung 2 … so the stop
-  percent the row shows against the HADD (قیمت حد) updates rung by
-  rung. Stops left behind by older plans are lifted on the next cycle.
+- نردبان (risk.ladder_enabled): with every strike the take-profit AND
+  the stop-loss re-derive from the NEW hadd: TP = hadd x (1 + tp%) and
+  stop = hadd x (1 + stop%) with a NEGATIVE stop percent (e.g. -3%),
+  never positive, and the stop never falls. Hitting the take-profit
+  NEVER sells the coin — it only raises the strike; a stop hit sells
+  the WHOLE position.
 - درصد ردیف: هم حد سود و هم حد ضرر نسبت به «قیمت حد» (the strike base)
   خوانده می‌شوند؛ «مبلغ» (قفل سود/ریسک) نسبت به قیمت خرید می‌ماند.
 - A NEW buy resets the hadd to the fresh buy price (stage 0); an
@@ -100,10 +101,10 @@ class TestProfitLock(TempCase):
         self.assertEqual(int(plan["stage"]), 0)
 
         # price REACHES the target: stage 0->1, the HADD moves to the
-        # reached price and the next take-profit re-arms by THIS plan's
-        # own 20% step (not the global 15% setting). نردبان: the STOP
-        # also moves — to the previous rung, with the configured minimum
-        # profit floor (1%) above the buy price, so profit is secured.
+        # reached price and BOTH the next take-profit and the stop-loss
+        # re-arm from it: TP by THIS plan's own 20% step (not the global
+        # 15% setting) and the stop by the plan's NEGATIVE percent — so
+        # the stored stop percent never turns positive.
         stop_before = Decimal(str(e.storage.kv_get(
             "exit_plans", {})[mkt]["stop"]))
         e._advance_profit_locks({mkt: float(tp0)})
@@ -111,13 +112,15 @@ class TestProfitLock(TempCase):
         self.assertEqual(int(plan["stage"]), 1)
         self.assertEqual(Decimal(str(plan["base_price"])), tp0)
         self.assertEqual(Decimal(str(plan["locked_stop"])), tp0)
-        # the stop rode the ladder to rung 0 (buy) plus the 1% profit floor
+        # the stop re-derived from the NEW hadd with the plan's -2%:
+        # tp0 x 0.98 — below the strike, above the buy, percent NEGATIVE
         self.assertEqual(Decimal(str(plan["stop"])),
-                         (price * Decimal("1.01")).quantize(
+                         (tp0 * Decimal("0.98")).quantize(
                              Decimal("0.000001")))
         self.assertGreater(Decimal(str(plan["stop"])), stop_before)
         self.assertGreater(Decimal(str(plan["stop"])), price)
-        self.assertAlmostEqual(plan["stop_pct"], 1.0, places=2)
+        self.assertLess(Decimal(str(plan["stop"])), tp0)
+        self.assertAlmostEqual(plan["stop_pct"], -2.0, places=2)
         self.assertEqual(int(plan["ladder_stop_stage"]), 1)
         # and the next rung's capital budget is queued for the same cycle
         self.assertEqual(int(plan["ladder_add_stage"]), 1)
@@ -129,23 +132,24 @@ class TestProfitLock(TempCase):
                          float(step * 100))
 
         # second stage: reaching the new target moves the hadd again
-        # (1->2) and the stop up to rung 1 (the level just struck)
+        # (1->2) and re-derives BOTH levels from it (tp1)
         tp1 = Decimal(str(plan["take_profit_manual"]))
         e._advance_profit_locks({mkt: float(tp1 * Decimal("1.05"))})
         plan = e.storage.kv_get("exit_plans", {})[mkt]
         self.assertEqual(int(plan["stage"]), 2)
         self.assertEqual(Decimal(str(plan["base_price"])), tp1)
-        # the stop now sits on rung 1 = the level just struck (tp0),
-        # snapped to exchange price precision like every rung
+        # stop = the NEW hadd x 0.98 (the plan's own negative percent)
         self.assertEqual(Decimal(str(plan["stop"])),
-                         tp0.quantize(Decimal("0.000001")))
+                         (tp1 * Decimal("0.98")).quantize(
+                             Decimal("0.000001")))
         self.assertGreater(Decimal(str(plan["stop"])), price)
+        self.assertAlmostEqual(plan["stop_pct"], -2.0, places=2)
 
-    def test_fast_move_registers_every_crossed_rung(self):
-        """A price that jumps over several targets must not advance only
-        one rung per cycle: all crossed rungs are registered at once, the
-        next target is re-armed from the LAST crossed rung and the stop
-        lands on the previous rung (not on break-even)."""
+    def test_one_rung_per_trigger_never_a_leap(self):
+        """قاعدهٔ کاربر: با رسیدن قیمت به حد سود، استرایک **یک** پله بالا
+        می‌رود — نه چند پله در یک چرخه. پرش بزرگ قیمت هم پله‌پله ثبت
+        می‌شود (هر چرخه یک قدم) و هر پله سطوح خودش را از همان سطحِ
+        رسیده‌شده می‌گیرد."""
         e = self._engine()
         e.run_cycle()
         mkt = self._first_market(e)
@@ -159,17 +163,24 @@ class TestProfitLock(TempCase):
 
         e._advance_profit_locks({mkt: 200.0})
         plan = e.storage.kv_get("exit_plans", {})[mkt]
-        # 100 -> 120 -> 144 -> 172.8 are the three rungs the price crossed
-        self.assertEqual(int(plan["stage"]), 3)
-        self.assertEqual(Decimal(str(plan["base_price"])), Decimal("172.8"))
+        # only ONE rung per call: 100 -> 120 (not 144/172.8)
+        self.assertEqual(int(plan["stage"]), 1)
+        self.assertEqual(Decimal(str(plan["base_price"])), Decimal("120.0"))
         self.assertEqual(Decimal(str(plan["take_profit_manual"])),
-                         Decimal("207.36"))
+                         Decimal("144.0"))
         self.assertEqual(float(plan["take_profit_manual_pct"]), 20.0)
-        # the stop sits on the previous rung (144), locking +44%
-        self.assertEqual(Decimal(str(plan["stop"])), Decimal("144.0"))
-        self.assertAlmostEqual(plan["stop_pct"], 44.0, places=2)
-        self.assertEqual(int(plan["ladder_stop_stage"]), 3)
-        self.assertEqual(int(plan["ladder_add_stage"]), 3)
+        # the stop is re-derived from the REACHED level (120) with the
+        # plan's -2%: 117.6 — a NEGATIVE percent, above the buy
+        self.assertEqual(Decimal(str(plan["stop"])), Decimal("117.6"))
+        self.assertAlmostEqual(plan["stop_pct"], -2.0, places=2)
+        self.assertEqual(int(plan["ladder_stop_stage"]), 1)
+        self.assertEqual(int(plan["ladder_add_stage"]), 1)
+        # 144 is already crossed too, so the NEXT cycle steps once more
+        e._advance_profit_locks({mkt: 200.0})
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertEqual(int(plan["stage"]), 2)
+        self.assertEqual(Decimal(str(plan["base_price"])), Decimal("144.0"))
+        self.assertEqual(Decimal(str(plan["stop"])), Decimal("141.12"))
 
     def test_row_percents_read_against_hadd(self):
         """The holdings row shows «قیمت حد (n)»; BOTH the TP percent and
@@ -194,14 +205,16 @@ class TestProfitLock(TempCase):
         step = self._step_frac(e, plan_now)
         self.assertAlmostEqual(row["hadd_tp_pct"],
                                float(step * 100), places=2)
-        # STOP % vs the HADD: the ladder lifted the stop to rung 0 (buy)
-        # plus the 1% profit floor, so the row reads how far below the
-        # reached strike that locked level sits.
+        # STOP % vs the HADD = the plan's own NEGATIVE percent (-2),
+        # never a positive stop percent
         stop_now = Decimal(str(row["stop"]))
-        self.assertAlmostEqual(row["hadd_stop_pct"],
-                               float((stop_now / tp0 - 1) * 100), places=1)
-        # the buy-anchored percent shows the 1% profit now locked
-        self.assertAlmostEqual(row["stop_pct_buy"], 1.0, places=2)
+        self.assertEqual(stop_now,
+                         (tp0 * Decimal("0.98")).quantize(
+                             Decimal("0.000001")))
+        self.assertAlmostEqual(row["hadd_stop_pct"], -2.0, places=2)
+        self.assertLess(row["stop_pct"], 0)
+        # the buy-anchored percent (reference only) shows the locked profit
+        self.assertGreater(row["stop_pct_buy"], 0)
         self.assertAlmostEqual(row["stop_money"],
                                float((stop_now - price) * Decimal("10")),
                                places=1)
@@ -303,10 +316,36 @@ class TestProfitLock(TempCase):
                          (price * Decimal("0.95")).quantize(
                              Decimal("0.000001")))
 
+    def test_decimal_stop_and_tp_percents_are_kept(self):
+        """درصد حد ضرر/حد سود با اعشار هم ثبت می‌شود (‎-2.35 و ‎+12.5):
+        سطح دقیقاً از همان درصد ساخته می‌شود و درصد ذخیره‌شده همان عدد
+        اعشاری می‌ماند."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = self._first_market(e)
+        price = self._price_of(e, mkt)
+        self._plant(e, mkt, price)
+        r = e.set_stop_loss(mkt, 0.0, side="sell", pct=-2.35,
+                            kind="stop", base_mode="hadd")
+        self.assertTrue(r["ok"])
+        self.assertEqual(Decimal(str(r["stop"])),
+                         (price * Decimal("0.9765")).quantize(
+                             Decimal("0.000001")))
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertAlmostEqual(plan["stop_pct"], -2.35, places=4)
+        r2 = e.set_stop_loss(mkt, 0.0, side="sell", pct=12.5,
+                             kind="profit", base_mode="hadd")
+        self.assertTrue(r2["ok"])
+        self.assertEqual(Decimal(str(r2["stop"])),
+                         (price * Decimal("1.125")).quantize(
+                             Decimal("0.000001")))
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertAlmostEqual(plan["take_profit_manual_pct"], 12.5,
+                               places=4)
 
 
 class TestLadder(TempCase):
-    """نردبان پله‌ها: حد ضرر روی پلهٔ قبلی، و سرمایهٔ افزودهٔ هر پله."""
+    """نردبان پله‌ها: حد ضرر با درصد منفی زیر «قیمت حد»، و سرمایهٔ هر پله."""
 
     def _engine(self):
         e = TradingEngine(self.cfg)
@@ -339,28 +378,32 @@ class TestLadder(TempCase):
         e.storage.kv_set("exit_plans", plans)
         return plan
 
-    def test_legacy_stale_stop_is_lifted_to_the_previous_rung(self):
-        """پلهٔ ۴ (حد ‎+۷۵٪) با حد ضرری که هنوز ۳٪ زیر قیمت خرید مانده:
-        همان چرخه روی پلهٔ ۳ بالا کشیده می‌شود — دقیقاً جایی که کاربر
-        می‌گفت «حد ضرر پایین‌تر از پله به‌روز می‌شود و سود بی‌محافظ است»."""
+    def test_levels_stay_frozen_between_rungs(self):
+        """حد ضرر و حد سود قفل‌اند: هیچ چرخه‌ای و هیچ تغییر «قیمت حد»/
+        پله آن‌ها را جابه‌جا نمی‌کند — نه بالا، نه پایین. تنها رخدادی که
+        سطح را عوض می‌کند رسیدن قیمت به همان حد سود است."""
         e = self._engine()
         e.run_cycle()
         mkt, price = self._market(e)
-        hadd = (price * (Decimal("1.15") ** 4)).quantize(Decimal("0.000001"))
-        plan = self._plant(e, mkt, price, {
-            "stage": 4, "base_price": float(hadd),
-            "locked_stop": float(hadd),
-            # هدف خیلی دور تا همین تست strike جدیدی نخورد
-            "take_profit_manual": float(hadd * Decimal("10")),
-            "take_profit_manual_pct": 15.0})
-        old_stop = Decimal(str(plan["stop"]))
-        e._advance_profit_locks({})
+        plan = self._plant(e, mkt, price)
+        stop0 = Decimal(str(plan["stop"]))
+        tp0 = Decimal(str(plan["take_profit_manual"]))
+        # قیمت زیر حد سود است: چند چرخه هیچ سطحی عوض نمی‌شود
+        for _ in range(3):
+            e._advance_profit_locks({mkt: float(tp0 * Decimal("0.95"))})
         plan = e.storage.kv_get("exit_plans", {})[mkt]
-        rung3 = (price * (Decimal("1.15") ** 3)).quantize(Decimal("0.000001"))
-        self.assertEqual(Decimal(str(plan["stop"])), rung3)
-        self.assertGreater(Decimal(str(plan["stop"])), old_stop)
-        self.assertEqual(int(plan["ladder_stop_stage"]), 4)
-        self.assertEqual(int(plan["stage"]), 4)
+        self.assertEqual(Decimal(str(plan["stop"])), stop0)
+        self.assertEqual(Decimal(str(plan["take_profit_manual"])), tp0)
+        self.assertEqual(int(plan["stage"]), 0)
+        # تغییر دستی پله/قیمت حد هم سطح‌ها را تکان نمی‌دهد
+        out = e.set_hadd(mkt, 3, float(tp0 * Decimal("2")))
+        self.assertTrue(out["ok"])
+        self.assertEqual(int(out["stage"]), 3)
+        self.assertEqual(Decimal(str(out["stop"])), stop0)
+        self.assertEqual(Decimal(str(out["take_profit"])), tp0)
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertEqual(Decimal(str(plan["stop"])), stop0)
+        self.assertEqual(Decimal(str(plan["take_profit_manual"])), tp0)
 
     def test_stop_never_falls_back(self):
         """حد ضرری که دستی بالاتر از پله گذاشته شده پایین نمی‌آید."""
@@ -376,6 +419,7 @@ class TestLadder(TempCase):
         e._advance_profit_locks({})
         plan = e.storage.kv_get("exit_plans", {})[mkt]
         self.assertEqual(Decimal(str(plan["stop"])), high)
+        self.assertAlmostEqual(plan["stop_pct"], -3.0, places=2)
 
     def test_row_shows_locked_profit_percent_and_money(self):
         """درصد و مبلغ حد ضرر با پله عوض می‌شوند: پله ۲ → حد = پله ۱."""
@@ -391,12 +435,11 @@ class TestLadder(TempCase):
         row = e._position_row(e.storage.position(mkt),
                               {mkt: float(price)}, 1_000_000.0)
         self.assertEqual(int(row["stage"]), 2)
-        # حد = پلهٔ قبلی (۱۵٪ بالای خرید) و حد ضرر روی پلهٔ ۱ → درصد
-        # نمایش‌داده‌شده نسبت به «قیمت حد» = ۱۵٪ زیر پلهٔ فعلی (منفی)
-        self.assertAlmostEqual(row["hadd_stop_pct"],
-                               -100 * 15.0 / 115.0, places=1)
-        # درصد نسبت به قیمت خرید همان ‎+۱۵٪ قفل‌شده است (پایهٔ مبلغ)
-        self.assertAlmostEqual(row["stop_pct_buy"], 15.0, places=1)
+        # حد ضرر با درصد منفیِ خود پلن روی «قیمت حد» پله ۲ بسته شده:
+        # درصدِ نمایش‌داده‌شده نسبت به قیمت حد همان ‎-۳٪ است (منفی)
+        self.assertAlmostEqual(row["hadd_stop_pct"], -3.0, places=2)
+        # درصد نسبت به قیمت خرید = سود قفل‌شدهٔ همان حد (پایهٔ مبلغ)
+        self.assertAlmostEqual(row["stop_pct_buy"], 28.28, places=1)
         want_money = float((Decimal(str(row["stop"])) - price) *
                            Decimal("10"))
         self.assertAlmostEqual(row["stop_money"], want_money, places=1)        # سرمایهٔ پلهٔ بعد = سودِ همان پله: (حد سودِ مسلح − میانگین خرید) ×
@@ -476,17 +519,25 @@ class TestLadder(TempCase):
             (price * Decimal("1.2") * Decimal("0.97")).quantize(
                 Decimal("0.000001")))
 
-    def test_manual_rung_edit_lifts_the_stop(self):
-        """پلهٔ دستی (کلیک روی زوج (n)) هم حد ضرر را بالا می‌برد."""
+    def test_manual_rung_edit_keeps_the_levels(self):
+        """پلهٔ دستی (کلیک روی زوج (n)) فقط شمارنده است: حد ضرر/حد سود
+        تکان نمی‌خورند (قاعدهٔ «سطوح با تغییر قیمت حد عوض نمی‌شوند»)."""
         e = self._engine()
         e.run_cycle()
         mkt, price = self._market(e)
-        self._plant(e, mkt, price)
+        plan = self._plant(e, mkt, price)
+        stop0 = Decimal(str(plan["stop"]))
+        tp0 = Decimal(str(plan["take_profit_manual"]))
         out = e.set_hadd(mkt, 2, float(price * Decimal("1.3")))
         self.assertTrue(out["ok"])
-        # لنگر = قیمت خرید، گام = ۱۵٪ → حد = پلهٔ ۱ = خرید × ۱.
-        self.assertEqual(Decimal(str(out["stop"])),
-                         (price * Decimal("1.15")).quantize(
+        self.assertEqual(int(out["stage"]), 2)
+        self.assertEqual(Decimal(str(out["stop"])), stop0)
+        self.assertEqual(Decimal(str(out["take_profit"])), tp0)
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        # لیست پله‌ها به همین پله می‌رسد (بودجهٔ پلهٔ بعد از آن می‌آید)
+        self.assertEqual(len(plan["ladder_rungs"]), 3)
+        self.assertEqual(Decimal(str(plan["ladder_rungs"][-1])),
+                         (price * Decimal("1.3")).quantize(
                              Decimal("0.000001")))
 
     def test_ladder_topup_buys_one_rung_budget_once(self):
@@ -540,7 +591,9 @@ class TestLadder(TempCase):
         m = min(pool, key=lambda x: float(x["last_price"]))
         mkt = m["symbol"]
         price = Decimal(str(m["last_price"]))
-        rung1 = (price * Decimal("1.15")).quantize(Decimal("0.000001"))
+        # پله‌ای که قیمت به آن رسیده باید زیر قیمت زنده باشد؛ وگرنه حد
+        # ضرر نردبانی (چند درصد زیر همان پله) درست و منطقی فوراً می‌زند.
+        rung1 = (price * Decimal("0.98")).quantize(Decimal("0.000001"))
         self._plant(e, mkt, price, {
             "stage": 1, "base_price": float(rung1),
             "locked_stop": float(rung1),
@@ -620,6 +673,100 @@ class TestLadder(TempCase):
         self.assertEqual(Decimal(str(plan["stop"])), old_stop)
         self.assertNotIn("ladder_stop_stage", plan)
         self.assertEqual(int(plan.get("ladder_add_stage", 0)), 0)
+
+
+class TestStrikeRules(TempCase):
+    """قواعد پله: درصد حد ضرر منفی، فروش کامل در حد ضرر، پله‌شدن حد سود."""
+
+    def _engine(self):
+        e = TradingEngine(self.cfg)
+        e.auto_trading = False
+        return e
+
+    def _first_market(self, e):
+        return next(m["symbol"] for m in e.latest_snapshot["markets"])
+
+    def _price_of(self, e, mkt):
+        return Decimal(str(next(m for m in e.latest_snapshot["markets"]
+                                if m["symbol"] == mkt)["last_price"]))
+
+    def _plant(self, e, market, price):
+        e.storage.upsert_position(
+            market, Decimal("10"), price, Decimal("0"),
+            last_buy_at=datetime.now(timezone.utc).isoformat(),
+            last_buy_price=price)
+        plan = {"stop": float(price * Decimal("0.98")),
+                "stop_pct": -2.0, "auto": True, "stage": 0,
+                "take_profit_manual": float(price * Decimal("1.20")),
+                "take_profit_manual_pct": 20.0}
+        plans = e.storage.kv_get("exit_plans", {})
+        plans[market] = plan
+        e.storage.kv_set("exit_plans", plans)
+        return plan
+
+    def test_stop_hit_sells_the_whole_coin(self):
+        """رسیدن قیمت به حد ضرر = فروش تمام سکه (نه بخشی از آن)."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = self._first_market(e)
+        price = self._price_of(e, mkt)
+        self._plant(e, mkt, price)
+        out = e._manage_exits({mkt: float(price * Decimal("0.97"))},
+                              "cyc_stop")
+        self.assertEqual(len(out), 1)
+        dec = out[0]
+        self.assertEqual(dec["symbol"], mkt)
+        self.assertIn("EXIT_STOP", dec["reason_codes"])
+        self.assertAlmostEqual(dec["position_size"]["amount"], 10.0,
+                               places=6)
+
+    def test_take_profit_advances_instead_of_selling(self):
+        """رسیدن به حد سود کل سکه را نمی‌فروشد: پله یک بالا می‌رود و هر دو
+        سطح از «قیمت حد» جدید بازتنظیم می‌شوند."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = self._first_market(e)
+        price = self._price_of(e, mkt)
+        self._plant(e, mkt, price)
+        tp0 = Decimal(str(e.storage.kv_get("exit_plans", {})[mkt]
+                          ["take_profit_manual"]))
+        # ترتیب چرخه: اول ratchet، بعد بررسی خروج‌ها
+        e._advance_profit_locks({mkt: float(tp0)})
+        out = e._manage_exits({mkt: float(tp0)}, "cyc_tp")
+        self.assertEqual(out, [], "حد سود نباید فروش بزند")
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertEqual(int(plan["stage"]), 1)
+        self.assertGreater(Decimal(str(plan["take_profit_manual"])), tp0)
+        self.assertLess(plan["stop_pct"], 0)
+        self.assertEqual(Decimal(str(plan["stop"])),
+                         (tp0 * Decimal("0.98")).quantize(
+                             Decimal("0.000001")))
+
+    def test_price_edit_never_stores_a_positive_stop_percent(self):
+        """ویرایش حد ضرر با «قیمت» (نه درصد) هم درصد را منفی نگه می‌دارد؛
+        حتی وقتی سطح بالای «قیمت حد» نشسته است."""
+        e = self._engine()
+        e.run_cycle()
+        mkt = self._first_market(e)
+        price = self._price_of(e, mkt)
+        self._plant(e, mkt, price)
+        tp0 = Decimal(str(e.storage.kv_get("exit_plans", {})[mkt]
+                          ["take_profit_manual"]))
+        e._advance_profit_locks({mkt: float(tp0)})
+        live = price * Decimal("1.30")
+        for m in e.latest_snapshot["markets"]:
+            if m["symbol"] == mkt:
+                m["last_price"] = float(live)
+        edited = (live * Decimal("0.99")).quantize(Decimal("0.000001"))
+        r = e.set_stop_loss(mkt, float(edited), side="sell", kind="stop")
+        self.assertTrue(r["ok"])
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertLess(plan["stop_pct"], 0)
+        # سطح دستیِ بالاتر از پله پایین نمی‌آید و درصدش منفی می‌ماند
+        e._advance_profit_locks({mkt: float(live)})
+        plan = e.storage.kv_get("exit_plans", {})[mkt]
+        self.assertEqual(Decimal(str(plan["stop"])), edited)
+        self.assertLess(plan["stop_pct"], 0)
 
 
 class TestNetDeposited(TempCase):
@@ -898,6 +1045,23 @@ class TestNetDeposited(TempCase):
         self.assertEqual(len(calls), 2)
         self.assertTrue(out["fresh"])
         self.assertEqual(out["net_irt"], 1000000.0)
+
+
+class TestDecimalSettings(unittest.TestCase):
+    """تنظیمات: درصد اعشاری در فیلدی که قبلاً عدد صحیح بود هم می‌ماند."""
+
+    def test_fractional_percent_is_not_truncated(self):
+        from nobitex_bot.web import _coerce_config_value
+        # config.json قدیمی این‌ها را به‌صورت int نگه می‌دارد
+        self.assertEqual(_coerce_config_value("-2.5", -3), -2.5)
+        self.assertEqual(_coerce_config_value("12.75", 25), 12.75)
+        # عدد صحیح مثل قبل int می‌ماند (پورت/تعداد دست نمی‌خورد)
+        self.assertEqual(_coerce_config_value("8787", 8787), 8787)
+        self.assertIsInstance(_coerce_config_value("8787", 8787), int)
+        # float، bool و رشته هم مثل قبل
+        self.assertEqual(_coerce_config_value("2.5", 2.0), 2.5)
+        self.assertTrue(_coerce_config_value("true", False))
+        self.assertEqual(_coerce_config_value("abc", "x"), "abc")
 
 
 if __name__ == "__main__":

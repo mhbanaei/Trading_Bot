@@ -511,6 +511,35 @@ def _normalize_market_interaction(v) -> str:
     return "independent"
 
 
+def _coerce_config_value(v, old):
+    """Keep a saved setting in the CURRENT field's type.
+
+    The int branch deliberately keeps a FRACTIONAL value as a float:
+    typing ‎-2.5 in «حد ضرر پیش‌فرض خرید» / «حد سود» / گام پله (fields
+    stored as ints in config.json) was truncated to -2, so decimal
+    percents could never be set from the settings panel (user request:
+    «بشه درصد حد ضرر و حد سود رو به اعشار تعیین کرد»).
+    """
+    if isinstance(old, bool):
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes", "on")
+        return bool(v)
+    if isinstance(old, int) and not isinstance(old, bool):
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            return old
+        if fv != int(fv):
+            return fv
+        return int(fv)
+    if isinstance(old, float):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return old
+    return v
+
+
 def save_config(engine: TradingEngine, body: dict) -> dict:
     """Persist config.json; existing *** masks keep their stored values.
 
@@ -563,23 +592,6 @@ def save_config(engine: TradingEngine, body: dict) -> dict:
         return {"ok": False, "error": str(exc)}
 
     # ---- apply live: coerce each value to the current field's type ----
-    def _coerce(v, old):
-        if isinstance(old, bool):
-            if isinstance(v, str):
-                return v.strip().lower() in ("true", "1", "yes", "on")
-            return bool(v)
-        if isinstance(old, int) and not isinstance(old, bool):
-            try:
-                return int(float(v))
-            except (TypeError, ValueError):
-                return old
-        if isinstance(old, float):
-            try:
-                return float(v)
-            except (TypeError, ValueError):
-                return old
-        return v
-
     applied, failed = [], []
     # credentials live in the login SESSION, not in config.json — the form
     # posts them as empty strings. NEVER let an empty value wipe a
@@ -617,7 +629,7 @@ def save_config(engine: TradingEngine, body: dict) -> dict:
                     pass
             try:
                 old = getattr(target, k)
-                setattr(target, k, _coerce(v, old))
+                setattr(target, k, _coerce_config_value(v, old))
                 applied.append("%s.%s" % (sec_name, k))
             except Exception as exc:
                 failed.append({"field": "%s.%s" % (sec_name, k),

@@ -170,23 +170,25 @@ class RiskCfg:
     default_stop_loss_pct: float = -3.0
     default_take_profit_pct: float = 25.0
     # HADD ratchet — always on. The moment the live price reaches the
-    # current «حد سود فروش» the strike counter advances, the hadd (the
-    # TP reference) moves to that price and the next take-profit re-arms
-    # step% above it. 0 disables the ratchet.
+    # plan's STORED take-profit price, the strike counter advances ONE
+    # rung and that rung's levels are armed once from the reached level
+    # (TP step% above it, stop with the plan's negative percent).
+    # حد ضرر و حد سود سطوح ثابت‌اند: با تکون قیمت و با تغییر «قیمت حد»
+    # جابه‌جا نمی‌شوند؛ فقط فعال شدن پله آن‌ها را یک قدم جلو می‌برد.
+    # 0 disables the ratchet.
     profit_lock_enabled: bool = True
-    # ratchet step: each strike re-arms the take-profit this much above
-    # the new hadd (and is the height of one «پله» of the ladder).
+    # ratchet step: each rung arms the take-profit this much above the
+    # level the price reached (the height of one «پله»).
     profit_lock_step_pct: float = 15.0
-    profit_lock_stage_floor_pct: float = 1.0
     profit_lock_max_stage: int = 0
-    # نردبانِ پله‌ها (ladder) — با هر strike هم حد ضرر بالا می‌رود و هم
-    # سرمایهٔ افزوده روی همان سکه می‌نشیند:
-    # • حد ضرر روی «پلهٔ قبلی» می‌نشیند و هرگز پایین نمی‌آید — پله ۱ ←
-    #   قیمت خرید (سربه‌سر)، پله ۲ ← پله ۱، پله ۳ ← پله ۲ … یعنی هر پله
-    #   که بالا می‌رود سود پلهٔ قبل قفل می‌شود و یک پلهٔ کامل فضای نفس
-    #   می‌ماند. (حد چند درصد زیر پلهٔ جدید نه: روی تکان معمولی بازار
-    #   می‌فروخت و سود را قبل از ادامهٔ روند می‌بست.) مبنای درصد و مبلغ
-    #   حد ضرر هم همان لحظه با هر پله به‌روز می‌شود.
+    # نردبانِ پله‌ها (ladder) — با هر پله یک‌بار هم حد ضرر بازتنظیم
+    # می‌شود و هم سرمایهٔ افزوده روی همان سکه می‌نشیند:
+    # • در لحظهٔ فعال شدن پله، حد سود = سطحِ رسیده‌شده × (۱ + درصد حد
+    #   سود) و حد ضرر = سطحِ رسیده‌شده × (۱ + درصد حد ضرر) با درصد
+    #   **منفی** (مثلاً ‎-۳٪). پس درصد حد ضرر هرگز مثبت نمی‌شود و چون گام
+    #   پله از قدرمطلق آن درصد بزرگ‌تر است، حد ضرر خودبه‌خود بالای قیمت
+    #   خرید (سود قفل‌شده) می‌نشیند؛ حد ضرر هرگز پایین نمی‌آید و ویرایش
+    #   دستی هم محترم است. بین دو پله هیچ سطحی عوض نمی‌شود.
     # • سرمایهٔ هر پله: همان **سودِ آن پله** — (قیمتی که پله به آن رسید −
     #   میانگین خرید) × تعداد سکه، از پول نقد آزاد. پله فقط از سود خودش
     #   سرمایه می‌گیرد (نه درصدی از ارزش موقعیت): با هر strike سودی که
@@ -411,7 +413,6 @@ class Config:
         rk.setdefault("default_take_profit_pct", self.risk.default_take_profit_pct)
         rk.setdefault("profit_lock_enabled", self.risk.profit_lock_enabled)
         rk.setdefault("profit_lock_step_pct", self.risk.profit_lock_step_pct)
-        rk.setdefault("profit_lock_stage_floor_pct", self.risk.profit_lock_stage_floor_pct)
         rk.setdefault("profit_lock_max_stage", self.risk.profit_lock_max_stage)
         rk.setdefault("ladder_enabled", self.risk.ladder_enabled)
         rk.setdefault("ladder_topup_enabled", self.risk.ladder_topup_enabled)
