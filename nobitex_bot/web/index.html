@@ -571,7 +571,7 @@ html[data-theme="dark"] .strike-badge .num{color:var(--orange)}
 <header>
   <h1>🤖 ربات معاملاتی هوشمند</h1>
   <span id="modeBadge" class="badge demo">حالت آزمایشی</span>
-  <span id="uiBuildBadge" class="badge off" style="font-size:10px;opacity:.72;direction:ltr" title="نسخهٔ رابط کاربری. اگر این عدد را نمی‌بینی یا قدیمی است، صفحه را با Ctrl+Shift+R تازه کن">UI 82</span>
+  <span id="uiBuildBadge" class="badge off" style="font-size:10px;opacity:.72;direction:ltr" title="نسخهٔ رابط کاربری. اگر این عدد را نمی‌بینی یا قدیمی است، صفحه را با Ctrl+Shift+R تازه کن">UI 83</span>
   <span id="connBadge" class="badge off" style="cursor:pointer" title="کلیک: رفتن به تب حساب نوبیتکس" onclick="document.querySelector('#tabs button[data-tab=exchange]')?.click()">اتصال: —</span>
   <span id="engineBadge" class="badge off">موتور: متوقف</span>
   <span id="safeBadge" class="badge ok" style="display:none" title="حالت امن = حالت ریسک خاموش (پروفایل محافظه‌کار)">حالت امن</span>
@@ -2414,11 +2414,11 @@ function holdingsBox(s){
       :((rowVal(h)!=null&&rowCost(h)!=null&&!isNaN(rowVal(h))&&!isNaN(rowCost(h)))
         ?(Number(rowVal(h))-Number(rowCost(h))):null));
   /* درصد «سود از خرید» = (ارزش − مبلغ خرید) ÷ مبلغ خرید.
-     از همان دو عددی که کارت چاپ می‌کند ساخته می‌شود تا درصد و مبلغ هیچ
-     وقت با هم نخوانند (مبلغ پرداخت‌شده = مقدار × قیمت خرید، پس این با
-     (قیمت فعلی − قیمت خرید) ÷ قیمت خرید یکی است). ۲ رقم اعشار، بدون
-     «+0.00»/«-0.00» و با علامت همان پول. اگر یکی از دو عدد نبود، درصد
-     سرور به‌عنوان جایگزین می‌ماند. */
+     «قیمت خرید» همان قیمت آخرین خرید است، پس هر خرید مجدد این درصد و
+     تایمرش را از صفر شروع می‌کند (سرور مبلغ و درصد را روی همین مبنا
+     می‌سازد). از همان دو عددی که کارت چاپ می‌کند ساخته می‌شود تا درصد
+     و مبلغ هیچ وقت با هم نخوانند. ۲ رقم اعشار، بدون «+0.00»/«-0.00»
+     و با علامت همان پول. اگر یکی از دو عدد نبود، درصد سرور می‌ماند. */
   const rowPct=h=>{
     const v=rowVal(h),c=rowCost(h);
     if(v==null||c==null||isNaN(v)||isNaN(c)||Number(c)<=0)
@@ -2435,11 +2435,10 @@ function holdingsBox(s){
   const rowsUsdt=[],rowsIrt=[],holdUsdt=[],holdIrt=[];
   for(const h of sorted){
     const sym=h.symbol;
-    /* SS100d: after a new buy the «قیمت خرید» shows the LAST buy price;
-       سود از خرید (هم مبلغ، هم درصد) always reads the WEIGHTED average
-       cost — profit_pct = (ارزش − مبلغ خرید) ÷ مبلغ خرید, exactly the
-       money printed next to it, so a loss can never show a plus percent.
-       The server computes both; here we just display them. */
+    /* «قیمت خرید» = price of the LAST buy; سود از خرید (هم مبلغ، هم
+       درصد) روی همان مبناست — profit_pct = (ارزش − مبلغ خرید) ÷ مبلغ
+       خرید — و با هر خرید مجدد صفر می‌شود؛ مبلغ و درصد همیشه یک علامت
+       دارند. The server computes both; here we just display them. */
     const entry=(h.last_buy_price!=null?h.last_buy_price:h.avg_entry);
     /* HADD badge: (n) next to the strike price — n = number of strikes
        reached (0 = still equal to the last buy price); ALWAYS shown —
@@ -2545,7 +2544,7 @@ function holdingsBox(s){
       <div class="hold-head">
         <span class="hold-coin">${esc(h.coin)}</span>
         <span class="hold-mkt">${esc(sym)}</span>
-        <span class="hold-profit ${profCls}" title="درصد سود = (ارزش − مبلغ خرید) ÷ مبلغ خرید — روی میانگین خرید همین ردیف | مبلغ دقیق: ${h.pnl_exact!=null?fmt(h.pnl_exact,2):"—"} ${/USDT$/.test(sym)?"$":"ت"}">${profTxt}</span>
+        <span class="hold-profit ${profCls}" title="درصد سود = (ارزش − مبلغ خرید) ÷ مبلغ خرید — از قیمت آخرین خرید همین ردیف؛ با هر خرید مجدد صفر می‌شود | مبلغ دقیق: ${h.pnl_exact!=null?fmt(h.pnl_exact,2):"—"} ${/USDT$/.test(sym)?"$":"ت"}">${profTxt}</span>
       </div>
       <div class="ct-grid">
         <div><span class="k">ارزش</span><span class="v">${moneyCell(rowVal(h),sym)}</span></div>
@@ -2554,7 +2553,7 @@ function holdingsBox(s){
         <div><span class="k">قیمت خرید</span><span class="v">${entry?mfmt(entry,h.symbol):"—"}</span></div>
         <div><span class="k">قیمت حد</span><span class="v">${haddShown?mfmt(haddShown,h.symbol):"—"}${haddBadge}</span></div>
       </div>
-      <div class="hold-line">سود از خرید: <b class="num ${profCls}">${profTxt}</b> ${pnlCell(rowMoney(h),sym)}${buyAge}</div>
+      <div class="hold-line" title="از قیمت آخرین خرید همین سکه حساب می‌شود؛ با هر خرید مجدد صفر می‌شود و تا فروش کامل ادامه دارد">سود از خرید (از آخرین خرید): <b class="num ${profCls}">${profTxt}</b> ${pnlCell(rowMoney(h),sym)}${buyAge}</div>
       <div class="hold-levels">
         <div><span class="k">حد ضرر</span>${stopPctCell(h,"stop")}</div>
         <div><span class="k">حد سود</span>${stopPctCell(h,"profit")}</div>

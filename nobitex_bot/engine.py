@@ -4793,7 +4793,7 @@ class TradingEngine:
         """LIVE سود کل over the holdings box — built from exactly the
         same per-row «سود از خرید» numbers the holdings table shows:
         for every held coin, profit = value − invested (invested at the
-        row's weighted average cost — the same basis as its percent).
+        row's LAST buy price — the same basis as its percent).
         Recomputed on every status() call, so the KPI moves with the rows
         in real time.
 
@@ -4827,6 +4827,10 @@ class TradingEngine:
         by = {q: {"invested": ZERO, "value": ZERO, "pnl": ZERO, "rows": 0}
               for q in ("USDT", "IRT")}
         rows_all = 0
+        # actual cost (weighted average) of the Toman rows — used only for
+        # the first-run «سرمایه واریزی» seed, which must not change just
+        # because the displayed profit restarts at every re-buy.
+        cost_irt = ZERO
         for p in self.storage.positions():
             mk = p["market"]
             if d(p["amount"]) <= 0 or mk in ("USDT", "IRT", "USDTIRT"):
@@ -4837,6 +4841,8 @@ class TradingEngine:
                 if px:
                     prices[mk] = px
             row = self._position_row(p, prices, usdtirt)
+            if q == "IRT" and row.get("cost_basis_irt") is not None:
+                cost_irt += d(str(row["cost_basis_irt"]))
             agg = by.setdefault(q, {"invested": ZERO, "value": ZERO,
                                     "pnl": ZERO, "rows": 0})
             # a row whose خرید basis is unknown has no (ارزش − مبلغ خرید)
@@ -4873,7 +4879,7 @@ class TradingEngine:
         pnl = value - invested
         pct = by_market["IRT"]["pnl_pct"]
         deposited = d(str(self.get_deposited_capital()))
-        self._seed_deposited_capital(float(invested))
+        self._seed_deposited_capital(float(cost_irt or invested))
         # NOTE: «کل سرمایه واریزی» is a Toman concept, so it is seeded/read
         # from the Toman side only — a Tether position's dollars are never
         # counted as if they were Toman deposited.
@@ -5135,9 +5141,11 @@ class TradingEngine:
     def _position_row(self, p: dict, prices: dict, usdtirt: float) -> dict:
         """One holdings-box row: amounts, values and profit since MY buys.
 
-        سود از خرید is computed against the position's average entry —
-        NOT the market's 24h change. The holding timer restarts from the
-        most recent BUY fill (last_buy_at), so every top-up restarts it.
+        سود از خرید is computed against the LAST buy price — NOT the
+        market's 24h change and NOT the weighted average of the first buy.
+        The holding timer likewise restarts from the most recent BUY fill
+        (last_buy_at), so every re-buy starts both the percent and the
+        timer at zero; the weighted cost stays in `cost_basis_irt`.
         """
         market = p["market"]
         wallet_vals = getattr(self, "_wallet_valuations", None) or {}
@@ -5178,27 +5186,26 @@ class TradingEngine:
                     price = unit_irt
                     price_source = "wallet"
         entry = d(p["avg_entry"])
-        # SS100d: after a NEW buy the UI «قیمت خرید» shows the LAST buy
-        # price (the number the user just paid). P&L — both the money and
-        # the percent — always reads the WEIGHTED average cost (avg_entry),
-        # which is what the coins actually cost; using the last buy price
-        # for the percent made it disagree with the money (a loss showed
-        # «+۰٫۳۷٪» and a profit showed «−۴٫۵۵٪»).
+        # «قیمت خرید» ردیف = قیمت LAST BUY (همان عددی که کاربر همین حالا
+        # پرداخت کرده)؛ میانگین وزنی (avg_entry) فقط هزینهٔ واقعی کل را
+        # نگه می‌دارد.
         last_buy_price = d(str(p.get("last_buy_price") or 0))
         display_entry = last_buy_price if last_buy_price > 0 else entry
-        # مبلغ خرید = پولی که واقعاً برای همین تعداد سکه داده‌ایم:
-        # تعداد × میانگین خرید — همان عددی که دفتر با هر فیل خرید
-        # می‌سازد و در فروش هم مبنای «سود محقق‌شده» است. «قیمت خرید» ردیف
-        # (طبق SS100d) آخرین خرید را نشان می‌دهد، ولی «مبلغ خرید» و
-        # «سود از خرید» (هم مبلغ، هم درصد) هرگز از میانگین خرید جدا
-        # نمی‌شوند؛ وگرنه جمع «ارزش منهای مبلغ خرید» روی ردیف‌ها هزینهٔ
-        # واقعی نمی‌شود.
+        # «سود از خرید» از زمان و قیمت آخرین خرید حساب می‌شود، نه اولین
+        # خرید (خواستهٔ کاربر): با هر خرید مجدد همان سکه، مبنا همان قیمتی
+        # است که همین حالا پرداخت شده و تایمر هم از last_buy_at تازه
+        # می‌شود — پس درصد و مدتِ نگه‌داری روی صفر شروع می‌شوند. «مبلغ
+        # خرید» هم (مقدار × همین مبنا) از همان خرید است تا درصد و مبلغ
+        # همیشه یک علامت داشته باشند.
         # (ریشهٔ باگ ‎-۲۳۳٫۵۹$: میانگین خریدِ SUSDT در دفتر ۱۶٫۵$ مانده
         # بود در حالی که همهٔ خریدهایش ‎~۰٫۰۴$ بود — عدد خراب از خودِ
         # دفتر تعمیر می‌شود (`_repair_position_entry`)، نه اینکه نمایش
         # عوض شود و خرابی زیرش بماند.)
-        entry_basis = entry if entry > 0 else display_entry
+        entry_basis = display_entry
         buys_irt = amount * entry_basis if entry_basis > 0 else ZERO
+        # هزینهٔ واقعی (مقدار × میانگین خرید) جدا نگه داشته می‌شود؛ برای
+        # نمایش «سود از خرید» استفاده نمی‌شود ولی در payload می‌ماند.
+        cost_basis_irt = amount * entry if entry > 0 else ZERO
         value_irt = amount * price
         # 24h move of THIS coin applied to MY amount — the SAME definition
         # the Nobitex wallet uses, and independent of when I bought the
@@ -5315,10 +5322,8 @@ class TradingEngine:
                                                 rounding=ROUND_HALF_UP)
                      if (ch24_money is not None and row_step) else None)
         # «سود از خرید» در درصد = (ارزش − مبلغ خرید) ÷ مبلغ خرید روی
-        # اعدادِ دقیق (نه دو عدد گِردشدهٔ نمایش): درصد باید همان درصدی
-        # باشد که کیف پول نوبیتکس از ارزش واقعی حساب می‌دهد. علامتش هم
-        # همیشه با علامت همان پول یکی است (قبلاً درصد نسبت به «آخرین
-        # قیمت خرید» بود و زیان را «+» نشان می‌داد).
+        # اعدادِ دقیق (نه دو عدد گِردشدهٔ نمایش) و بر مبنای همان آخرین
+        # خرید، پس علامتش همیشه با علامت همان پول یکی است.
         profit_pct = None
         if entry_basis > 0 and buys_irt > 0:
             profit_pct = float(((value_irt - buys_irt) / buys_irt * 100)
@@ -5340,7 +5345,11 @@ class TradingEngine:
             "avg_entry": float(entry) if entry > 0 else None,
             "last_buy_price": float(last_buy_price)
             if last_buy_price > 0 else None,
+            # مبنای فعلی «سود از خرید» (قیمت آخرین خرید × تعداد)؛
+            # هزینهٔ واقعی هم جدا برای گزارش می‌آید.
             "invested_irt": float(buys_irt) if buys_irt > 0 else None,
+            "cost_basis_irt": (float(cost_basis_irt)
+                               if cost_basis_irt > 0 else None),
             # واحد پول همین ردیف: بازار تتری $، بازار تومانی تومان — هیچ
             # عددی بین دو بخش قرض گرفته نمی‌شود (by_market هم روی همین است)
             "quote": row_quote,

@@ -255,45 +255,57 @@ class TestSharesAndTotals(PvCase):
                          st["portfolio"]["account"]["irt_available"])
 
 
-class TestRowProfitPercentMatchesTheMoney(PvCase):
-    """«سود از خرید» percent = the SAME (ارزش − مبلغ خرید) ÷ مبلغ خرید.
+class TestRowProfitRestartsAtTheLastBuy(PvCase):
+    """«سود از خرید» = فاصلهٔ ارزش تا قیمتِ آخرین خرید، نه اولین خرید.
 
-    Live account truth (2026-10-25): XRPIRT showed «+۰٫۳۷٪» next to
-    ‎-۱٬۷۷۴ تومان and CVXIRT showed «−۴٫۵۵٪» next to +۱۵٬۵۳۷ تومان — the
-    percent read the LAST buy price while the money read the weighted
-    average cost. The user's rule: our value minus our purchase amount is
-    the profit, and the percent must be that same profit over the same
-    purchase amount (a loss can never carry a plus sign).
+    خواستهٔ کاربر (۱۴۰۵-۰۸-۰۷): با هر بار خرید مجدد همان سکه، درصد سود از
+    خرید و تایمرش باید صفر شوند؛ پس مبنا قیمت آخرین خرید است، نه میانگین
+    وزنیِ همهٔ خریدها. «مبلغ خرید» هم مقدار × همان مبناست تا مبلغ و درصد
+    یک علامت داشته باشند؛ هزینهٔ واقعی در `cost_basis_irt` می‌ماند.
     """
 
-    def test_a_cheaper_topup_never_turns_a_loss_into_a_plus_percent(self):
+    def test_the_percent_restarts_from_the_last_buy_price(self):
         e = self._engine()
         self._use_fake(e, catalog(ATOMUSDT=_row("ATOMUSDT", 60.0)))
-        # میانگین خرید ۱۰۰، آخرین خرید ۵۰ → قیمت ۶۰ یعنی هنوز زیان
+        # میانگین خرید ۱۰۰ (خرید قدیمی)، آخرین خرید ۵۰، قیمت ۶۰
         self._plant(e, "ATOMUSDT", "2", "100")
         e.storage.upsert_position("ATOMUSDT", Decimal("2"),
                                   Decimal("100"), Decimal("0"),
                                   last_buy_price=Decimal("50"))
         row = e._position_row(e.storage.position("ATOMUSDT"),
                               {"ATOMUSDT": 60.0}, 0.0)
-        self.assertEqual(row["invested_disp"], 200.0)
+        self.assertEqual(row["invested_disp"], 100.0)   # ۲ × ۵۰
         self.assertEqual(row["value_disp"], 120.0)
-        self.assertEqual(row["pnl_money"], -80.0)
-        self.assertEqual(row["profit_pct"], -40.0)   # نه ‎+۲۰٪
+        self.assertEqual(row["pnl_money"], 20.0)
+        self.assertEqual(row["profit_pct"], 20.0)       # نه ‎-۴۰٪ (میانگین)
         self.assertEqual(row["profit_pct"] > 0, row["pnl_money"] > 0)
+        # هزینهٔ واقعی (مقدار × میانگین) از دست نمی‌رود
+        self.assertEqual(row["cost_basis_irt"], 200.0)
 
-    def test_a_richer_topup_never_turns_a_profit_into_a_negative_percent(self):
+    def test_the_percent_is_zero_at_the_last_buy_price(self):
+        e = self._engine()
+        self._use_fake(e, catalog(ATOMUSDT=_row("ATOMUSDT", 50.0)))
+        self._plant(e, "ATOMUSDT", "2", "100")
+        e.storage.upsert_position("ATOMUSDT", Decimal("2"),
+                                  Decimal("100"), Decimal("0"),
+                                  last_buy_price=Decimal("50"))
+        row = e._position_row(e.storage.position("ATOMUSDT"),
+                              {"ATOMUSDT": 50.0}, 0.0)
+        self.assertEqual(row["profit_pct"], 0.0)        # درست بعد از خرید
+        self.assertEqual(row["pnl_money"], 0.0)
+
+    def test_a_richer_topup_reads_its_loss_from_the_new_buy_price(self):
         e = self._engine()
         self._use_fake(e, catalog(CVXIRT=_row("CVXIRT", 650000.0)))
-        # میانگین خرید ۵۸۰٬۰۰۰، آخرین خرید ۶۸۸٬۰۰۰ → قیمت ۶۵۰٬۰۰۰ یعنی سود
+        # میانگین ۵۸۰٬۰۰۰، آخرین خرید ۶۸۸٬۰۰۰، قیمت ۶۵۰٬۰۰۰
         self._plant(e, "CVXIRT", "0.2", "580000")
         e.storage.upsert_position("CVXIRT", Decimal("0.2"),
                                   Decimal("580000"), Decimal("0"),
                                   last_buy_price=Decimal("688000"))
         row = e._position_row(e.storage.position("CVXIRT"),
                               {"CVXIRT": 650000.0}, 0.0)
-        self.assertEqual(row["pnl_money"], 14000.0)
-        self.assertEqual(row["profit_pct"], 12.07)   # نه ‎-۵٫۵۲٪
+        self.assertEqual(row["pnl_money"], -7600.0)
+        self.assertEqual(row["profit_pct"], -5.52)     # نه ‎+۱۲٪ (میانگین)
         self.assertEqual(row["profit_pct"] > 0, row["pnl_money"] > 0)
 
     def test_the_section_total_has_the_same_sign_as_its_rows(self):
@@ -302,8 +314,9 @@ class TestRowProfitPercentMatchesTheMoney(PvCase):
         self._plant(e, "ATOMUSDT", "2", "100")
         e.storage.upsert_position("ATOMUSDT", Decimal("2"),
                                   Decimal("100"), Decimal("0"),
-                                  last_buy_price=Decimal("50"))
+                                  last_buy_price=Decimal("70"))
         m = e._holdings_pnl({"ATOMUSDT": 60.0})["by_market"]["USDT"]
+        self.assertEqual(m["pnl"], -20.0)              # (۶۰ − ۷۰) × ۲
         self.assertLess(m["pnl"], 0)
         self.assertLess(m["pnl_pct"], 0)
 
