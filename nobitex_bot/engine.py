@@ -3031,9 +3031,14 @@ class TradingEngine:
         فرستاده می‌شود نه کل پیلود.
         """
         brief = {k: d_.get(k) for k in (
-            "decision_id", "symbol", "action", "confidence",
+            "decision_id", "symbol", "action", "confidence", "conviction",
             "reason_codes", "created_at", "expires_at", "entry",
             "stop_loss", "take_profit", "position_size", "cost", "risk")}
+        # تحلیل کامل تصمیم (همان `why` که HeuristicAI ساخته): کارت «آخرین
+        # تصمیم‌ها» باید شاهدها و نتیجهٔ هر گیت را نشان دهد، نه فقط اکشن.
+        why = d_.get("why")
+        if isinstance(why, dict) and why:
+            brief["why"] = why
         c = d_.get("committee")
         if isinstance(c, dict) and c:
             brief["committee"] = {
@@ -3051,6 +3056,7 @@ class TradingEngine:
                 "votes_buy": c.get("votes_buy"),
                 "votes_active": c.get("votes_active"),
                 "votes_needed": c.get("votes_needed"),
+                "agreement": c.get("agreement"),
                 "hold_s": c.get("hold_s"),
                 "horizon_s": c.get("horizon_s"),
                 "blocked_by": c.get("blocked_by") or [],
@@ -5689,11 +5695,15 @@ class TradingEngine:
         return None, ("بازار %s خاموش است — «بازار معاملات» در تنظیمات "
                       "روی %s است" % (off_fa, on_fa))
 
-    def manual_buy(self, symbol: str, amount_irt: float | None = None) -> dict:
+    def manual_buy(self, symbol: str, amount_irt: float | None = None,
+                   amount_quote: float | None = None) -> dict:
         """Dashboard «خرید» button in the holdings box (SS100c).
 
-        Buys `symbol` with the given Toman amount (or a suggestion from
-        free cash when None). A dedicated top-up decision is minted and
+        Buys `symbol` with the given amount — `amount_irt` (Toman) or,
+        for the market's OWN currency, `amount_quote` (Tether for *USDT
+        markets when «بازار معاملات» is on تتری — no Toman round-trip) —
+        or a suggestion from free cash when both are None. A dedicated
+        top-up decision is minted and
         pushed through the FULL SS100 pipeline: validation -> risk ->
         execution. The risk engine's normal caps still apply, but:
         - MAX_OPEN_POSITIONS_REACHED does not block topping up a held coin;
@@ -5728,7 +5738,8 @@ class TradingEngine:
                     "error": "قیمت زنده برای " + symbol +
                     " پیدا نشد — نماد را بررسی کنید یا چند لحظه بعد "
                     "دوباره تلاش کنید"}
-        if amount_irt is not None and amount_irt <= 0:
+        if (amount_irt is not None and amount_irt <= 0) or \
+                (amount_quote is not None and amount_quote <= 0):
             return {"ok": False, "error": "مبلغ باید مثبت باشد"}
 
         # run a fresh cycle when the snapshot is stale so limits/prices are
@@ -5782,7 +5793,12 @@ class TradingEngine:
         # applied (and the risk engine compared money against coins).
         want_irt = d(str(amount_irt or 0))
         want_quote = want_irt
-        if symbol.endswith("USDT") and irt_per_usdt > 0:
+        # مبلغ تایپ‌شده ممکن است در واحد پول خودِ بازار آید («فقط تتری»:
+        # دلار) — ارزش همانی که کاربر نوشته است، بدون گردشدن به تومان و
+        # بدون رانش نرخ میانی
+        if amount_quote is not None and d(str(amount_quote)) > 0:
+            want_quote = d(str(amount_quote))
+        elif symbol.endswith("USDT") and irt_per_usdt > 0:
             want_quote = want_irt / irt_per_usdt
         want_coins = (want_quote / cur) if cur > 0 else ZERO
         if amount_irt:
@@ -6755,6 +6771,122 @@ class TradingEngine:
             except Exception:
                 pass
         return out
+
+    # ------------------------------------------------- wallet convert
+    def wallet_convert_preview(self) -> dict:
+        """Data for the dashboard «تبدیل موجودی» dialog — NO side effects.
+
+        Returns the cash balances the dialog converts between: IRT (Toman)
+        and USDT (Tether), plus the exchange's own Toman value of one USDT
+        so the dialog can estimate the result before the user confirms.
+        """
+        out = {"real_attached": self._real_attached,
+               "interaction": self._effective_market_interaction()[0]}
+        if not self._real_attached:
+            out["error"] = "ابتدا به حساب واقعی لاگین کنید"
+            return out
+        try:
+            doc = self.exchange.portfolio()
+        except Exception as exc:
+            out["error"] = str(exc)
+            return out
+        if doc.get("error"):
+            out["error"] = doc["error"]
+            return out
+        irt = usdt = 0.0
+        usdt_toman = 0.0
+        for a in (doc.get("assets") or []):
+            coin = (a.get("asset") or "").upper()
+            if coin not in ("IRT", "USDT"):
+                continue
+            try:
+                avail = float(a.get("available") or 0)
+            except (TypeError, ValueError):
+                avail = 0.0
+            if avail <= 0:
+                continue
+            if coin == "IRT":
+                irt = avail
+            else:
+                usdt = avail
+                try:
+                    val = float(a.get("value_irt") or 0)
+                    tot = float(a.get("total") or 0)
+                except (TypeError, ValueError):
+                    val = tot = 0.0
+                if tot > 0 and val > 0:
+                    usdt_toman = val / tot
+        out.update({"irt": irt, "usdt": usdt,
+                    "usdt_toman": usdt_toman})
+        return out
+
+    def wallet_convert(self, target: str, amount=None) -> dict:
+        """Manual Toman ⇄ Tether conversion from the dashboard dialog.
+
+        target: "USDT" (Toman→Tether) or "IRT" (Tether→Toman).
+        amount: in Toman for USDT-target, in USDT for IRT-target;
+        None/empty = convert the WHOLE available cash balance.
+
+        The user's own explicit order — NOT a bot decision — so it
+        deliberately runs even when «تعامل بین بازارها» is off (the
+        cross-market gate is about the BOT moving money between sections,
+        never about the operator's own conversion). It still obeys
+        NOBITEX_READ_ONLY and the real-attach guard like every write.
+        """
+        target = str(target or "").upper()
+        if target not in ("USDT", "IRT"):
+            return {"ok": False, "error": "جهت تبدیل نامعتبر است"}
+        # validation BEFORE the attach guard: a bad amount is answerable
+        # even in demo mode, where the login prompt would hide the cause
+        if amount not in (None, ""):
+            try:
+                if d(str(amount)) <= 0:
+                    return {"ok": False, "error":
+                            "مبلغ تبدیل باید بزرگ‌تر از صفر باشد"}
+            except (ArithmeticError, TypeError, ValueError):
+                return {"ok": False, "error": "مبلغ تبدیل نامعتبر است"}
+        if not self._real_attached:
+            return {"ok": False, "error": "ابتدا به حساب واقعی لاگین کنید"}
+        prev = self.wallet_convert_preview()
+        if prev.get("error"):
+            return {"ok": False, "error": prev["error"]}
+        try:
+            if target == "USDT":
+                amt = d(str(amount)) if amount not in (None, "") \
+                    else d(str(prev["irt"]))
+                if amt <= 0:
+                    return {"ok": False, "error":
+                            "موجودی تومان قابل تبدیلی نیست"}
+                res = self.exchange.convert_irt_to_usdt(float(amt))
+                direction = "irt_to_usdt"
+                detail = {"from": "IRT", "amount": float(amt)}
+            else:
+                amt = d(str(amount)) if amount not in (None, "") \
+                    else d(str(prev["usdt"]))
+                if amt <= 0:
+                    return {"ok": False, "error":
+                            "موجودی تتر قابل تبدیلی نیست"}
+                res = self.exchange.convert_usdt_to_irt(
+                    float(amt), usdt_toman=prev["usdt_toman"])
+                direction = "usdt_to_irt"
+                detail = {"from": "USDT", "amount": float(amt)}
+        except NobitexError as exc:
+            self.events.publish("WALLET_CONVERT_FAILED", "engine", "", {
+                "target": target, "code": exc.code, "message": str(exc)})
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:
+            self.events.publish("WALLET_CONVERT_FAILED", "engine", "", {
+                "target": target, "code": "CONVERT_ERROR",
+                "message": str(exc)})
+            return {"ok": False, "error": str(exc)}
+        detail.update(res or {})
+        self.events.publish("WALLET_CONVERTED", "engine", "", {
+            "direction": direction, **detail})
+        try:
+            self.sync_real_wallet()
+        except Exception:
+            pass
+        return {"ok": True, "direction": direction, **detail}
 
     def _cancel_stale_orders(self, chase: bool = False) -> list:
         """Cancel OUR live BUY orders still resting (unfilled) so the locked

@@ -60,34 +60,272 @@ class HeuristicAI:
         # engine still caps size/cash (SS33/34).
         held = float(open_positions.get(sym, {}).get("amount", 0) or 0) > 0
         allow_topup = bool(topup_allowed and held)
+        dq = market_snap.get("data_quality", {}).get("score", 0)
+        tech = market_snap.get("technicals", {}) or {}
+        rsi = tech.get("rsi")
+        spread_pct = market_snap.get("spread_percent")
+        change_24h = market_snap.get("change_24h")
+        macd_hist = (tech.get("macd") or {}).get("histogram")
+        ema = tech.get("ema") or {}
+
+        def rf(v):
+            """Lenient float — bad exchange data must never raise."""
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        rsi_v = rf(rsi)
+        # --- RSI gate (تحلیل مکمل روی ستون گیت‌های قبلی): خرید وقتی RSI
+        # بالای ۷۲ است یعنی «خرید سقف» — قیمت تازه بمب افته و پول شرکتی
+        # در حال خارج‌شدن است؛ و خرید در RSI زیر ۳۵ یعنی چاقوی در حال
+        # سقوط — مومنتوم منفی است و هیچ سیگنالی نتوانسته قیمت را نگه کند.
+        # دادهٔ غایب گیت را قفل نمی‌کند (None -> pass).
+        RSI_OVERBOUGHT = 72.0
+        RSI_knife = 35.0
+        if rsi_v is None:
+            rsi_ok, rsi_code = True, ""
+        elif rsi_v >= RSI_OVERBOUGHT:
+            rsi_ok, rsi_code = False, "RSI_OVERBOUGHT"
+        elif rsi_v <= RSI_knife:
+            rsi_ok, rsi_code = False, "RSI_FALLING_KNIFE"
+        else:
+            rsi_ok, rsi_code = True, ""
+        # --- ساختار کل: شکست صعودی وقتی EMA ترتیب نزولی دارد فقط یک برق
+        # از سرِ فشار فروش است؛ بدون ترتیب EMA صعودی، breakout_up به‌عنوان
+        # قبل خرید نیست (تحلیلی ضد چترِ «شبیه‌سازی خرید ارزانه»).
+        e9, e20, e50 = rf(ema.get("9")), rf(ema.get("20")), rf(ema.get("50"))
+        ema_bull = bool(e9 and e20 and e50 and e9 > e20 > e50)
+        ema_bear = bool(e9 and e20 and e50 and e9 < e20 < e50)
+
+        # --- «درجهٔ اطمینان» (conviction): شاهدهای مستقل، نه یک امتیاز -----
+        # اسکنر یک عدد ترکیبی می‌دهد؛ تصمیم دقیق یعنی هر شاهد مستقل (روند،
+        # مومنتوم/مکدی، حجم، موقعیت نسبت به EMA20، کیفیت اجرا و تازگی داده)
+        # جدا وزن شود و خرید فقط وقتی انجام شود که مجموع از آستانه بگذرد.
+        # دادهٔ غایب هر شاهد را خنثی (۰٫۵) می‌کند، پس نبود یک فیلد هیچ‌وقت
+        # خرید سالم را قفل نمی‌کند.
+        risk_mode_on = bool(getattr(self.cfg.risk, "risk_mode", False))
+        vr = rf(tech.get("volume_ratio"))
+        roc = rf(tech.get("roc"))
+        last_px = rf(market_snap.get("last_price")) or 0.0
+        atr_abs = rf((vol or {}).get("atr")) or 0.0
+        atr_frac = ((atr_abs / last_px) if (last_px > 0 and atr_abs > 0)
+                    else (rf((vol or {}).get("atr_percent")) or 0.012))
+        # فاصلهٔ قیمت از EMA20 بر حسب ATR — «چقدر از حمایت دور افتاده»
+        ext_atr = ((last_px / e20 - 1.0) / atr_frac
+                   if (e20 and e20 > 0 and last_px > 0 and atr_frac > 0)
+                   else None)
+
+        def _cl(v, lo=0.0, hi=1.0):
+            return max(lo, min(hi, v))
+
+        _struct = str(trend).upper()
+        ev_trend = _cl(
+            0.55 * float(signals.get("trend", 0) or 0)
+            + 0.25 * (1.0 if ema_bull else 0.15 if ema_bear else 0.5)
+            + 0.20 * (1.0 if _struct in ("UP", "UPTREND", "BULLISH")
+                      else 0.0 if _struct in ("DOWN", "DOWNTREND", "BEARISH")
+                      else 0.5))
+        macd_ev = 0.5 if macd_hist is None else (1.0 if macd_hist > 0 else 0.0)
+        roc_ev = 0.5 if roc is None else _cl(0.5 + roc / 10.0)
+        ev_mom = _cl(0.50 * float(signals.get("momentum", 0) or 0)
+                     + 0.25 * macd_ev + 0.25 * roc_ev)
+        if risk_mode_on:
+            # حالت ریسک عامدانه دنبال پرسودترین‌های ۲۴ساعته است
+            ev_mom = _cl(0.6 * ev_mom + 0.4 * float(
+                signals.get("momentum_24h", 0) or 0))
+        ev_part = 0.5 if vr is None else _cl((float(vr) - 0.4) / 1.2)
+        if rsi_v is None:
+            rsi_ev = 0.5
+        elif rsi_v >= RSI_OVERBOUGHT:
+            rsi_ev = 0.10
+        elif rsi_v >= 65:
+            rsi_ev = 0.42
+        elif rsi_v >= 45:
+            rsi_ev = 0.85
+        elif rsi_v >= RSI_knife:
+            rsi_ev = 0.48
+        else:
+            rsi_ev = 0.15
+        if ext_atr is None:
+            pos_ev = 0.5
+        elif ext_atr > 4.0:
+            pos_ev = 0.10
+        elif ext_atr > 2.0:
+            pos_ev = 0.35
+        elif ext_atr > 0.6:
+            pos_ev = 0.62
+        elif ext_atr >= -1.5:
+            pos_ev = 0.90
+        else:
+            pos_ev = 0.35      # زیر حمایت: چاقوی در حال سقوط
+        ev_loc = _cl(0.5 * rsi_ev + 0.5 * pos_ev)
+        spread_atr = (rf(spread_pct) / (atr_frac * 100.0)
+                      if (spread_pct is not None and atr_frac > 0) else None)
+        if spread_atr is None:
+            spr_ev = 0.5
+        elif spread_atr <= 0.15:
+            spr_ev = 1.0
+        elif spread_atr <= 0.40:
+            spr_ev = 0.70
+        elif spread_atr <= 0.75:
+            spr_ev = 0.40
+        else:
+            spr_ev = 0.10
+        ev_exec = _cl(0.6 * float(signals.get("liquidity", 0) or 0)
+                      + 0.4 * spr_ev)
+        ev_data = _cl(float(dq or 0))
+        conviction = round(_cl(0.26 * ev_trend + 0.20 * ev_mom
+                               + 0.12 * ev_part + 0.17 * ev_loc
+                               + 0.15 * ev_exec + 0.10 * ev_data), 4)
+        evidence = {"trend": round(ev_trend, 3),
+                    "momentum": round(ev_mom, 3),
+                    "volume": round(ev_part, 3),
+                    "location": round(ev_loc, 3),
+                    "execution": round(ev_exec, 3),
+                    "data": round(ev_data, 3)}
+        # آستانهٔ اطمینان: در حالت ریسک خاموش است (آن حالت خودش اولویت‌های
+        # جدا دارد) و در حالت عادی خریدِ «نه‌ضعیف نه‌قوی» رد می‌شود.
+        min_conv = float(getattr(self.cfg.ai, "min_conviction", 0.60) or 0.0)
+        conv_ok = risk_mode_on or conviction >= min_conv
+        # سه چک کیفیِ دیگر — هر کدام با دادهٔ غایب «عبور» است
+        part_ok = (vr is None or float(vr) >= 0.55)
+        macd_ok = (macd_hist is None or float(macd_hist) >= 0)
+        chase_ok = bool(risk_mode_on or ext_atr is None
+                        or (ext_atr <= 3.0 and (last_px / e20 - 1.0) <= 0.06))
+
+        # --- rationality gates (every BUY must pass the WHOLE stack):
+        # trend + momentum + liquidity + data fresh enough + enough
+        # volatility + RSI در محدودهٔ منطقی + EMA ترتیب راست + حجم/مکدی +
+        # «دور از سقف» + درجهٔ اطمینان
+        # A lone upward spike (breakout) is only purchasable WITH trend
+        # confirmation — counter-trend chasing a spike was exactly the
+        # least rational trade this layer used to make.
+        DQ_FLOOR = 0.45
+        trend_ok = signals.get("trend", 0) > 0.45
+        mom_ok = signals.get("momentum", 0) > 0.4
+        liq_ok = signals.get("liquidity", 0) > 0.35
+        data_ok = float(dq) >= DQ_FLOOR
+        vol_ok = vol_suit >= 0.30
+        breakout_down = (breakout.get("detected") and
+                         breakout.get("direction") == "DOWN")
+        breakout_up = (breakout.get("detected") and
+                       breakout.get("direction") == "UP")
         action = "HOLD"
         if liq_status in ("CRITICAL", "UNKNOWN") or vol_suit < 0.25:
             action = "AVOID"
-        elif (signals.get("trend", 0) > 0.45 and
-              signals.get("momentum", 0) > 0.4 and
-              signals.get("liquidity", 0) > 0.35):
+        elif breakout_down and not held:
+            # a confirmed DOWN breakout is never a BUY setup: same market
+            # signal would have to be ANTI-trend to buy there
+            action = "AVOID"
+        elif (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+              and rsi_ok and not ema_bear and macd_ok and part_ok
+              and chase_ok and conv_ok):
             action = "BUY" if (not held or allow_topup) else "HOLD"
-        elif (breakout.get("detected") and
-              breakout.get("direction") == "UP" and
-              signals.get("liquidity", 0) > 0.35 and not held):
+        elif (breakout_up and signals.get("trend", 0) > 0.30 and
+              liq_ok and data_ok and vol_ok and rsi_ok
+              and ema_bull and not held and macd_ok and part_ok
+              and chase_ok and conv_ok):
             action = "BUY"
         elif held:
             if (signals.get("trend", 1) < 0.45 and
                     signals.get("momentum", 1) < 0.5):
                 action = "SELL"
-        elif breakout.get("detected") and breakout.get("direction") == "DOWN":
-            action = "AVOID"
+        # explanation for the dashboard: exactly which gate decided.
+        # HOLD while the price stack looks BUY-ish but data/volatility
+        # fails is THE case users could never see before — now the card
+        # says WHY (e.g. «کیفیت داده ۰٫۳۸ از ۰٫۴۵ لازم»).
+        gate_notes = []
+        if trend_ok and mom_ok and not data_ok:
+            gate_notes.append("DATA_QUALITY_LOW")
+        if trend_ok and mom_ok and not liq_ok:
+            gate_notes.append("LIQUIDITY_GATE")
+        if trend_ok and mom_ok and liq_ok and data_ok and not vol_ok:
+            gate_notes.append("VOLATILITY_TOO_LOW")
+        if (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+                and not rsi_ok):
+            gate_notes.append(rsi_code)
+        if (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+                and rsi_ok and ema_bear):
+            gate_notes.append("EMA_ORDER_BEARISH")
+        if (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+                and rsi_ok and not ema_bear and not macd_ok):
+            gate_notes.append("MACD_BEARISH")
+        if (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+                and rsi_ok and not ema_bear and macd_ok and not part_ok):
+            gate_notes.append("VOLUME_DRY")
+        if (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+                and rsi_ok and not ema_bear and macd_ok and part_ok
+                and not chase_ok):
+            gate_notes.append("CHASING_EXTENSION")
+        if (trend_ok and mom_ok and liq_ok and data_ok and vol_ok
+                and rsi_ok and not ema_bear and macd_ok and part_ok
+                and chase_ok and not conv_ok):
+            gate_notes.append("LOW_CONVICTION")
+        if breakout_up and not trend_ok and not held:
+            gate_notes.append("BREAKOUT_NO_TREND")
 
-        # --- confidence
+        def r3(v):
+            try:
+                return round(float(v), 3)
+            except (TypeError, ValueError):
+                return None
+
+        why = {
+            "trend": r3(signals.get("trend", 0)),
+            "momentum": r3(signals.get("momentum", 0)),
+            "momentum_24h": r3(signals.get("momentum_24h", 0)),
+            "orderbook": r3(signals.get("orderbook", 0)),
+            "risk": r3(signals.get("risk", 0)),
+            "liquidity": r3(signals.get("liquidity", 0)),
+            "volatility": r3(vol_suit),
+            "data_quality": r3(dq),
+            "trend_label": str(trend),
+            "regime": str(regime),
+            "rsi": r3(rsi) if rsi is not None else None,
+            "macd_histogram": r3(macd_hist) if macd_hist is not None else None,
+            "spread_percent": r3(spread_pct) if spread_pct is not None else None,
+            "change_24h": r3(change_24h) if change_24h is not None else None,
+            "volume_ratio": r3(vr) if vr is not None else None,
+            "roc": r3(roc) if roc is not None else None,
+            "extension_atr": r3(ext_atr) if ext_atr is not None else None,
+            # درجهٔ اطمینان کلی + سهم هر شاهد مستقل (۰..۱)
+            "conviction": conviction,
+            "evidence": evidence,
+            "ema_order": ("BULL" if ema_bull else
+                          "BEAR" if ema_bear else "NEUTRAL"),
+            "breakout": {"detected": bool(breakout.get("detected")),
+                         "direction": str(breakout.get("direction") or "")
+                                     or "NONE"},
+            "gates": {"trend": 0.45, "momentum": 0.40, "liquidity": 0.35,
+                      "data_quality": DQ_FLOOR, "volatility": 0.30,
+                      "rsi_overbought": RSI_OVERBOUGHT,
+                      "rsi_falling_knife": RSI_knife,
+                      "conviction": min_conv},
+            # نتیجهٔ هر گیت: کارت تصمیم «همهٔ چک‌ها» را یک نگاه نشان می‌دهد
+            "checks": {"trend": trend_ok, "momentum": mom_ok,
+                       "liquidity": liq_ok, "data_quality": data_ok,
+                       "volatility": vol_ok, "rsi": rsi_ok,
+                       "ema_order": not ema_bear,
+                       "macd": macd_ok, "volume": part_ok,
+                       "not_chasing": chase_ok, "conviction": conv_ok,
+                       "breakout_down": breakout_down,
+                       "breakout_up": breakout_up},
+            "gate_notes": gate_notes,
+        }
+
+        # --- confidence: نیمی امتیاز اسکنر، نیمی شاهدهای مستقل
+        # (اطمینان باید از «چند شاهد مستقل تأیید می‌کنند» بیاید، نه از یک
+        # عدد ترکیبی که ممکن است با یک سیگنال تکی بالا رفته باشد.)
+        basis = 0.5 * float(score or 0) + 0.5 * conviction
         conf = 0.5
         if action == "BUY":
-            conf = 0.55 + 0.4 * score
+            conf = 0.55 + 0.4 * basis
         elif action == "SELL":
-            conf = 0.55 + 0.3 * (1.0 - score)
+            conf = 0.55 + 0.3 * (1.0 - basis)
         elif action == "AVOID":
             conf = 0.7
-        dq = market_snap.get("data_quality", {}).get("score", 0)
-        conf *= (0.5 + 0.5 * dq)
+        conf *= (0.5 + 0.5 * dq)   # dq already read for the gates above
         conf = round(max(0.0, min(0.97, conf)), 4)
 
         # --- exit (SS42: every decision carries created_at/expires_at TTL)
@@ -103,12 +341,17 @@ class HeuristicAI:
             "symbol": sym,
             "action": action,
             "confidence": conf,
+            "conviction": conviction,
             "time_horizon": "INTRADAY",
             "reason_codes": ([r for r in candidate.get("reasons", [])][:5]
                              + (["REGIME_" + candidate["regime"]]
-                                if candidate.get("regime") else [])),
+                                if candidate.get("regime") else [])
+                             + gate_notes),
             "created_at": now_iso,
             "expires_at": expires_iso,
+            # تحلیل کامل این تصمیم: همهٔ سیگنال‌ها + نتیجهٔ هر گیت + notِ‌های
+            # گیت — کارت «آخرین تصمیم‌ها» همین را به‌صورت خوانا نشان می‌دهد
+            "why": why,
         }
 
         if action in ("BUY", "SELL"):

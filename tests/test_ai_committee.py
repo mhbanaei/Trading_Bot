@@ -30,8 +30,8 @@ from nobitex_bot.ai import AILayer, HeuristicAI  # noqa: E402
 from nobitex_bot.storage import Storage  # noqa: E402
 from nobitex_bot.ai_committee import (  # noqa: E402
     ABSTAIN, AVOID, BUY, HOLD, AICommittee, CommitteeScoreboard, combine,
-    vote_breakout, vote_liquidity, vote_llm, vote_meanrev, vote_momentum,
-    vote_trend, vote_volatility,
+    vote_breakout, vote_extension, vote_liquidity, vote_llm, vote_meanrev,
+    vote_momentum, vote_trend, vote_volatility, vote_volume,
 )
 
 
@@ -274,7 +274,9 @@ class TestCommittee(TempCase):
         cfg.ai.committee_mode = "decide"
         committee = AICommittee(cfg)
         verdict = committee.evaluate(candidate(), snapshot())
-        self.assertEqual(len(verdict["models"]), 6)
+        # trend, momentum, breakout, meanrev, volume, pump_guard,
+        # extension, liquidity, volatility
+        self.assertEqual(len(verdict["models"]), 9)
         self.assertTrue(verdict["allow_buy"], verdict["blocked_by"])
         self.assertGreater(verdict["expected_net_edge_pct"],
                            cfg.ai.committee_min_net_edge_pct)
@@ -452,6 +454,88 @@ class TestScoreboardTick(TempCase):
         self.assertEqual(out.get("attempts", 0), 0)
 
 
+class TestRationalityGates(TempCase):
+    """مقیّم‌های تحلیلی روی گیت‌های خرید: RSI + ترتیب EMA + وتوی پامپ."""
+
+    def _decide(self, **snap_kwargs):
+        return HeuristicAI(self.cfg).decide(
+            candidate(), snapshot(**snap_kwargs),
+            {"risk": {"total_equity": 1000},
+             "assets": [{"asset": "USDT", "available": 5000}]},
+            {}, {"USDTIRT": 100000})
+
+    def test_healthy_setup_still_buys(self):
+        dec = self._decide()
+        self.assertEqual(dec["action"], BUY)
+        self.assertTrue((dec["why"].get("checks") or {}).get("rsi"))
+
+    def test_overbought_rsi_is_never_a_buy(self):
+        dec = self._decide(rsi=78.0)
+        self.assertNotEqual(dec["action"], BUY)
+        self.assertIn("RSI_OVERBOUGHT", dec["why"]["gate_notes"])
+        self.assertFalse(dec["why"]["checks"]["rsi"])
+
+    def test_falling_knife_rsi_blocks_even_strong_signals(self):
+        dec = self._decide(rsi=28.0)
+        self.assertNotEqual(dec["action"], BUY)
+        self.assertIn("RSI_FALLING_KNIFE", dec["why"]["gate_notes"])
+
+    def test_missing_rsi_does_not_lock_the_buy(self):
+        dec = self._decide(rsi=None)
+        self.assertEqual(dec["action"], BUY)
+
+    def test_bearish_ema_order_blocks_the_buy(self):
+        snap = snapshot()
+        snap["technicals"]["ema"] = {"9": 97.0, "20": 101.0, "50": 103.0}
+        dec = HeuristicAI(self.cfg).decide(
+            candidate(), snap,
+            {"risk": {"total_equity": 1000},
+             "assets": [{"asset": "USDT", "available": 5000}]},
+            {}, {"USDTIRT": 100000})
+        self.assertNotEqual(dec["action"], BUY)
+        self.assertIn("EMA_ORDER_BEARISH", dec["why"]["gate_notes"])
+        self.assertIn("BEAR", str(dec["why"]["ema_order"]))
+
+    def test_breakout_up_needs_a_bullish_ema_stack(self):
+        snap = snapshot()
+        snap["technicals"]["ema"] = {"9": 97.0, "20": 101.0, "50": 103.0}
+        dec = HeuristicAI(self.cfg).decide(
+            candidate(trend=0.35), snap,          # مسیر breakout-up
+            {"risk": {"total_equity": 1000}}, {}, {"USDTIRT": 100000})
+        self.assertNotEqual(dec["action"], BUY)
+
+
+class TestCommitteeHardVetoes(TempCase):
+    """وتوی پامپِ کم‌حجم + سقف اسپردِ نسبی به نوسان."""
+
+    def test_low_volume_pump_is_blocked_by_default_weights(self):
+        c = AICommittee(self.cfg)
+        v = c.evaluate({**candidate(), "reasons": ["LOW_VOLUME_PUMP"]},
+                       snapshot())
+        self.assertFalse(v["allow_buy"])
+        self.assertIn("AVOID:LOW_VOLUME_PUMP", v["blocked_by"])
+        self.assertTrue(any(
+            m["model"] == "pump_guard" and m.get("veto")
+            for m in v["models"]))
+
+    def test_momentum_liquidity_mismatch_is_vetoed(self):
+        c = AICommittee(self.cfg)
+        v = c.evaluate(candidate(mom24=0.95, liquidity=0.2), snapshot())
+        self.assertFalse(v["allow_buy"])
+        self.assertIn("AVOID:MOM24_LIQUIDITY_MISMATCH", v["blocked_by"])
+
+    def test_spread_cap_relaxes_with_real_volatility(self):
+        # بازار پرنوسان (ATR ۴٪): اسپرد ۱٫۸٪ عادی است — وتو نمی‌شود
+        v = vote_liquidity(candidate(), snapshot(spread=1.8),
+                           ctx(atr_pct=0.04))
+        self.assertNotIn("veto", v)
+        # بازار مرده (ATR ۰٫۲٪): همان اسپرد سم است
+        v = vote_liquidity(candidate(), snapshot(spread=1.8),
+                           ctx(atr_pct=0.002))
+        self.assertTrue(v.get("veto"))
+        self.assertIn("WIDE_SPREAD", v["reason"])
+
+
 class TestScoreboard(TempCase):
     def test_records_and_scores_the_real_move(self):
         sb = CommitteeScoreboard(self.cfg)
@@ -482,6 +566,85 @@ class TestScoreboard(TempCase):
         self.assertEqual(summary["resolved"], 1)
         self.assertEqual(summary["win_rate"], 0.0)
         self.assertEqual(summary["target_rate"], 0.0)
+
+
+class TestDecisionPrecision(TempCase):
+    """دقت تصمیم: شاهدهای مستقل، گیت‌های کیفی و رأی اکثریت کمیته."""
+
+    def _decide(self, **snap_kwargs):
+        return HeuristicAI(self.cfg).decide(
+            candidate(), snapshot(**snap_kwargs),
+            {"risk": {"total_equity": 1000},
+             "assets": [{"asset": "USDT", "available": 5000}]},
+            {}, {"USDTIRT": 100000})
+
+    def test_conviction_is_recorded_with_every_evidence_slice(self):
+        dec = self._decide()
+        self.assertIn("conviction", dec)
+        self.assertGreaterEqual(dec["conviction"], self.cfg.ai.min_conviction)
+        ev = dec["why"]["evidence"]
+        for key in ("trend", "momentum", "volume", "location",
+                    "execution", "data"):
+            self.assertIn(key, ev)
+            self.assertGreaterEqual(ev[key], 0.0)
+            self.assertLessEqual(ev[key], 1.0)
+
+    def test_dry_volume_blocks_the_buy(self):
+        snap = snapshot()
+        snap["technicals"]["volume_ratio"] = 0.3
+        dec = HeuristicAI(self.cfg).decide(
+            candidate(), snap,
+            {"risk": {"total_equity": 1000},
+             "assets": [{"asset": "USDT", "available": 5000}]},
+            {}, {"USDTIRT": 100000})
+        self.assertNotEqual(dec["action"], "BUY")
+        self.assertIn("VOLUME_DRY", dec["why"]["gate_notes"])
+        self.assertFalse(dec["why"]["checks"]["volume"])
+
+    def test_negative_macd_blocks_the_buy(self):
+        dec = self._decide(macd=-1.0)
+        self.assertNotEqual(dec["action"], "BUY")
+        self.assertIn("MACD_BEARISH", dec["why"]["gate_notes"])
+
+    def test_buying_at_the_top_of_an_extension_is_blocked(self):
+        dec = self._decide(e20=92.0, atr_pct=0.02)
+        self.assertNotEqual(dec["action"], "BUY")
+        self.assertIn("CHASING_EXTENSION", dec["why"]["gate_notes"])
+        self.assertFalse(dec["why"]["checks"]["not_chasing"])
+
+    def test_volume_model_abstains_without_data_and_votes_with_it(self):
+        self.assertEqual(vote_volume(candidate(), snapshot(), ctx())["verdict"],
+                         ABSTAIN)
+        snap = snapshot()
+        snap["technicals"]["volume_ratio"] = 2.2
+        v = vote_volume(candidate(), snap, ctx())
+        self.assertEqual(v["verdict"], BUY)
+        self.assertGreater(v["expected_move_pct"], 0)
+
+    def test_parabolic_extension_is_vetoed(self):
+        v = vote_extension(candidate(), snapshot(e20=85.0, atr_pct=0.02),
+                           ctx(atr_pct=0.02))
+        self.assertTrue(v.get("veto"))
+        self.assertEqual(v["verdict"], AVOID)
+        self.assertIn("PARABOLIC", v["reason"])
+        self.assertNotIn("veto", vote_extension(candidate(), snapshot(), ctx()))
+
+    def test_buy_needs_a_majority_not_just_the_floor(self):
+        votes = [vote(BUY, 0.8, 4.0, 1.0, model="a"),
+                 vote(BUY, 0.8, 4.0, 1.0, model="b")]
+        votes += [vote(HOLD, 0.5, 0.0, 1.0, model=m) for m in ("c", "d", "e")]
+        v = combine(votes, cost_pct=0.6, atr_pct=0.04, min_votes=2)
+        self.assertFalse(v["allow_buy"])
+        self.assertIn("NO_QUORUM(2/3)", v["blocked_by"])
+
+    def test_a_split_committee_is_rejected(self):
+        votes = [vote(BUY, 0.9, 3.0, 1.0, model=m) for m in "abc"]
+        votes += [vote(HOLD, 0.2, 0.0, 1.0, model=m) for m in ("d", "e", "f")]
+        v = combine(votes, cost_pct=0.6, atr_pct=0.04, min_votes=3,
+                    min_agreement=0.6)
+        self.assertFalse(v["allow_buy"])
+        self.assertIn("MODELS_DISAGREE", v["blocked_by"])
+        self.assertLess(v["agreement"], 0.6)
 
 
 if __name__ == "__main__":

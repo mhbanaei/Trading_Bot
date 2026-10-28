@@ -80,6 +80,43 @@ html[data-theme="dark"] .lock-btn.lock-on{background:rgba(245,165,36,.1); border
 html[data-theme="dark"] .pvCard.main{background:linear-gradient(150deg,var(--accent-soft),rgba(16,207,137,0) 62%),var(--panel)}
 html[data-theme="dark"] .toast{box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .theme-toggle{display:inline-flex; align-items:center; gap:5px}
+/* ---- نوار ابزار جمع‌شونده: همهٔ کنترل‌های موتور داخل یک نوار بازشدنی
+   تا سربرگ شلوغ نشود و روی صفحهٔ باریک دکمه‌ها روی هم نیفتند. تا وقتی
+   «⚙ ابزارها» را لمس/کلیک نکنید بسته است؛ وقتی باز شد دکمه‌ها ردیف‌به‌
+   ردیف می‌پیچند و هیچ‌چیز روی هم نمی‌افتد. */
+#toolsPanel{display:none; flex-flow:row wrap; gap:8px; padding:10px 18px;
+  background:var(--panel); border-bottom:1px solid var(--border)}
+#toolsPanel.open{display:flex}
+/* ---- «سفارش‌های در جریان» کارت‌ها: ساده و خوانا، بدون اسکرول افقی ---- */
+#openOrdersBox .oo-card{border:1px solid var(--border); border-radius:10px;
+  padding:10px 12px; margin-bottom:8px; background:var(--panel2)}
+.oo-top{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.oo-mkt{font-weight:800; font-size:14px}
+.oo-who{margin-inline-start:auto; font-size:11px; color:var(--muted)}
+.oo-line{display:flex; gap:10px; align-items:baseline; margin-top:6px; flex-wrap:wrap}
+.oo-bar{height:7px; border-radius:999px; background:var(--border); overflow:hidden; margin:8px 0 5px}
+.oo-bar i{display:block; height:100%; border-radius:999px; background:var(--accent)}
+.oo-meta{display:flex; gap:6px 12px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+/* ---- «آخرین تصمیم‌ها» کارت‌ها: همان زبان بصری سفارش‌ها ---- */
+#decBox .dec-card,#histBox .dec-card{border:1px solid var(--border);
+  border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--panel2)}
+#decBox .btn-ex,#histBox .btn-ex{min-height:40px}
+/* شاهدهای تصمیم: هر گیت یک چیپ سبز/قرمز — روی گوشی هم می‌پیچد */
+.dec-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px}
+.dec-chip{font-size:10.5px; padding:2px 7px; border-radius:999px;
+  border:1px solid var(--border); white-space:nowrap}
+.dec-chip.ok{color:var(--green); border-color:#bfe8d7; background:#effaf3}
+.dec-chip.bad{color:var(--red); border-color:#f5b5b5; background:#fdecec}
+html[data-theme="dark"] .dec-chip.ok{background:rgba(16,207,137,.12); border-color:rgba(16,207,137,.35)}
+html[data-theme="dark"] .dec-chip.bad{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.35)}
+/* پلن تصمیم: شبکهٔ کوچکِ خودتطبیق (روی گوشی دو ستون) */
+.dec-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(86px,1fr));
+  gap:6px; margin-top:7px}
+.dec-grid>div{background:var(--bg); border:1px solid var(--border);
+  border-radius:8px; padding:4px 7px}
+.dec-grid .k{display:block; font-size:10px; color:var(--muted)}
+.dec-grid .v{font-size:12.5px; font-weight:700}
+.dec-note{margin-top:6px; font-size:11.5px; color:var(--orange)}
 *{box-sizing:border-box; margin:0; padding:0}
 body{background:var(--bg); color:var(--text);
   font-family:Vazirmatn,"Segoe UI",Tahoma,sans-serif; font-size:14px}
@@ -234,6 +271,51 @@ canvas{width:100%; height:220px; display:block}
 @media (min-width:1600px){.hhead{gap:4px 6px}.hhead .sym{min-width:96px}}
 @media (min-width:1920px){.hhead{gap:4px 7px}.hhead .sym{min-width:104px}}
 .hrow button{padding:3px 10px; font-size:12px}
+/* ---- لمسی‌سازی (موبایل/گوشی) ----
+   روی دستگاه لمسی همهٔ کنترل‌ها ناحیهٔ ضربهٔ بزرگ‌تر (حداقل ~۴۰px)،
+   بدون تأخیرِ لمس (touch-action:manipulation) و بدون هایلایت آبی؛
+   و روی صفحهٔ باریک چیدمان تک‌ستونه/ساده می‌شود — بدون تغییر هیچ
+   چیز روی دسکتاپ. */
+@media (pointer:coarse){
+  button,select,input,.sortable,.stop-edit,a{
+    touch-action:manipulation; -webkit-tap-highlight-color:transparent}
+  button{min-height:42px; min-width:42px; padding:9px 16px; font-size:14px}
+  .btn-buynow,.btn-sellnow,.dust-convert-btn,.lock-btn{min-height:40px;
+    padding:8px 16px; font-size:13px}
+  .hrow button{font-size:13px !important}
+  nav button{padding:13px 16px}
+  .hrow .stop-num,.hrow .stop-pct,.hrow .stop-money{padding:8px 10px;
+    font-size:13px}
+  .sortable,.stop-edit{padding:6px 2px; display:inline-block}
+}
+@media (max-width:760px){
+  main{padding:10px 8px}
+  header{padding:8px 10px; gap:5px}
+  header h1{font-size:14px; flex-basis:100%}
+  /* بج‌های وضعیت: کوچک و کم‌عارض تا سربرگ بین دو ردیف کوتاه بماند */
+  header .badge{font-size:10px; padding:2px 8px; white-space:normal;
+    max-width:100%}
+  #connBadge{order:2}
+  #modeBadge{order:1; position:static}
+  #uiBuildBadge{order:3}
+  #engineBadge,#safeBadge,#riskModeBadge{order:4}
+  .spacer{flex-basis:100%; height:0}
+  /* سه دکمهٔ اصلی سربرگ: ردیفی با عرض مساوی، ضربه راحت */
+  #btnConvert,#btnTools,#btnTheme,#btnDashLogout{
+    flex:1 1 30%; justify-content:center; text-align:center;
+    font-size:12.5px; padding:8px 6px}
+  .g2{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr}
+  .pvHero{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .pvCard .big{font-size:19px}
+  .hrow *,.hrow span,.hrow b{font-size:12.5px !important}
+  .toast{width:min(92vw,440px); text-align:center;
+    bottom:max(12px,env(safe-area-inset-bottom))}
+  nav{padding:6px 8px 0; gap:2px; scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}   /* نوار اسکرول زشت زیر تب‌ها */
+  nav button{white-space:nowrap; padding:10px 11px; font-size:12.5px}
+  table{display:block; overflow-x:auto; -webkit-overflow-scrolling:touch}
+}
 .settings label{display:block; color:var(--muted); font-size:12px; margin:10px 0 3px}
 .settings input,.settings select{width:100%; background:var(--panel2); color:var(--text);
   border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-family:inherit;
@@ -284,6 +366,193 @@ canvas{width:100%; height:220px; display:block}
 .pvKv .k{color:var(--muted)} .pvKv .v{direction:ltr; text-align:right; font-weight:700;
   font-variant-numeric:tabular-nums}
 #pvDonut{height:236px}
+/* ====================================================================
+   لایهٔ طراحی «مینیمال ۲٫۰»
+   همان هویت برند (سبز فیروزه‌ای) و همان سادگی، با زبانی تازه: کاغذ
+   روشن، سطح سفید، خط مویی، شعاع بزرگ، صفر سایه؛ تیترهای کوچک و
+   اعداد درشت. هر ردیف جدول جایی که ممکن بوده به کارت تبدیل شده است
+   (کلاس مشترک clist/ctile) تا روی گوشی هیچ اسکرول افقی نماند.
+   ==================================================================== */
+:root{
+  --bg:#f1f4f8; --panel:#ffffff; --panel2:#f7f9fb; --border:#e4eaf1;
+  --text:#101a26; --muted:#6a7c93; --rowline:#edf1f6; --rowhover:#f6f9fc;
+  --softline:#e7edf4; --card-shadow:none;
+  --r-sm:10px; --r:14px; --r-lg:18px;
+  --ring:0 0 0 3px var(--accent-soft);
+}
+html[data-theme="dark"]{
+  --bg:#090e13; --panel:#0f1720; --panel2:#0b1219; --border:#1b2733;
+  --rowline:#16212c; --rowhover:#121c26; --text:#e6eef8; --muted:#8ba0b7;
+  --softline:#1f2c39; --rd-shadow:none;
+}
+body{background:var(--bg); font-size:13.5px; line-height:1.7;
+  -webkit-font-smoothing:antialiased}
+header{padding:10px 16px; gap:8px; border-bottom:1px solid var(--border);
+  background:var(--panel); box-shadow:none}
+header h1{font-size:14px; font-weight:800; letter-spacing:-.2px}
+.badge{font-size:10.5px; padding:3px 9px; border-radius:999px; background:var(--panel2)}
+#toolsPanel{padding:10px 16px; gap:6px}
+nav{gap:6px; padding:10px 16px; border-bottom:1px solid var(--border);
+  background:transparent; scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{border:1px solid transparent; border-radius:999px; padding:7px 14px;
+  font-size:12.5px; color:var(--muted); background:transparent; white-space:nowrap;
+  border-bottom:1px solid transparent}
+nav button:hover{background:var(--panel2); color:var(--text)}
+nav button.active{background:var(--panel); color:var(--text);
+  border:1px solid var(--border); border-bottom:1px solid var(--border);
+  font-weight:700; box-shadow:none}
+main{padding:16px; max-width:1560px; margin:0 auto}
+.card,.pvCard{background:var(--panel); border:1px solid var(--border);
+  border-radius:var(--r-lg); padding:16px; box-shadow:none}
+.card h3{font-size:12px; font-weight:700; color:var(--muted);
+  letter-spacing:.2px; margin-bottom:12px; display:flex; gap:8px;
+  align-items:center; flex-wrap:wrap}
+.card h3 .muted,.card h3 .mut{font-weight:400; font-size:11.5px}
+button{background:var(--panel); border:1px solid var(--border);
+  border-radius:var(--r-sm); padding:7px 14px; font-size:12.5px;
+  transition:background .15s, border-color .15s}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent); border-color:var(--accent);
+  color:var(--on-accent); font-weight:700}
+button.primary:hover{filter:brightness(.96)}
+button.danger{background:transparent; border-color:rgba(239,68,68,.32); color:var(--red)}
+button.danger:hover{background:var(--chip-neg)}
+input,select{background:var(--panel2); border:1px solid var(--border);
+  border-radius:var(--r-sm); padding:8px 10px; font-size:12.5px; color:var(--text)}
+input:focus,select:focus{outline:none; border-color:var(--accent); box-shadow:var(--ring)}
+table{width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px}
+th{font-size:10.5px; letter-spacing:.2px; color:var(--muted);
+  padding:8px 10px; border-bottom:1px solid var(--border)}
+td{padding:9px 10px; border-bottom:1px solid var(--rowline)}
+tr:last-child td{border-bottom:none}
+.pill{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px}
+.hgroup{border:none; border-radius:0; margin:14px 0 2px; padding:0}
+.hgroup-head{padding:0 2px 10px; border-bottom:none; color:var(--text);
+  font-size:12px; font-weight:800}
+.hgroup-head .mut{font-weight:400}
+.hhead{display:none}
+.hrow{border-bottom:1px solid var(--rowline)}
+.empty{border:1px dashed var(--border); border-radius:var(--r);
+  padding:22px; background:transparent}
+.muted,.mut{color:var(--muted); font-size:11.5px}
+/* ---- فهرست کارتی مشترک: هر آیتم یک کارت لمسی --------------------- */
+.clist{display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(275px,1fr))}
+.clist.wide{grid-template-columns:1fr}
+.ctile{border:1px solid var(--border); border-radius:var(--r);
+  background:var(--panel2); padding:12px 13px; display:flex;
+  flex-direction:column; gap:8px; min-width:0}
+.ctile:hover{border-color:rgba(16,207,137,.42)}
+.ct-top{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.ct-name{font-weight:800; font-size:14px; direction:ltr; letter-spacing:.2px}
+.ct-sub{font-size:10.5px; color:var(--muted); direction:ltr}
+.ct-chg{margin-inline-start:auto; font-weight:800; font-size:12.5px;
+  font-variant-numeric:tabular-nums; direction:ltr}
+.ct-val{font-size:17px; font-weight:800; direction:ltr; text-align:right;
+  font-variant-numeric:tabular-nums; line-height:1.35}
+.ct-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(80px,1fr));
+  gap:6px}
+.ct-grid>div{background:var(--panel); border:1px solid var(--border);
+  border-radius:9px; padding:5px 8px; min-width:0}
+.ct-grid .k{display:block; font-size:10px; color:var(--muted); white-space:nowrap}
+.ct-grid .v{display:block; font-size:12.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; direction:ltr; text-align:right;
+  overflow:hidden; text-overflow:ellipsis}
+.ct-grid .v.fa{direction:rtl}
+.ct-foot{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:auto}
+.ct-acts{margin-inline-start:auto; display:flex; gap:6px}
+.ct-acts button{flex:1; white-space:nowrap}
+.ct-meter{height:6px; border-radius:99px; background:var(--border); overflow:hidden}
+.ct-meter i{display:block; height:100%; background:var(--accent); border-radius:99px}
+.ctile.on{border-color:rgba(16,207,137,.5);
+  background:linear-gradient(160deg,var(--accent-soft),transparent 72%),var(--panel2)}
+.ctile .badges{display:flex; gap:4px; flex-wrap:wrap}
+/* یک خط خلاصه بالای هر فهرست */
+.list-head{display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  font-size:11.5px; color:var(--muted); margin:0 2px 10px}
+.list-total{display:flex; gap:8px 14px; flex-wrap:wrap; align-items:baseline;
+  border:1px solid var(--border); border-radius:var(--r); background:var(--panel2);
+  padding:10px 13px; margin-top:10px; font-size:12px}
+.list-total b{font-size:13px; font-variant-numeric:tabular-nums}
+/* ---- چیپ‌های مرتب‌سازی (جای سرستون‌های جدول) ---------------------- */
+.sortbar{display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+  margin:0 0 10px}
+.sortbar .lbl{font-size:11px; color:var(--muted)}
+.sortchip{font-size:11px; padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; background:var(--panel); color:var(--muted);
+  cursor:pointer; user-select:none; white-space:nowrap}
+.sortchip:hover{border-color:rgba(16,207,137,.5); color:var(--text)}
+.sortchip.on{background:var(--accent-soft); border-color:rgba(16,207,137,.45);
+  color:var(--accent); font-weight:700}
+/* ---- کارت دارایی من (holdings) ------------------------------------ */
+.hold-card{border:1px solid var(--border); border-radius:var(--r);
+  background:var(--panel2); padding:11px 13px; display:flex;
+  flex-direction:column; gap:7px; min-width:0}
+.hold-card:hover{border-color:rgba(16,207,137,.42)}
+.hold-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+.hold-coin{font-weight:800; font-size:15px; direction:ltr; letter-spacing:.2px}
+/* نشان «strike» کنار قیمت حد — عدد پله جدا و خوانا */
+.strike-badge{display:inline-flex; align-items:center; gap:4px;
+  margin-inline-start:5px; font-size:9px; font-weight:800; letter-spacing:.5px;
+  text-transform:uppercase; color:var(--orange);
+  background:rgba(217,119,6,.10); border:1px solid rgba(217,119,6,.28);
+  border-radius:999px; padding:1px 6px; vertical-align:middle; direction:ltr;
+  line-height:1.5}
+.strike-badge .num{font-size:11px; font-weight:800; color:var(--orange);
+  font-variant-numeric:tabular-nums}
+html[data-theme="dark"] .strike-badge{background:rgba(245,165,36,.13);
+  border-color:rgba(245,165,36,.32); color:var(--orange)}
+html[data-theme="dark"] .strike-badge .num{color:var(--orange)}
+.hold-mkt{font-size:10px; color:var(--muted); direction:ltr}
+.hold-profit{margin-inline-start:auto; font-weight:800; font-size:13.5px;
+  direction:ltr; text-align:right}
+.hold-line{display:flex; gap:5px 12px; flex-wrap:wrap; font-size:12px;
+  align-items:baseline}
+.hold-levels{display:grid; grid-template-columns:1fr 1fr; gap:6px}
+.hold-levels>div{background:var(--panel); border:1px solid var(--border);
+  border-radius:9px; padding:5px 8px; min-width:0}
+.hold-levels .k{display:block; font-size:10px; color:var(--muted)}
+.hold-acts{display:flex; gap:7px; margin-top:1px}
+.hold-acts button{flex:1; min-height:36px; font-size:12px}
+.cash-card{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap;
+  border:1px solid var(--border); border-radius:var(--r); padding:10px 13px;
+  background:var(--panel2)}
+.cash-card .cc-name{font-weight:800; font-size:12.5px; color:var(--accent)}
+.cash-card .cc-val{font-size:14px; font-weight:800; direction:ltr;
+  font-variant-numeric:tabular-nums}
+.allchip-card{display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap;
+  border:1px solid var(--border); border-radius:var(--r); padding:9px 12px;
+  margin-bottom:12px; background:var(--panel2); font-size:12px}
+/* ---- رویدادها: خط زمانی کارتی ------------------------------------ */
+.evlist{display:grid; gap:7px}
+.ev-card{display:flex; gap:9px; padding:9px 11px; border:1px solid var(--border);
+  border-radius:12px; background:var(--panel2); align-items:flex-start}
+.ev-dot{width:7px; height:7px; border-radius:50%; margin-top:8px; flex:none;
+  background:var(--muted)}
+.ev-body{min-width:0; flex:1}
+.ev-top{display:flex; gap:8px; align-items:baseline; flex-wrap:wrap}
+.ev-type{font-size:11.5px; font-weight:800}
+.ev-time{font-size:10.5px; color:var(--muted); direction:ltr}
+.ev-payload{font-size:10.5px; color:var(--muted); direction:ltr;
+  text-align:left; word-break:break-word; margin-top:2px}
+/* ---- بقیهٔ کارت‌های بازنویسی‌شده --------------------------------- */
+.oo-card,.dec-card{border-radius:var(--r); background:var(--panel2)}
+.dec-grid>div{background:var(--panel)}
+.pvKv{font-size:12.5px}
+.pvKv .k{color:var(--muted); padding:5px 0; border-bottom:1px solid var(--rowline)}
+.pvKv .v{padding:5px 0; border-bottom:1px solid var(--rowline)}
+.list-total .num{font-variant-numeric:tabular-nums}
+.toast{border-radius:12px; border-color:var(--accent); box-shadow:0 6px 24px rgba(16,32,51,.12)}
+.settings label{font-size:11.5px}
+.settings fieldset{border-radius:var(--r); padding:12px 14px 16px}
+@media (max-width:760px){
+  main{padding:12px 10px}
+  .clist{grid-template-columns:1fr}
+  .card,.pvCard{padding:13px; border-radius:var(--r)}
+  header h1{font-size:13px}
+  nav{padding:8px 10px}
+  nav button{padding:7px 12px; font-size:12px}
+}
 </style>
 <script>
 /* تم را پیش از اولین رندر اعمال کن: انتخاب ذخیره‌شدهٔ کاربر، وگرنه
@@ -302,14 +571,22 @@ canvas{width:100%; height:220px; display:block}
 <header>
   <h1>🤖 ربات معاملاتی هوشمند</h1>
   <span id="modeBadge" class="badge demo">حالت آزمایشی</span>
-  <span id="uiBuildBadge" class="badge off" style="font-size:10px;opacity:.72;direction:ltr" title="نسخهٔ رابط کاربری. اگر این عدد را نمی‌بینی یا قدیمی است، صفحه را با Ctrl+Shift+R تازه کن">UI 74</span>
+  <span id="uiBuildBadge" class="badge off" style="font-size:10px;opacity:.72;direction:ltr" title="نسخهٔ رابط کاربری. اگر این عدد را نمی‌بینی یا قدیمی است، صفحه را با Ctrl+Shift+R تازه کن">UI 82</span>
   <span id="connBadge" class="badge off" style="cursor:pointer" title="کلیک: رفتن به تب حساب نوبیتکس" onclick="document.querySelector('#tabs button[data-tab=exchange]')?.click()">اتصال: —</span>
   <span id="engineBadge" class="badge off">موتور: متوقف</span>
   <span id="safeBadge" class="badge ok" style="display:none" title="حالت امن = حالت ریسک خاموش (پروفایل محافظه‌کار)">حالت امن</span>
   <span id="riskModeBadge" class="badge" style="display:none;background:var(--orange);border-color:var(--orange)">حالت ریسک ⚡</span>
 
   <div class="spacer"></div>
+  <button id="btnConvert" class="primary" style="background:var(--cyan);border-color:var(--cyan);color:#04151c" title="تبدیل موجودی: تومان ↔ تتر (کل یا مبلغ دلخواه)">💱 تبدیل موجودی</button>
+  <button id="btnTools" title="همهٔ کنترل‌های موتور در یک نوار جمع می‌شود — کلیک: باز/بسته">⚙ ابزارها</button>
   <button id="btnTheme" class="theme-toggle" title="تم روشن / تاریک">🌙 تاریک</button>
+
+  <button id="btnDashLogout" style="display:none" title="خروج از داشبورد — برای ورود دوباره پسورد لازم است">🔒 خروج</button>
+</header>
+<!-- همهٔ کنترل‌های موتور داخل این نوار جمع شدند: تا کلیک نشود بسته است
+     و روی صفحهٔ باریک هم دکمه‌ها ردیفبهردیف می‌پیچند و روی هم نمی‌افتند -->
+<div id="toolsPanel">
   <button id="btnEngine" class="primary">شروع موتور</button>
   <button id="btnCycle" class="primary" style="background:var(--green);border-color:var(--green);color:var(--on-accent)">⚡ اجرای فوری چرخه</button>
   <button id="btnBest" class="primary" style="background:var(--orange);border-color:var(--orange)">🎯 اجرای بهترین معامله</button>
@@ -317,9 +594,7 @@ canvas{width:100%; height:220px; display:block}
   <button id="btnAuto">معامله خودکار: خاموش</button>
   <button id="btnBuyBest">بهترین گزینه: روشن</button>
   <button id="btnProfile" class="primary" title="حالت امن و حالت ریسک دو حالت یک سوئیچ‌اند: کلیک = رفتن به حالت دیگر">🛡 حالت امن — روشن (کلیک: حالت ریسک)</button>
-
-  <button id="btnDashLogout" style="display:none" title="خروج از داشبورد — برای ورود دوباره پسورد لازم است">🔒 خروج</button>
-</header>
+</div>
 <nav id="tabs">
   <button data-tab="overview" class="active">نمای کلی</button>
   <button data-tab="netport">پرتفوی نوبیتکس</button>
@@ -683,7 +958,7 @@ $("#btnBest").onclick=async()=>{if(!confirm("اجرای بهترین معامل�
       toast(msg);}
   }catch(e){toast("خطا: "+e)}
   poll();if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders()}};
-function REJECT_FA(c){return ({BELOW_MIN_NOTIONAL:"موجودی کمتر از حداقل سفارش",INSUFFICIENT_CASH:"موجودی نقد کافی نیست",INSUFFICIENT_NET_EXPECTED_RETURN:"سود خالص کمتر از حد",EXCESSIVE_PORTFOLIO_EXPOSURE:"سقف کل exposure پر است",MAX_OPEN_POSITIONS_REACHED:"سقف تعداد موقعیت‌ها پر است",PRICE_MOVED_TOO_FAR:"قیمت زیاد جابه‌جا شده",DATA_QUALITY_BELOW_TRADE_THRESHOLD:"کیفیت داده پایین",LIQUIDITY_NOT_TRADABLE:"نقدینگی قابل معامله نیست",DECISION_EXPIRED:"اعتبار تصمیم منقضی شده",DRAWDOWN_LIMIT_BREACHED:"افت سرمایه از حد گذشته",NO_POSITION_TO_SELL:"موقعیتی برای فروش نیست",POSITION_SIZE_TOO_SMALL:"حجم خیلی کوچک است",MAX_RISK_EXCEEDED:"ریسک معامله از حد گذشته",POSITION_LIMIT_EXCEEDED:"سقف حجم موقعیت پر است",INVALID_STOP_LOSS:"حد ضرر نامعتبر",DO_NOT_DUPLICATE:"سفارش تکراری",BUY_ORDER_ALREADY_ACTIVE:"سفارش خرید فعال قبلی در این بازار موجود است",BUY_COOLDOWN_ACTIVE:"فاصله زمانی بین خریدها هنوز تمام نشده"})[c]||c}/* Persian labels for risk rejections */
+function REJECT_FA(c){return ({BELOW_MIN_NOTIONAL:"موجودی کمتر از حداقل سفارش",INSUFFICIENT_CASH:"موجودی نقد کافی نیست",INSUFFICIENT_NET_EXPECTED_RETURN:"سود خالص کمتر از حد",EXCESSIVE_PORTFOLIO_EXPOSURE:"سقف کل exposure پر است",MAX_OPEN_POSITIONS_REACHED:"سقف تعداد موقعیت‌ها پر است",PRICE_MOVED_TOO_FAR:"قیمت زیاد جابه‌جا شده",DATA_QUALITY_BELOW_TRADE_THRESHOLD:"کیفیت داده پایین",LIQUIDITY_NOT_TRADABLE:"نقدینگی قابل معامله نیست",DECISION_EXPIRED:"اعتبار تصمیم منقضی شده",DRAWDOWN_LIMIT_BREACHED:"افت سرمایه از حد گذشته",NO_POSITION_TO_SELL:"موقعیتی برای فروش نیست",POSITION_SIZE_TOO_SMALL:"حجم خیلی کوچک است",MAX_RISK_EXCEEDED:"ریسک معامله از حد گذشته",POSITION_LIMIT_EXCEEDED:"سقف حجم موقعیت پر است",INVALID_STOP_LOSS:"حد ضرر نامعتبر",DO_NOT_DUPLICATE:"سفارش تکراری",BUY_ORDER_ALREADY_ACTIVE:"سفارش خرید فعال قبلی در این بازار موجود است",BUY_COOLDOWN_ACTIVE:"فاصله زمانی بین خریدها هنوز تمام نشده",LOW_CONVICTION:"اطمینان کل کافی نیست",VOLUME_DRY:"حجم بازار خشک است",MACD_BEARISH:"مکدی نزولی است",CHASING_EXTENSION:"خرید در سقفِ کشیده",RSI_OVERBOUGHT:"RSI اشباع خرید",RSI_FALLING_KNIFE:"RSI در حال سقوط",EMA_ORDER_BEARISH:"ترتیب EMA نزولی",DATA_QUALITY_LOW:"کیفیت داده کم",LIQUIDITY_GATE:"نقدینگی کافی نیست",VOLATILITY_TOO_LOW:"نوسان خیلی کم",BREAKOUT_NO_TREND:"شکست بدون روند",MODELS_DISAGREE:"مدل‌ها هم‌رأی نیستند",LOW_VOLUME_PUMP:"پامپ کم‌حجم",MOM24_LIQUIDITY_MISMATCH:"رشد ۲۴ساعته بدون نقدینگی",PARABOLIC_EXTENSION:"حرکت پارابولیک — خرید ممنوع",WIDE_SPREAD:"اسپرد زیاد",DEAD_VOLATILITY:"بازار مرده",EXTREME_VOLATILITY:"نوسان خطرناک",TREND_ALIGNMENT:"روند صعودی",POSITIVE_MOMENTUM:"مومنتوم مثبت",NEGATIVE_MOMENTUM:"مومنتوم منفی",HIGH_LIQUIDITY:"نقدینگی بالا",SUITABLE_VOLATILITY:"نوسان مناسب",BREAKOUT_DETECTED:"شکست شناسایی شد",TOP_24H_MOVER:"صدرنشین ۲۴ساعته",WEAK_24H:"ضعف ۲۴ساعته",LOW_DATA_QUALITY:"کیفیت داده پایین"})[c]||c}/* Persian labels for risk rejections */
 /* ---- ONE merged OPERATING-PROFILE switch: «حالت امن» ⇄ «حالت ریسک» ----
    حالت امن و حالت ریسک دو حالت یک چیزند (حالت امن = فلگ ریسک خاموش)،
    پس در UI هم یک دکمهٔ واحد دارند: متن دکمه وضعیت فعلی را می‌گوید و
@@ -704,6 +979,93 @@ $("#btnProfile").onclick=async()=>{
   if(toRisk&&!confirm(RISK_CONFIRM))return;
   await setRiskProfile(toRisk);
 };
+/* ---- نوار ابزار: کلیک «⚙ ابزارها» = باز/بسته‌شدن همهٔ کنترل‌های موتور ---- */
+$("#btnTools").onclick=()=>{ $("#toolsPanel").classList.toggle("open"); };
+
+/* ---- تبدیل موجودی: تومان ↔ تتر (کل یا مبلغ دلخواه) با پیش‌نمایش و
+   تایید صریح — بدون confirm/browse بومی، مستقیم روی حساب واقعی ---- */
+$("#btnConvert").onclick=openConvertModal;
+let walletConvModal=null;
+function closeWalletConvModal(){ if(walletConvModal){walletConvModal.remove(); walletConvModal=null;} }
+async function openConvertModal(){
+  closeWalletConvModal();
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center";
+  ov.innerHTML=`
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;
+      width:min(480px,94vw);max-height:80vh;overflow:auto;padding:16px;direction:rtl">
+      <div style="font-weight:800;font-size:15px;margin-bottom:4px">💱 تبدیل موجودی (تومان ↔ تتر)</div>
+      <div class="mut" id="wcvSub" style="font-size:12px;margin-bottom:10px">در حال خواندن موجودی واقعی…</div>
+      <div id="wcvBody" style="display:none">
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button id="wcvToUsdt" type="button" style="flex:1;padding:9px 6px">تومان → تتر</button>
+          <button id="wcvToIrt" type="button" style="flex:1;padding:9px 6px">تتر → تومان</button>
+        </div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer;margin-bottom:8px">
+          <input type="checkbox" id="wcvAll" checked> تبدیل کل موجودی</label>
+        <div id="wcvAmtWrap"><label class="mut" style="font-size:12px" id="wcvAmtLbl">مبلغ (تومان)</label>
+          <input id="wcvAmt" type="number" min="0" step="any" dir="ltr" style="width:100%;margin-top:4px"></div>
+        <div class="mut" id="wcvEst" style="font-size:12px;margin-top:8px;min-height:18px"></div>
+        <div class="mut" style="font-size:11px;margin-top:6px">تبدیل مبلغ‌دار از بازار تبدیل صرافی است و حداقل مبلغ خودش دارد (حداقل حدود ۱٫۲ میلیون تومان)؛ «کل موجودی» بدون حداقل انجام می‌شود.</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button id="wcvCancel">انصراف</button>
+        <button id="wcvGo" disabled style="background:var(--cyan);border-color:var(--cyan);color:#04151c;font-weight:800">تبدیل کن</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov); walletConvModal=ov;
+  ov.querySelector("#wcvCancel").onclick=closeWalletConvModal;
+  const subEl=ov.querySelector("#wcvSub"), bodyEl=ov.querySelector("#wcvBody"),
+        goBtn=ov.querySelector("#wcvGo"), estEl=ov.querySelector("#wcvEst");
+  let prev=null, dir="USDT";
+  try{ prev=await jget("/api/wallet_convert_preview"); }catch(e){ prev={error:String(e)}; }
+  if(prev.error||!prev.real_attached){
+    subEl.textContent=prev.error||"ابتدا به حساب واقعی لاگین کنید"; return;
+  }
+  bodyEl.style.display="";
+  const faIR=n=>fmt(n);
+  subEl.textContent="نقد قابل تبدیل — تومان: "+faIR(prev.irt||0)+" | تتر: "+faIR(prev.usdt||0)
+    +(prev.usdt_toman?" | هر تتر ≈ "+faIR(prev.usdt_toman)+" تومان":"");
+  const toUsdtBtn=ov.querySelector("#wcvToUsdt"), toIrtBtn=ov.querySelector("#wcvToIrt"),
+        allChk=ov.querySelector("#wcvAll"), amtIn=ov.querySelector("#wcvAmt"),
+        amtWrap=ov.querySelector("#wcvAmtWrap"), amtLbl=ov.querySelector("#wcvAmtLbl");
+  const paint=()=>{
+    toUsdtBtn.style.background=dir==="USDT"?"var(--cyan)":"";
+    toIrtBtn.style.background=dir==="IRT"?"var(--cyan)":"";
+    amtLbl.textContent=dir==="USDT"?"مبلغ (تومان)":"مبلغ (تتر)";
+    amtWrap.style.display=allChk.checked?"none":"";
+    updEst();
+  };
+  const updEst=()=>{
+    if(allChk.checked){ estEl.textContent=dir==="USDT"
+      ? ("کل موجودی تومان ("+faIR(prev.irt||0)+") به تتر تبدیل می‌شود")
+      : ("کل موجودی تتر ("+faIR(prev.usdt||0)+") به تومان تبدیل می‌شود"); return; }
+    const v=parseFloat(amtIn.value)||0; if(v<=0){estEl.textContent="";goBtn.disabled=true;return;}
+    estEl.textContent=dir==="USDT"
+      ? ("≈ "+faIR(prev.usdt_toman?v/usdt_toman:0))+" تتر دریافت می‌شود"
+      : ("≈ "+faIR(prev.usdt_toman?v*prev.usdt_toman:0))+" تومان دریافت می‌شود";
+    goBtn.disabled=false;
+  };
+  toUsdtBtn.onclick=()=>{dir="USDT";goBtn.disabled=!allChk.checked;paint();};
+  toIrtBtn.onclick=()=>{dir="IRT";goBtn.disabled=!allChk.checked;paint();};
+  allChk.onchange=paint; amtIn.oninput=updEst;
+  goBtn.disabled=true; paint();
+  goBtn.onclick=async()=>{
+    const act=allChk.checked?"کل موجودی":amtIn.value+(dir==="USDT"?" تومان":" تتر");
+    if(!confirm("تبدیل "+act+(dir==="USDT"?" به تتر":" به تومان")+" انجام شود؟"))return;
+    goBtn.disabled=true; goBtn.textContent="در حال تبدیل…";
+    try{
+      const r=await jpost("/api/control/wallet_convert",
+        {target:dir, amount:allChk.checked?null:amtIn.value});
+      if(r.ok){
+        const got=r.converted_amount!=null?" — دریافت: "+faIR(r.converted_amount)+(r.unit==="USDT"?" تتر":" تومان"):"";
+        toast("تبدیل انجام شد"+got);
+      } else toast(r.error||"تبدیل ناموفق");
+      closeWalletConvModal(); poll();
+      if(activeTab==="exchange"){refreshRealWallet();refreshRealOrders();}
+    }catch(e){ toast("خطا: "+e); goBtn.disabled=false; goBtn.textContent="تبدیل کن"; }
+  };
+}
 
 
 /* ---------------- dashboard password gate (web.password) ---------------- */
@@ -824,7 +1186,10 @@ const pvMoneySigned=v=>{if(v==null||isNaN(v))return "—";
   if(pvHidden)return "••••••";
   const s=v>0?"+":v<0?"−":"";
   return s+pvNum(pvRound(Math.abs(v)));};
-const pvPct=v=>(v==null||isNaN(v))?"—":((v>=0?"+":"")+Number(v).toFixed(2)+"٪");
+/* درصد: همیشه ۲ رقم اعشار، علامت درست، و بدون «+0.00» یا «-0.00» */
+const pvPct=v=>{if(v==null||isNaN(v))return "—";
+  let n=Number(v); if(Math.abs(n)<0.005)n=0;
+  return ((n>0?"+":n<0?"-":"")+Math.abs(n).toFixed(2)+"٪");};
 /* قیمت (تومان در واحد تومان، دلار در واحد دلار) — دقت بر اساس بزرگی عدد */
 const pvPrice=v=>{if(v==null||isNaN(v))return "—";
   if(pvUnit==="usd")return "$"+fmt(toUsd(v),v>=1?2:8);
@@ -940,18 +1305,8 @@ function pvHeroCards(s,full){
     +" | دارایی دیجیتال: "+pvMoney(pv.coins_value_irt)
     +" | نقد: "+pvMoney(cashToman),
     "",{main:true,eye:true}));
-  /* ۲) سود/زیان ۲۴ساعت دارایی‌ها (تغییر قیمت ۲۴ساعتِ همان سکه‌ها) */
-  if(!rows.length){
-    cards.push(pvCard("سود/زیان ۲۴ساعت دارایی‌ها","—",
-      "هنوز دارایی‌ای در کیف پول نیست — عدد ۲۴ساعت از تغییر قیمت دارایی‌های خودت ساخته می‌شود"));
-  }else{
-    const cov=((pv.rows_24h!=null?pv.rows_24h:0)+" از "+rows.length);
-    cards.push(pvCard("سود/زیان ۲۴ساعت دارایی‌ها",
-      pvMoneySigned(pv.pnl_24h_irt),
-      "درصد: "+pvPct(pv.pnl_24h_pct)+" | بر پایهٔ تغییر قیمت ۲۴ساعتِ سکه‌ها (کاتالوگ زندهٔ صرافی — بی‌نیاز به اسنپ‌شات)"
-      +" | پوشش داده: "+cov+(pv.rows_24h<rows.length?" (سکه‌های بی‌قیمت ۲۴ساعت در جمع نمی‌آیند)":""),
-      cls(pv.pnl_24h_irt)));
-  }
+  /* «سود/زیان ۲۴ساعت» حذف شد (خواستهٔ کاربر): در نمای کلی و باکس
+     دارایی‌ها فقط «سود از خرید» نمایش داده می‌شود. */
   /* ۳) سود/زیان کل (رشد کل حساب) — کلیک: ویرایش سرمایهٔ واریزی */
   cards.push(pvTotalProfitCard(hp));
   if(full){
@@ -983,8 +1338,7 @@ function pvHealthCards(s){
   const blocked=(s.regime_blocked||[]);
   const brk=blocked.map(b=>((b.symbol||"").replace(/IRT$|USDT$/,"")+" "+(faRegime[b.regime_blocked]||b.regime_blocked))).join("، ");
   const dd=r.drawdown||{};
-  return pvProfit24Card(s.profit_24h||{})
-    +pvCard("وضعیت ریسک",r.risk_status||"—",
+  return pvCard("وضعیت ریسک",r.risk_status||"—",
       "در معرض (exposure): "+pct(r.exposure_ratio||0)
       +" | نسبت نقد: "+pct(r.cash_ratio||0)
       +" | افت از سقف: "+pct(dd.current!=null?dd.current:null)
@@ -1068,30 +1422,48 @@ function pvTableHtml(s){
   const list=sortRows(rows,"pv2",getters,"value","desc");
   const priceIrt=r=>(r.amount>0&&r.value_irt!=null)?(r.value_irt/r.amount):null;
   const entryIrt=r=>(r.amount>0&&r.invested_irt!=null)?(r.invested_irt/r.amount):null;
+  /* درصد سود از خرید = (ارزش − مبلغ خرید) ÷ مبلغ خرید — دقیقاً از همان
+     دو عددی که کارت چاپ می‌کند، با ۲ رقم اعشار و علامت درست (نه عدد
+     جداگانه‌ای که ممکن است با مبلغ هم‌خوان نباشد). */
+  const pctOf=(pnl,invested)=>{
+    if(pnl==null||invested==null||isNaN(pnl)||isNaN(invested)||Number(invested)<=0)return null;
+    const p=Number(pnl)/Number(invested)*100;
+    return Math.abs(p)<0.005?0:Math.round(p*100)/100;
+  };
+  const pnlPct=r=>{const p=pctOf(r.pnl_irt,r.invested_irt);
+    return p!=null?p:(r.pnl_pct!=null?Number(r.pnl_pct):null);};
   const cell=(money,pctv)=>(money==null?`<span class="num mut">—</span>`
     :`<span class="num ${cls(money)}">${pvMoneySigned(money)}</span>`
       +(pctv!=null?` <span class="mut" style="font-size:11px">(${pvPct(pctv)})</span>`:""));
-  const body=list.map(r=>`<tr>
-    <td class="num" style="font-weight:700">${esc(r.coin||"")}<span class="mut" style="font-size:11px"> ${esc(r.symbol||"")}</span></td>
-    <td class="num">${fmt(r.amount,8)}</td>
-    <td class="num">${pvPrice(entryIrt(r))}</td>
-    <td class="num">${pvPrice(priceIrt(r))}</td>
-    <td class="num">${pvMoney(r.value_irt)}</td>
-    <td>${cell(r.pnl_irt,r.pnl_pct)}</td>
-    <td>${cell(r.ch24_irt,r.ch24_pct)}</td>
-    <td class="num">${r.weight!=null?((r.weight*100).toFixed(2)+"٪"):"—"}</td></tr>`).join("");
+  const body=list.map(r=>`<div class="ctile">
+    <div class="ct-top">
+      <span class="ct-name">${esc(r.coin||"")}</span>
+      <span class="ct-sub">${esc(r.symbol||"")}</span>
+      ${r.weight!=null?`<span class="pill MEDIUM">${(r.weight*100).toFixed(2)}٪</span>`:""}
+      <span class="ct-chg ${cls(r.pnl_irt)}">${pnlPct(r)!=null?pvPct(pnlPct(r)):""}</span>
+    </div>
+    <div class="ct-val">${pvMoney(r.value_irt)}</div>
+    <div class="ct-grid">
+      <div><span class="k">مقدار</span><span class="v">${fmt(r.amount,8)}</span></div>
+      <div><span class="k">میانگین خرید</span><span class="v">${pvPrice(entryIrt(r))}</span></div>
+      <div><span class="k">قیمت فعلی</span><span class="v">${pvPrice(priceIrt(r))}</span></div>
+      <div><span class="k">سود/زیان خرید</span><span class="v">${cell(r.pnl_irt,pnlPct(r))}</span></div>
+      <div><span class="k">سود/زیان ۲۴ساعت</span><span class="v">${cell(r.ch24_irt,r.ch24_pct)}</span></div>
+      <div><span class="k">سهم از پرتفوی</span><span class="v">${r.weight!=null?((r.weight*100).toFixed(2)+"٪"):"—"}</span></div>
+    </div>
+  </div>`).join("");
   const tot={value:0,invested:0,pnl:0,ch24:0};
   list.forEach(r=>{if(r.value_irt!=null)tot.value+=r.value_irt;
     if(r.invested_irt!=null)tot.invested+=r.invested_irt;
     if(r.pnl_irt!=null)tot.pnl+=r.pnl_irt;
     if(r.ch24_irt!=null)tot.ch24+=r.ch24_irt;});
-  const foot=`<tr style="font-weight:800;border-top:2px solid var(--border)">
-    <td>جمع ${list.length} دارایی</td><td></td><td></td><td></td>
-    <td class="num">${pvMoney(tot.value)}</td>
-    <td class="num ${cls(tot.pnl)}">${pvMoneySigned(tot.pnl)}</td>
-    <td class="num ${cls(tot.ch24)}">${pvMoneySigned(tot.ch24)}</td><td></td></tr>`;
-  return `<table><thead><tr>${thS("pv2","coin","دارایی")}${thS("pv2","amount","مقدار","desc")}${thS("pv2","entry","میانگین خرید","desc")}${thS("pv2","price","قیمت فعلی","desc")}${thS("pv2","value","ارزش","desc")}${thS("pv2","pnl","سود/زیان خرید","desc")}${thS("pv2","ch24","سود/زیان ۲۴ساعت","desc")}${thS("pv2","weight","سهم","desc")}</tr></thead>
-    <tbody>${body}${foot}</tbody></table>
+  const foot=`<div class="list-total">
+    <span>جمع ${list.length} دارایی</span>
+    <span>ارزش: <b class="num">${pvMoney(tot.value)}</b></span>
+    <span>سود/زیان خرید: <b class="num ${cls(tot.pnl)}">${pvMoneySigned(tot.pnl)}</b></span>
+    <span>سود/زیان ۲۴ساعت: <b class="num ${cls(tot.ch24)}">${pvMoneySigned(tot.ch24)}</b></span>
+  </div>`;
+  return `<div class="clist">${body}</div>${foot}
     <div class="muted" style="margin-top:8px">«سود/زیان خرید» = ارزش منهای مبلغ خرید (سود از خرید خودت)؛ «سود/زیان ۲۴ساعت» = تغییر قیمت همین سکه در ۲۴ ساعت روی مقدار خودت. جمع هر ستون همان جمع ردیف‌های روی صفحه است.</div>`;
 }
 
@@ -1192,6 +1564,11 @@ function ageStr(s){if(s==null||isNaN(s))return "—";s=Number(s);
    Scanner ranking box; a resting BUY shows exactly how much cash it
    still locks. */
 function openOrdersTable(os){
+  /* رابط کارت‌شده: جای جدول ۱۱ ستونی (روی گوشی عملاً خوانا نبود)، هر
+     سفارش یک کارت لمسی: نماد+سمت+وضعیت بالا، قیمت و ارزش درشت، نوار
+     پرشدن، و یک خط جمع‌بندیِ باقی‌مانده/سن. کل جزئیاتِ فنی (شناسه‌ها،
+     زمان ثبت، فاصلهٔ قیمت بازار) داخل راهنمای نگه‌داشتن لمس (title) است —
+     پیش‌فرض ساده، جزئیات در دسترس. */
   const list=os||[];
   if(!list.length)return `<div class="empty">سفارش در جریانی نیست — هیچ سفارش بازی روی بازارها باقی نمانده</div>`;
   const money=(v,market)=>{const x=dispPrice(v,market);
@@ -1199,51 +1576,121 @@ function openOrdersTable(os){
   const rows=sortRows(list,"orders",{age:o=>o.age_s,market:o=>o.market,side:o=>o.side,
     price:o=>o.price,amount:o=>o.amount,filled:o=>o.filled_pct,left:o=>o.unmatched_amount,
     value:o=>o.value_quote,status:o=>o.status,
-    /* bot orders first (0) — same order the server sends, so the table
-       and the API never disagree on the default view */
+    /* bot orders first (0) — same order the server sends */
     origin:o=>o.origin==="bot"?0:1},"origin","asc");
   const bots=list.filter(o=>o.origin==="bot").length;
-  return `<div class="muted" style="margin-bottom:6px">${list.length} سفارش باز در جریان`+
-    (bots?` — ${bots} سفارش از ربات`:"")+(list.length-bots?` — ${list.length-bots} سفارش دستی`:"")+`</div>`+
-    `<table><thead><tr>${thS("orders","market","نماد")}${thS("orders","side","سمت")}<th>نوع</th>`+
-    `${thS("orders","price","قیمت سفارش")}${thS("orders","amount","حجم درخواستی")}${thS("orders","filled","پرشده","desc")}`+
-    `${thS("orders","left","باقی‌مانده")}${thS("orders","value","ارزش سفارش","desc")}${thS("orders","status","وضعیت")}`+
-    `${thS("orders","origin","ثبت‌کننده","asc")}${thS("orders","age","سن","asc")}</tr></thead><tbody>`+
-    rows.map(o=>{
-      const d=(o.live_price&&o.price)?((o.live_price-o.price)/o.price*100):null;
-      const dist=d==null?`<span class="mut">—</span>`:`<span class="${d>=0?"pos":"neg"}">${(d>=0?"+":"")+d.toFixed(2)}%</span>`;
-      const title=`شناسهٔ سفارش: ${o.exchange_order_id||o.order_id||"—"}`+
-        (o.client_order_id?` | شناسهٔ ربات: ${o.client_order_id}`:"")+
-        ` | ثبت: ${tehranFull(o.created_at)}`+
-        (o.live_price?` | قیمت بازار: ${fmtD(o.live_price,o.market)}`:"")+
-        (o.decision_id?` | تصمیم: ${o.decision_id}`:"");
-      return `<tr title="${esc(title)}">
-        <td class="num">${esc(o.market)}</td>
-        <td>${pill(o.side)}</td>
-        <td class="muted">${esc(o.order_type||"LIMIT")}</td>
-        <td class="num">${fmtD(o.price,o.market)}</td>
-        <td class="num">${fmt(o.amount,8)}</td>
-        <td class="num">${fmt(o.matched_amount,8)} <span class="mut">(${(o.filled_pct||0).toFixed(1)}%)</span></td>
-        <td class="num">${fmt(o.unmatched_amount,8)}</td>
-        <td class="num">${money(o.value_quote,o.market)}</td>
-        <td>${pill(o.status)}</td>
-        <td>${o.origin==="bot"?"ربات":"دستی"}</td>
-        <td class="num muted">${ageStr(o.age_s)}<br>${dist}</td>
-      </tr>`}).join("")+"</tbody></table>"}
+  const head=`<div class="muted" style="margin-bottom:8px">${list.length} سفارش باز در جریان`+
+    (bots?` — ${bots} سفارش از ربات`:"")+(list.length-bots?` — ${list.length-bots} سفارش دستی`:"")+`</div>`;
+  const cards=rows.map(o=>{
+    const filled=Math.min(100,Math.max(0,o.filled_pct||0));
+    const d=(o.live_price&&o.price)?((o.live_price-o.price)/o.price*100):null;
+    const dist=d==null?"":`<span class="${d>=0?"pos":"neg"}" style="font-size:11px">فاصله از بازار ${(d>=0?"+":"")+d.toFixed(2)}%</span>`;
+    const title=`شناسهٔ سفارش: ${o.exchange_order_id||o.order_id||"—"}`+
+      (o.client_order_id?` | شناسهٔ ربات: ${o.client_order_id}`:"")+
+      ` | ثبت: ${tehranFull(o.created_at)}`+
+      (o.live_price?` | قیمت بازار: ${fmtD(o.live_price,o.market)}`:"")+
+      (o.decision_id?` | تصمیم: ${o.decision_id}`:"");
+    return `<div class="oo-card" title="${esc(title)}">
+      <div class="oo-top">
+        <span class="oo-mkt">${esc(o.market)}</span>
+        ${pill(o.side)}${pill(o.status)}
+        <span class="oo-who">${o.origin==="bot"?"🤖 ربات":"✋ دستی"}</span>
+      </div>
+      <div class="oo-line">
+        <span><span class="mut" style="font-size:11px">قیمت ${esc(o.order_type||"LIMIT")}</span>
+          <b class="num" style="font-size:15px">${fmtD(o.price,o.market)}</b></span>
+        <span style="margin-inline-start:auto" class="mut">ارزش <b class="num" style="font-size:14px">${money(o.value_quote,o.market)}</b></span>
+      </div>
+      <div class="oo-bar"><i style="width:${filled.toFixed(0)}%"></i></div>
+      <div class="oo-meta">
+        <span>حجم ${fmt(o.amount,8)}</span>
+        <span>پرشده ${fmt(o.matched_amount,8)} <b>(${filled.toFixed(1)}%)</b></span>
+        <span>باقی‌مانده ${fmt(o.unmatched_amount,8)}</span>
+        <span style="margin-inline-start:auto">⏱ ${ageStr(o.age_s)} ${dist}</span>
+      </div>
+    </div>`}).join("");
+  return head+cards}
 
-function decTable(ds){if(!ds||!ds.length)return `<div class="empty">تصمیمی ثبت نشده</div>`;
+function decTable(ds){
+  /* «آخرین تصمیم‌ها» — همان زبان بصری کارت‌های سفارش، با یک تفاوت:
+     اینجا خودِ «چرا» هم دیده می‌شود. هر تصمیم یک کارت است:
+       سربرگ: نماد + اکشن + زمان (شناسه در title)
+       نوار اطمینان + درجهٔ اطمینان (conviction) + رأی کمیته
+       پلن: ورود / حد ضرر / هدف ۱ / حجم / نسبت سود به ضرر
+       چیپ‌های ✅/❌ برای هر گیت (روند، مومنتوم، RSI، MACD، حجم، …)
+       خط 🧠 با اعداد خام (روند/RSI/اسپرد/تغییر ۲۴ساعته/ترتیب EMA)
+     هدف: هیچ تصمیمی «بی‌دلیل» به نظر نرسد و معلوم باشد کدام گیت
+     خرید را رد کرده است. */
+  if(!ds||!ds.length)return `<div class="empty">تصمیمی ثبت نشده</div>`;
   const rows=sortRows(ds,"decs",{time:d=>Date.parse(d.created_at),symbol:d=>d.symbol,
-    action:d=>d.action,confidence:d=>d.confidence},"time","desc");
-  return `<table><thead><tr>${thS("decs","time","زمان","desc")}${thS("decs","symbol","نماد")}${thS("decs","action","اقدام")}${thS("decs","confidence","اطمینان","desc")}<th>جزئیات</th><th>اجرا</th></tr></thead><tbody>`+
-  rows.map(d=>{let det="—";
-    if(d.action==="BUY"||d.action==="SELL"){const e=d.entry||{},sl=d.stop_loss||{},ps=d.position_size||{};
-      det=`ورود ${fmtD(e.price,d.symbol)} | حد ضرر ${fmtD(sl.price,d.symbol)} | حجم ${fmt(ps.amount,6)}`}
+    action:d=>d.action,confidence:d=>d.confidence,conviction:d=>d.conviction},"time","desc");
+  const barCol=a=>a==="BUY"?"var(--green)":a==="SELL"?"var(--red)":
+                 a==="AVOID"?"var(--orange)":"var(--muted)";
+  const FCheck={trend:"روند",momentum:"مومنتوم",liquidity:"نقدینگی",
+    data_quality:"کیفیت داده",volatility:"نوسان",rsi:"RSI",
+    ema_order:"ترتیب EMA",macd:"MACD",volume:"حجم",
+    not_chasing:"نزدیک حمایت",conviction:"اطمینان"};
+  const chipsFor=ch=>Object.keys(ch||{}).filter(k=>FCheck[k]).map(k=>
+    `<span class="dec-chip ${ch[k]?"ok":"bad"}" title="${esc(k)}">${ch[k]?"✓":"✕"} ${FCheck[k]}</span>`).join("");
+  const num=v=>v==null?"—":fmt(Number(v),2);
+  const pct=v=>v==null?"—":((v>=0?"+":"")+fmt(Number(v),2)+"%");
+  const buys=rows.filter(d=>d.action==="BUY").length;
+  const head=`<div class="muted" style="margin-bottom:8px">${rows.length} تصمیم`+
+    (buys?` — ${buys} خرید`:"")+` — هر کارت: پلن، اطمینان و نتیجهٔ تک‌تک گیت‌ها</div>`;
+  return head+rows.map(d=>{
+    const conf=d.confidence!=null?Math.round(d.confidence*100):null;
+    const w=d.why||{};
+    const cv=d.conviction!=null?d.conviction:w.conviction;
+    const cvPct=cv!=null?Math.round(cv*100):null;
+    const hasPlan=d.entry&&d.entry.price!=null;
+    const sl=d.stop_loss||{},ps=d.position_size||{};
+    const tp1=(d.take_profit||[])[0]||{};
+    const cm=d.committee||{};
+    const plan=hasPlan?`<div class="dec-grid">
+        <div><span class="k">ورود</span><span class="v num">${fmtD(d.entry.price,d.symbol)}</span></div>
+        <div><span class="k">حد ضرر</span><span class="v num neg">${sl.price!=null?fmtD(sl.price,d.symbol):"—"}</span></div>
+        <div><span class="k">هدف ۱</span><span class="v num pos">${tp1.price!=null?fmtD(tp1.price,d.symbol):"—"}</span></div>
+        <div><span class="k">حجم</span><span class="v num">${fmt(ps.amount,6)}</span></div>
+        ${(d.risk||{}).risk_reward!=null?`<div><span class="k">سود/ضرر</span><span class="v num">${fmt(d.risk.risk_reward,2)}</span></div>`:""}
+        ${cm.p_up!=null?`<div><span class="k">احتمال صعود</span><span class="v num">${Math.round(cm.p_up*100)}%</span></div>`:""}
+      </div>`:'<div class="mut" style="font-size:11.5px;margin-top:4px">بدون پلن ورود (HOLD/AVOID)</div>';
+    const whyTxt=(w.trend!=null||w.data_quality!=null)?
+      `روند ${num(w.trend)} · مومنتوم ${num(w.momentum)} · نقدینگی ${num(w.liquidity)} · کیفیت داده ${num(w.data_quality)}`+
+      (w.rsi!=null?` · RSI ${num(w.rsi)}`:"")+
+      (w.macd_histogram!=null?` · MACD ${num(w.macd_histogram)}`:"")+
+      (w.spread_percent!=null?` · اسپرد ${num(w.spread_percent)}%`:"")+
+      (w.change_24h!=null?` · ۲۴س ${pct(w.change_24h)}`:"")+
+      (w.ema_order?` · EMA ${w.ema_order}`:"")+
+      (w.volume_ratio!=null?` · حجم ${num(w.volume_ratio)}×`:""):"";
+    const notes=(w.gate_notes||[]).map(c=>REJECT_FA(c)||c);
+    const notesTxt=notes.length?`<div class="dec-note">⚠ ${notes.join(" + ")}</div>`:"";
+    const cmTxt=(cm.votes_buy!=null)?
+      `<span>کمیته: ${cm.votes_buy}/${cm.votes_needed??"?"} رأی`+
+      (cm.plan_ev_pct!=null?` · ارزش انتظاری ${pct(cm.plan_ev_pct)}`:"")+
+      (cm.agreement!=null?` · توافق ${Math.round(cm.agreement*100)}%`:"")+`</span>`:"";
+    const rc=(d.reason_codes||[]).slice(0,4).map(c=>REJECT_FA(c)||c).join(" · ");
     const canExec=(d.action==="BUY"||d.action==="SELL")&&d.decision_id;
-    return `<tr><td class="num muted">${tehran(d.created_at)}</td>
-      <td class="num">${esc(d.symbol)}</td><td>${pill(d.action)}</td>
-      <td class="num">${d.confidence!=null?(d.confidence*100).toFixed(0)+"%":"—"}</td>
-      <td class="muted" style="white-space:normal">${det}</td>
-      <td>${canExec?`<button class="btn-ex" data-did="${esc(d.decision_id)}" data-sym="${esc(d.symbol)}">اجرای این</button>`:"—"}</td></tr>`}).join("")+"</tbody></table>"}
+    return `<div class="dec-card" title="${esc((d.decision_id||"")+(w.trend_label?" | روند بازار: "+w.trend_label:"")+(w.regime?" | نوسان: "+w.regime:""))}">
+      <div class="oo-top">
+        <span class="oo-mkt">${esc(d.symbol)}</span>${pill(d.action)}
+        ${cm.consensus&&cm.consensus!==d.action?pill(cm.consensus):""}
+        <span class="oo-who" title="${esc(tehranFull(d.created_at))}">${tehran(d.created_at)}</span>
+      </div>
+      <div class="oo-bar"><i style="width:${conf||0}%;background:${barCol(d.action)}"></i></div>
+      <div class="oo-meta">
+        <span><b>اطمینان ${conf!=null?conf+"%":"—"}</b></span>
+        ${cvPct!=null?`<span>درجهٔ اطمینان <b>${cvPct}%</b></span>`:""}
+        ${cmTxt}
+      </div>
+      ${plan}
+      ${chipsFor(w.checks)?`<div class="dec-chips">${chipsFor(w.checks)}</div>`:""}
+      ${whyTxt?`<div class="oo-meta mut" style="font-size:11.5px;margin-top:6px">🧠 ${whyTxt}</div>`:""}
+      ${notesTxt}
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <span class="mut" style="font-size:11.5px">${rc||""}</span>
+        ${canExec?`<button class="btn-ex" style="margin-inline-start:auto" data-did="${esc(d.decision_id)}" data-sym="${esc(d.symbol)}">اجرای این</button>`:""}
+      </div>
+    </div>`}).join("")}
 async function execDecision(did,sym){if(!confirm("اجرای دستی تصمیم "+sym+" با سفارش واقعی؟"))return;
   toast("در حال اجرای تصمیم…");
   try{const r=await jpost("/api/control/execute_decision",{decision_id:did});
@@ -1331,25 +1778,34 @@ function universeTable(rows){
     (u.tradable!=null?(" | قابل‌معامله: "+fmt(u.tradable,0)):"")+
     (m.transfer&&m.transfer.cross_market_allowed===false?" | ⚠ انتقال بین بازارها خاموش است":"")+
     `</div>`;
+  const sortBar=`<div class="sortbar"><span class="lbl">مرتب‌سازی:</span>`+
+    [["volume","حجم ۲۴س","desc"],["chg","تغییر ۲۴س","desc"],
+     ["price","قیمت","desc"],["spread","کم‌ترین اسپرد","asc"],
+     ["value","ارزش دارایی من","desc"],["state","وضعیت در ربات","asc"],
+     ["symbol","نماد","asc"]].map(([k,l,d])=>
+      `<span class="sortchip sortable${(uiSort.uni&&uiSort.uni.col===k)?" on":""}"`+
+      ` data-t="uni" data-k="${k}" data-dir="${d}">${l}${sortArrow("uni",k)}</span>`).join("")+`</div>`;
   const trs=body.map(r=>{
     const vol=(r.quote_volume_24h!=null)?r.quote_volume_24h:r.volume_24h;
     const chg=r.change_24h;
-    const acts=(r.held?`<button class="btn-sellnow" data-sym="${esc(r.symbol)}" data-amt="${r.held_amount||""}" title="فروش کل موقعیت این بازار (بدون نیاز به اسنپ‌شات)">فروش</button> `:"")+
+    const acts=(r.held?`<button class="btn-sellnow" data-sym="${esc(r.symbol)}" data-amt="${r.held_amount||""}" title="فروش کل موقعیت این بازار (بدون نیاز به اسنپ‌شات)">فروش</button>`:"")+
       `<button class="btn-buynow" data-sym="${esc(r.symbol)}" title="خرید دستی همین بازار (مبلغ پیشنهادی از موجودی نقد)">خرید</button>`;
-    return `<tr><td class="num">${esc(r.symbol)}</td>
-      <td class="num">${fmtD(r.last_price,r.symbol)}</td>
-      <td class="num ${cls(chg)}">${chg!=null?((chg>=0?"+":"")+Number(chg).toFixed(2)+"%"):"—"}</td>
-      <td class="num">${r.spread_percent!=null?fmt(r.spread_percent,3):"—"}</td>
-      <td class="num">${vol!=null?fmt(vol,0):"—"}</td>
-      <td style="white-space:normal">${univBadges(r)}</td>
-      <td class="num">${r.value_usdt!=null?("$"+fmt(r.value_usdt,2)):"—"}</td>
-      <td>${acts}</td></tr>`;
+    return `<div class="ctile">
+      <div class="ct-top">
+        <span class="ct-name">${esc(r.symbol)}</span>
+        <span class="ct-chg ${cls(chg)}">${chg!=null?((chg>=0?"+":"")+Number(chg).toFixed(2)+"%"):"—"}</span>
+      </div>
+      <div class="ct-val">${fmtD(r.last_price,r.symbol)}</div>
+      <div class="ct-grid">
+        <div><span class="k">حجم ۲۴ساعته</span><span class="v">${vol!=null?fmt(vol,0):"—"}</span></div>
+        <div><span class="k">اسپرد</span><span class="v">${r.spread_percent!=null?fmt(r.spread_percent,3)+"%":"—"}</span></div>
+        <div><span class="k">ارزش دارایی من</span><span class="v">${r.value_usdt!=null?("$"+fmt(r.value_usdt,2)):"—"}</span></div>
+      </div>
+      <div class="badges">${univBadges(r)}</div>
+      <div class="ct-foot"><div class="ct-acts">${acts}</div></div>
+    </div>`;
   }).join("");
-  return head+`<table><thead><tr>${thS("uni","symbol","نماد")}`+
-    `${thS("uni","price","قیمت","desc")}${thS("uni","chg","تغییر ۲۴س","desc")}`+
-    `${thS("uni","spread","اسپرد%","asc")}${thS("uni","volume","حجم ۲۴س","desc")}`+
-    `${thS("uni","state","وضعیت در ربات","asc")}${thS("uni","value","ارزش دارایی من","desc")}`+
-    `<th>خرید/فروش</th></tr></thead><tbody>${trs}</tbody></table>`;
+  return head+sortBar+`<div class="clist">${trs}</div>`;
 }
 /* toolbar wiring: search is debounced, sort/quote/enabled ask the server
    (it ranks over the WHOLE catalog), the two client-side filters are free */
@@ -1374,45 +1830,64 @@ function universeTable(rows){
 function marketsTable(ms){if(!ms||!ms.length)return `<div class="empty">داده بازار موجود نیست — موتور را شروع کنید</div>`;
   const rows=sortRows(ms,"mkts",{symbol:m=>m.symbol,price:m=>m.last_price,chg:m=>m.change_24h,
     spread:m=>m.spread_percent,volume:m=>m.volume_24h,rsi:m=>m.rsi,score:m=>m.score},"score","desc");
-  return `<table><thead><tr>${thS("mkts","symbol","نماد")}${thS("mkts","price","قیمت","desc")}${thS("mkts","chg","تغییر ۲۴س","desc")}${thS("mkts","spread","اسپرد%","desc")}${thS("mkts","volume","حجم ۲۴س","desc")}
-    <th>نقدینگی</th><th>نوسان</th>${thS("mkts","rsi","RSI","desc")}<th>روند</th><th>رژیم</th>${thS("mkts","score","امتیاز","desc")}<th>کیفیت</th></tr></thead><tbody>`+
-  rows.map(m=>`<tr><td class="num">${esc(m.symbol)}</td>
-    <td class="num">${fmtD(m.last_price,m.symbol)}</td>
-    <td class="num ${cls(m.change_24h)}">${m.change_24h!=null?m.change_24h.toFixed(2)+"%":"—"}</td>
-    <td class="num">${fmt(m.spread_percent,4)}</td>
-    <td class="num">${fmt(m.volume_24h,0)}</td>
-    <td>${pill(m.liquidity)}</td><td>${esc(m.volatility_regime||"—")}</td>
-    <td class="num">${m.rsi!=null?m.rsi.toFixed(1):"—"}</td>
-    <td>${esc(m.trend||"—")}</td><td>${esc(m.regime||"—")}</td>
-    <td class="num">${m.score!=null?(m.score*100).toFixed(0):"—"}</td>
-    <td>${pill(m.data_quality_status)}</td></tr>`).join("")+"</tbody></table>"}
+  const meter=sc=>`<div class="ct-meter"><i style="width:${sc==null?0:Math.max(0,Math.min(100,sc*100))}%"></i></div>`;
+  return `<div class="clist">`+rows.map(m=>`<div class="ctile">
+    <div class="ct-top">
+      <span class="ct-name">${esc(m.symbol)}</span>
+      <span class="ct-chg ${cls(m.change_24h)}">${m.change_24h!=null?m.change_24h.toFixed(2)+"%":"—"}</span>
+    </div>
+    <div class="ct-val">${fmtD(m.last_price,m.symbol)}</div>
+    ${meter(m.score)}
+    <div class="ct-grid">
+      <div><span class="k">امتیاز</span><span class="v">${m.score!=null?(m.score*100).toFixed(0):"—"}</span></div>
+      <div><span class="k">RSI</span><span class="v">${m.rsi!=null?m.rsi.toFixed(1):"—"}</span></div>
+      <div><span class="k">اسپرد</span><span class="v">${fmt(m.spread_percent,4)}</span></div>
+      <div><span class="k">حجم ۲۴ساعته</span><span class="v">${fmt(m.volume_24h,0)}</span></div>
+      <div><span class="k">روند</span><span class="v fa">${esc(m.trend||"—")}</span></div>
+      <div><span class="k">نوسان</span><span class="v fa">${esc(m.volatility_regime||"—")}</span></div>
+    </div>
+    <div class="ct-foot"><span class="badges">${pill(m.liquidity)}${pill(m.data_quality_status)}</span>
+      <span class="mut" style="margin-inline-start:auto">${esc(m.regime||"")}</span></div>
+  </div>`).join("")+`</div>`}
 
 function riskTable(rs){if(!rs||!rs.length)return `<div class="empty">موردی نیست</div>`;
   const rows=sortRows(rs,"risk",{time:r=>Date.parse(r.created_at),status:r=>r.status},"time","desc");
-  return `<table><thead><tr>${thS("risk","time","زمان")}<th>تصمیم</th>${thS("risk","status","وضعیت")}<th>حجم تأییدی</th><th>دلایل رد</th></tr></thead><tbody>`+
-  rows.map(r=>`<tr><td class="num muted">${tehran(r.created_at)}</td>
-    <td class="num muted" style="direction:ltr">${esc((r.decision_id||"").slice(0,22))}</td>
-    <td>${pill(r.status)}</td>
-    <td class="num">${fmt(r.approved_position_size,8)}</td>
-    <td class="muted">${esc((r.rejection_reasons||[]).map(c=>REJECT_FA(c)).join("، "))||"—"}</td></tr>`).join("")+"</tbody></table>"}
+  return `<div class="clist">`+rows.map(r=>`<div class="ctile">
+    <div class="ct-top">
+      <span class="ct-name" style="direction:ltr;font-size:12px">${esc((r.decision_id||"").slice(0,18))}</span>
+      <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${tehran(r.created_at)}</span>
+    </div>
+    <div class="ct-top">${pill(r.status)}
+      <span class="mut">حجم تأییدی: <b class="num">${fmt(r.approved_position_size,8)}</b></span></div>
+    <div class="mut">${esc((r.rejection_reasons||[]).map(c=>REJECT_FA(c)).join("، "))||"—"}</div>
+  </div>`).join("")+`</div>`}
 
 function execTable(xs){if(!xs||!xs.length)return `<div class="empty">اجرایی ثبت نشده</div>`;
   const rows=sortRows(xs,"exec",{time:x=>Date.parse(x.created_at),market:x=>x.market,side:x=>x.side,
     price:x=>x.fill_price||x.price,amount:x=>x.amount},"time","desc");
-  return `<table><thead><tr>${thS("exec","time","زمان","desc")}${thS("exec","market","نماد")}${thS("exec","side","سمت")}${thS("exec","price","قیمت","desc")}${thS("exec","amount","حجم","desc")}<th>وضعیت</th></tr></thead><tbody>`+
-  rows.map(x=>`<tr><td class="num muted">${tehran(x.created_at)}</td>
-    <td class="num">${esc(x.market)}</td><td>${pill(x.side)}</td>
-    <td class="num">${fmtD(x.fill_price||x.price,x.market)}</td>
-    <td class="num">${fmt(x.amount,8)}</td><td>${pill(x.status)}</td></tr>`).join("")+"</tbody></table>"}
+  return `<div class="clist">`+rows.map(x=>`<div class="ctile">
+    <div class="ct-top">
+      <span class="ct-name">${esc(x.market)}</span>${pill(x.side)}${pill(x.status)}
+      <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${tehran(x.created_at)}</span>
+    </div>
+    <div class="ct-grid">
+      <div><span class="k">قیمت</span><span class="v">${fmtD(x.fill_price||x.price,x.market)}</span></div>
+      <div><span class="k">حجم</span><span class="v">${fmt(x.amount,8)}</span></div>
+    </div>
+  </div>`).join("")+`</div>`}
 
 function positionsTable(ps){if(!ps||!ps.length)return `<div class="empty">موقعیت بازی وجود ندارد</div>`;
   const rows=sortRows(ps,"pos",{market:p=>p.market,amount:p=>p.amount,entry:p=>p.avg_entry,
     pnl:p=>parseFloat(p.realized_pnl),opened:p=>Date.parse(p.opened_at)},"market","asc");
-  return `<table><thead><tr>${thS("pos","market","نماد")}${thS("pos","amount","حجم","desc")}${thS("pos","entry","میانگین ورود","desc")}${thS("pos","pnl","سود تحقق‌یافته","desc")}${thS("pos","opened","باز شدن","desc")}</tr></thead><tbody>`+
-  rows.map(p=>`<tr><td class="num">${esc(p.market)}</td><td class="num">${fmt(p.amount,8)}</td>
-    <td class="num">${fmtD(p.avg_entry,p.market)}</td>
-    <td class="num ${cls(parseFloat(p.realized_pnl))}">${displayUsd()?usd(parseFloat(p.realized_pnl),2):fmt(p.realized_pnl)}</td>
-    <td class="num muted">${tehranFull(p.opened_at)}</td></tr>`).join("")+"</tbody></table>"}
+  return `<div class="clist">`+rows.map(p=>`<div class="ctile">
+    <div class="ct-top"><span class="ct-name">${esc(p.market)}</span>
+      <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${tehranFull(p.opened_at)}</span></div>
+    <div class="ct-grid">
+      <div><span class="k">حجم</span><span class="v">${fmt(p.amount,8)}</span></div>
+      <div><span class="k">میانگین ورود</span><span class="v">${fmtD(p.avg_entry,p.market)}</span></div>
+      <div><span class="k">سود تحقق‌یافته</span><span class="v ${cls(parseFloat(p.realized_pnl))}">${displayUsd()?usd(parseFloat(p.realized_pnl),2):fmt(p.realized_pnl)}</span></div>
+    </div>
+  </div>`).join("")+`</div>`}
 
 function sellsPlanTable(ps,plans,s){/* per-holding SELL plan: stop + TP ladder + current distance */
   if(!ps||!ps.length)return `<div class="empty">سکه‌ای برای فروش وجود ندارد</div>`;
@@ -1431,17 +1906,24 @@ function sellsPlanTable(ps,plans,s){/* per-holding SELL plan: stop + TP ladder +
     const stopDist=stop>0&&cur>0?((cur-stop)/cur*100):null;
     const tpsHtml=tps.length?tps.map((t,i)=>
       `<span class="muted" style="${i<(stage||0)?"text-decoration:line-through;opacity:.5":""}">TP${i+1}: ${fmtD(t.p,p.market)} (${t.c}%)</span>`).join(" | "):"—";
-    return `<tr><td class="num">${esc(p.market)}</td>
-      <td class="num">${fmt(p.amount,8)}</td>
-      <td class="num">${fmtD(entry,p.market)}</td>
-      <td class="num">${fmtD(cur,p.market)}</td>
-      <td class="num ${pnlPct==null?"":pnlPct>=0?"pos":"neg"}">${pnlPct==null?"—":pnlPct.toFixed(2)+"%"}</td>
-      <td class="num neg">${stop?fmtD(stop,p.market)+" (−"+(stopDist==null?"?":stopDist.toFixed(1))+"%)":"—"}</td>
-      <td>${tpsHtml}</td>
-      <td>${plan?`<button class="btn-sellnow" data-sym="${esc(p.market)}" data-amt="${p.amount}">فروش فوری</button>`:`<span class="muted">بدون پلن — خرید قدیمی</span>`}</td></tr>`;
+    return `<div class="ctile">
+      <div class="ct-top">
+        <span class="ct-name">${esc(p.market)}</span>
+        <span class="ct-chg ${pnlPct==null?"":pnlPct>=0?"pos":"neg"}">${pnlPct==null?"—":(pnlPct>=0?"+":"")+pnlPct.toFixed(2)+"%"}</span>
+      </div>
+      <div class="ct-val">${fmtD(cur,p.market)}</div>
+      <div class="ct-grid">
+        <div><span class="k">حجم</span><span class="v">${fmt(p.amount,8)}</span></div>
+        <div><span class="k">ورود</span><span class="v">${fmtD(entry,p.market)}</span></div>
+        <div><span class="k">حد ضرر</span><span class="v neg">${stop?fmtD(stop,p.market)+" (-"+(stopDist==null?"?":stopDist.toFixed(1))+"%)":"—"}</span></div>
+      </div>
+      <div class="mut" style="font-size:11px">${tpsHtml}</div>
+      <div class="ct-foot">
+        ${plan?`<button class="btn-sellnow" data-sym="${esc(p.market)}" data-amt="${p.amount}">فروش فوری</button>`:`<span class="muted">بدون پلن — خرید قدیمی</span>`}
+      </div>
+    </div>`;
   });
-  return `<table><thead><tr>${thS("splan","market","نماد")}${thS("splan","amount","حجم","desc")}${thS("splan","entry","ورود","desc")}${thS("splan","cur","قیمت فعلی","desc")}${thS("splan","pnl","سود/ضرر","desc")}
-    ${thS("splan","stop","حد ضرر","desc")}<th>پلن حد سود</th><th>فروش</th></tr></thead><tbody>${rows.join("")}</tbody></table>`}
+  return `<div class="clist">${rows.join("")}</div>`}
 
 async function sellNow(sym,amt){if(!confirm("فروش فوری کل "+sym+" ("+amt+") با سفارش واقعی؟"))return;
   toast("در حال ثبت سفارش فروش…");
@@ -1468,7 +1950,6 @@ async function buyNow(sym){
   /* فیلد مبلغ و موجودی نقد در واحد پول همین بازار: خرید تتری با تتر ($)،
      خرید تومانی با تومان — عدد تومانی هرگز دلاری نمایش داده نمی‌شود
      (پشتیبانی API هم همین واحد بازار را می‌گیرد) */
-  const toToman=v=>qUsdt?(usdtPerIrt()?v*usdtPerIrt():v):v; /* API تومانی */
   const sh=v=>qUsdt?("$"+fmt(v,2)):fmt(v,0)+" تومان";
   const disp=v=>v;
   const defRaw=(sug&&sug.ok&&sug.amount_quote!=null)?sug.amount_quote:
@@ -1482,13 +1963,15 @@ async function buyNow(sym){
   if(v==null)return; /* cancelled */
   const amt0=parseFloat(String(v).replace(/[٫,]/g,"."));
   if(isNaN(amt0)||amt0<=0){toast("مبلغ نامعتبر است");return}
-  const amt=toToman(amt0); /* API stays Toman — the UI converts */
+  const amt=amt0; /* مبلغ در واحد پول همین بازار می‌ماند (تتر برای *USDT) */
   const cashShown=cash==null?"—":sh(cash);
   /* موجودی نقد مقایسه‌شده در واحد همان بازار: تتر با تتر، تومان با تومان */
   const cashCompare=cash;
   if(cashCompare!=null&&amt>cashCompare){if(!confirm("مبلغ بزرگ‌تر از موجودی نقد ("+cashShown+") است — موتور ریسک آن را به اندازه‌ی موجودی محدود می‌کند. ادامه؟"))return}
   toast("در حال ثبت سفارش خرید "+mkt+"…");
-  try{const r=await jpost("/api/control/buy_now",{symbol:sym,amount_irt:amt});
+  try{const r=await jpost("/api/control/buy_now",qUsdt
+    ?{symbol:sym,amount_quote:amt} /* دلار تایپ‌شده، مستقیم در بازار تتری — بدون تبدیل به تومان */
+    :{symbol:sym,amount_irt:amt});
     if(r.ok)toast("سفارش خرید ثبت شد: "+((r.market)||mkt)+" — "+((r.execution||{}).status||"")+(r.note?" | "+r.note:""));
     else toast(r.error||"خطا"+(r.rejected?" | "+r.rejected.map(c=>REJECT_FA(c)).join("، "):"")+(r.note?" | "+r.note:""));
   }catch(e){toast("خطا: "+e)}
@@ -1498,30 +1981,45 @@ document.addEventListener("click",e=>{const b=e.target.closest(".btn-buynow");if
 function assetsTable(as){if(!as||!as.length)return `<div class="empty">—</div>`;
   const rows=sortRows(as,"assets",{asset:a=>a.asset,available:a=>a.available,locked:a=>a.locked,
     value:a=>a.market_value,weight:a=>a.portfolio_weight},"asset","asc");
-  return `<table><thead><tr>${thS("assets","asset","دارایی")}${thS("assets","available","آزاد","desc")}${thS("assets","locked","قفل","desc")}${thS("assets","value","ارزش($)","desc")}${thS("assets","weight","وزن","desc")}</tr></thead><tbody>`+
-  rows.map(a=>`<tr><td class="num">${esc(a.asset)}</td><td class="num">${fmt(a.available,8)}</td>
-    <td class="num">${fmt(a.locked,8)}</td><td class="num">${fmt(a.market_value,2)}</td>
-    <td class="num">${pct(a.portfolio_weight)}</td></tr>`).join("")+"</tbody></table>"}
+  return `<div class="clist">`+rows.map(a=>`<div class="ctile">
+    <div class="ct-top"><span class="ct-name">${esc(a.asset)}</span>
+      <span class="ct-chg mut" style="font-weight:400">${pct(a.portfolio_weight)}</span></div>
+    <div class="ct-val">$${fmt(a.market_value,2)}</div>
+    <div class="ct-grid">
+      <div><span class="k">آزاد</span><span class="v">${fmt(a.available,8)}</span></div>
+      <div><span class="k">قفل</span><span class="v">${fmt(a.locked,8)}</span></div>
+      <div><span class="k">وزن</span><span class="v">${pct(a.portfolio_weight)}</span></div>
+    </div>
+  </div>`).join("")+`</div>`}
 
 function fillsTable(fs){if(!fs||!fs.length)return `<div class="empty">معامله‌ای انجام نشده</div>`;
   const rows=sortRows(fs,"fills",{time:f=>Date.parse(f.timestamp),market:f=>f.market,side:f=>f.side,
     price:f=>f.price,amount:f=>f.amount},"time","desc");
-  return `<table><thead><tr>${thS("fills","time","زمان","desc")}${thS("fills","market","نماد")}${thS("fills","side","سمت")}${thS("fills","price","قیمت","desc")}${thS("fills","amount","حجم","desc")}<th>کارمزد</th></tr></thead><tbody>`+
-  rows.map(f=>`<tr><td class="num muted">${tehran(f.timestamp)}</td>
-    <td class="num">${esc(f.market)}</td><td>${pill(f.side)}</td>
-    <td class="num">${fmtD(f.price,f.market)}</td><td class="num">${fmt(f.amount,8)}</td>
-    <td class="num">${fmt(f.fee_amount,4)} ${esc(f.fee_asset)}</td></tr>`).join("")+"</tbody></table>"}
+  return `<div class="clist">`+rows.map(f=>`<div class="ctile">
+    <div class="ct-top"><span class="ct-name">${esc(f.market)}</span>${pill(f.side)}
+      <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${tehran(f.timestamp)}</span></div>
+    <div class="ct-grid">
+      <div><span class="k">قیمت</span><span class="v">${fmtD(f.price,f.market)}</span></div>
+      <div><span class="k">حجم</span><span class="v">${fmt(f.amount,8)}</span></div>
+      <div><span class="k">کارمزد</span><span class="v">${fmt(f.fee_amount,4)} ${esc(f.fee_asset)}</span></div>
+    </div>
+  </div>`).join("")+`</div>`}
 
 function renderEvents(evs){if(!evs||!evs.length){$("#evBox").innerHTML='<div class="empty">رویدادی نیست</div>';return}
   const col=t=>t.startsWith("SNAPSHOT")?"evtype-snapshot":t.startsWith("AI_")?"evtype-ai":
     t.startsWith("RISK")?"evtype-risk":t.startsWith("ORDER")?"evtype-order":
     t.startsWith("SAFE")?"evtype-safe":t.startsWith("SYSTEM")?"evtype-system":
     t.startsWith("MARKET")?"evtype-market":"evtype-position";
-  $("#evBox").innerHTML=evs.slice().reverse().map(e=>{
+  $("#evBox").innerHTML=`<div class="evlist">`+evs.slice().reverse().map(e=>{
     const pl=JSON.stringify(e.payload||{});
-    return `<div class="evline"><span class="t">${tehran(e.timestamp)}</span>
-      <span class="ty ${col(e.event_type)}">${esc(e.event_type)}</span>
-      <span class="muted" style="white-space:normal;direction:ltr">${esc(pl.slice(0,140))}</span></div>`}).join("")}
+    return `<div class="ev-card">
+      <span class="ev-dot ${col(e.event_type)}"></span>
+      <div class="ev-body">
+        <div class="ev-top"><span class="ev-type ${col(e.event_type)}">${esc(e.event_type)}</span>
+          <span class="ev-time">${tehran(e.timestamp)}</span></div>
+        <div class="ev-payload">${esc(pl.slice(0,160))}</div>
+      </div>
+    </div>`}).join("")+`</div>`}
 
 /* ---------------- settings form ---------------- */
 function renderCfg(c){
@@ -1742,8 +2240,14 @@ async function refreshRealWallet(){
     if(doc.error){ box.innerHTML = `<div class="empty">${esc(doc.error)}</div>`; return; }
     const assets = doc.assets||[];
     if(!assets.length){ box.innerHTML = '<div class="empty">کیف پولی یافت نشد</div>'; return; }
-    box.innerHTML = '<table><thead><tr><th>دارایی</th><th>آزاد</th><th>قفل</th><th>کل</th></tr></thead><tbody>' +
-      assets.map(a=>`<tr><td class="num">${esc(a.asset)}</td><td class="num">${fmt(a.available,8)}</td><td class="num">${fmt(a.locked,8)}</td><td class="num">${fmt(a.total,8)}</td></tr>`).join('') + '</tbody></table>';
+    box.innerHTML = '<div class="clist">' +
+      assets.map(a=>`<div class="ctile"><div class="ct-top">
+        <span class="ct-name">${esc(a.asset)}</span></div>
+        <div class="ct-grid">
+          <div><span class="k">آزاد</span><span class="v">${fmt(a.available,8)}</span></div>
+          <div><span class="k">قفل</span><span class="v">${fmt(a.locked,8)}</span></div>
+          <div><span class="k">کل</span><span class="v">${fmt(a.total,8)}</span></div>
+        </div></div>`).join('') + '</div>';
   }catch(e){}
 }
 
@@ -1756,16 +2260,24 @@ async function refreshRealOrders(){
     if(doc.error){ box.innerHTML = `<div class="empty">${esc(doc.error)}</div>`; return; }
     const row = (o, done) => {
       const amt = Number(o.amount||0), pr = Number(o.price||0), m = Number(o.matchedAmount||o.matched_amount||0);
-      return `<tr><td class="num">${esc(o.srcCurrency? (String(o.srcCurrency).toUpperCase()+(String(o.dstCurrency||'').toLowerCase().includes('usdt')?'USDT':'IRT')) : (o.market||''))}</td>
-        <td>${String(o.type||o.side||'').toUpperCase()==='BUY'?'<span class="pill GOOD">خرید</span>':'<span class="pill REJECTED">فروش</span>'}</td>
-        <td class="num">${fmt(pr,0)}</td><td class="num">${fmt(amt,8)}</td>
-        <td class="num">${fmt(m,8)}</td><td>${pill(done?'FILLED':String(o.status||'ACTIVE').toUpperCase())}</td></tr>`;
+      return `<div class="ctile">
+        <div class="ct-top">
+          <span class="ct-name">${esc(o.srcCurrency? (String(o.srcCurrency).toUpperCase()+(String(o.dstCurrency||'').toLowerCase().includes('usdt')?'USDT':'IRT')) : (o.market||''))}</span>
+          ${String(o.type||o.side||'').toUpperCase()==='BUY'?'<span class="pill GOOD">خرید</span>':'<span class="pill REJECTED">فروش</span>'}
+          <span class="ct-chg">${pill(done?'FILLED':String(o.status||'ACTIVE').toUpperCase())}</span>
+        </div>
+        <div class="ct-grid">
+          <div><span class="k">قیمت</span><span class="v">${fmt(pr,0)}</span></div>
+          <div><span class="k">حجم</span><span class="v">${fmt(amt,8)}</span></div>
+          <div><span class="k">پرشده</span><span class="v">${fmt(m,8)}</span></div>
+        </div>
+      </div>`;
     };
     const open = (doc.open||[]).map(o=>row(o,false));
     const recent = (doc.recent||[]).map(o=>row(o,true));
-    box.innerHTML = (open.length? '<b class="muted">باز:</b><table><thead><tr><th>بازار</th><th>سمت</th><th>قیمت</th><th>حجم</th><th>پرشده</th><th>وضعیت</th></tr></thead><tbody>'+open.join('')+'</tbody></table>'+
+    box.innerHTML = (open.length? '<div class="list-head"><b>سفارش‌های باز</b></div><div class="clist">'+open.join('')+'</div>'+
       '<button class="btn" id="btnCancelBots" style="margin-top:8px">لغو سفارش‌های باز ربات</button>':'') +
-      (recent.length? '<b class="muted" style="display:block;margin-top:8px">انجام‌شده (آخرین ۲۰):</b><table><thead><tr><th>بازار</th><th>سمت</th><th>قیمت</th><th>حجم</th><th>پرشده</th><th>وضعیت</th></tr></thead><tbody>'+recent.join('')+'</tbody></table>':'') +
+      (recent.length? '<div class="list-head" style="margin-top:10px"><b>انجام‌شده (آخرین ۲۰)</b></div><div class="clist">'+recent.join('')+'</div>':'') +
       (!open.length&&!recent.length? '<div class="empty">سفارش بازی وجود ندارد</div>':'');
     const cb=document.getElementById('btnCancelBots');
     if(cb)cb.onclick=async()=>{if(!confirm('لغو همه سفارش‌های بازِ ثبت‌شده توسط ربات؟'))return;
@@ -1843,20 +2355,7 @@ function holdingsBox(s){
      trading market includes USDT markets */
   const usdtRowAsset=(p.assets||[]).find(a=>a.asset==="USDT");
   const plans=s.exit_plans||{};
-  const chg24={};
-  (s.markets_view||[]).forEach(m=>{chg24[m.symbol]=m.change_24h});
-  const p24For=h=>{
-    /* «سود ۲۴ساعت» = تغییر قیمت ۲۴ساعتِ همین سکه روی مقدار فعلی — همان
-       تعریفی که کیف پول نوبیتکس نشان می‌دهد. قبلاً برای خریدهای کمتر از
-       ۲۴ ساعت، «سود از زمان خرید» چاپ می‌شد و همین ستون بی‌صدا معنی
-       عوض می‌کرد (و سر ۲۴ ساعت یک‌باره می‌پرید). حالا همیشه ۲۴ساعت است. */
-    const raw=(h.ch24_pct!=null?h.ch24_pct:chg24[h.symbol]);
-    if(raw==null||isNaN(raw))return null;
-    /* change_24h arrives already in percent (0.42 = +0.42%) */
-    const g=Number(raw);
-    return (g>=0?"+":"")+g.toFixed(2)+"%"};
-  const p24MoneyFor=h=>(h.ch24_money!=null&&!isNaN(h.ch24_money))
-    ?Number(h.ch24_money):null;
+
   /* clickable column sorting (persists across the 2.5s re-render):
      نماد = alphabetical, everything else = numeric value/percent */
   const hget={sym:h=>h.coin,amount:h=>h.amount,invested:h=>h.invested_irt,
@@ -1865,11 +2364,19 @@ function holdingsBox(s){
     hadd:h=>(h.hadd_display!=null?h.hadd_display:(h.hadd!=null?h.hadd:(h.last_buy_price!=null?h.last_buy_price:h.avg_entry))),
     lastbuy:h=>h.last_buy_at?Date.parse(h.last_buy_at):-Infinity,
     p:h=>h.profit_pct,
-    p24:h=>{const v=p24For(h);return v==null?-Infinity:parseFloat(v)},
     stop:h=>h.stop,tp:h=>h.take_profit};
   const sorted=sortRows(holdings,"holdings",hget,"value","desc");
-  const hA=(k,l,d,tip)=>`<span class="sortable" data-t="holdings" data-k="${k}" data-dir="${d||"asc"}"${tip?` title="${tip}"`:""}>${l}${sortArrow("holdings",k)}</span>`;
-  const head=`<div class="hhead"><span class="sym">${hA("sym","نماد")}</span>${hA("amount","مقدار","desc")}${hA("invested","مبلغ خرید","desc")}${hA("value","ارزش","desc")}${hA("entry","قیمت خرید","desc")}${hA("hadd","قیمت حد","desc","قیمت لحظه‌ای همین سکه — دقیقاً همان قیمتی که اکنون در بازار معامله می‌شود؛ درصد حد ضرر/حد سود نسبت به «پلهٔ فعال» (مرجع ثابت پله) سنجیده می‌شود، نه نسبت به این قیمت")}${hA("p","سود از خرید","desc")}${hA("p24","سود ۲۴ساعت","desc")}${hA("stop","حد","desc")}<span style="flex:1"></span><span>عملیات</span></div>`;
+  /* مرتب‌سازی حالا چیپ است، نه سرستون جدول: هر سکه یک کارت دارد و
+     کاربر با یک لمس می‌گوید فهرست با چه عددی مرتب شود. */
+  const hA=(k,l,d,tip)=>`<span class="sortchip sortable" data-t="holdings" data-k="${k}" data-dir="${d||"asc"}"${tip?` title="${tip}"`:""}>${l}${sortArrow("holdings",k)}</span>`;
+  const curSort=(uiSort.holdings||{}).col||"value";
+  const head=`<div class="sortbar"><span class="lbl">مرتب‌سازی:</span>`+
+    [hA("value","ارزش","desc"),hA("p","سود از خرید","desc"),
+     hA("amount","مقدار","desc"),hA("invested","مبلغ خرید","desc"),
+     hA("entry","قیمت خرید","desc"),hA("hadd","قیمت حد","desc",
+       "قیمت لحظه‌ای همین سکه — دقیقاً همان قیمتی که اکنون در بازار معامله می‌شود؛ درصد حد ضرر/حد سود نسبت به «پلهٔ فعال» (مرجع ثابت پله) سنجیده می‌شود، نه نسبت به این قیمت"),
+     hA("stop","حد ضرر","desc"),hA("sym","نماد","asc")].join("")+
+    `</div>`;
   /* مبلغ هر ردیف در واحد پول بازار خودش: دلار برای بازارهای تتری،
      تومان برای بازارهای تومانی — دو بخش هیچ‌وقت واحد پول هم را
      قرض نمی‌گیرند (نه در حالت نمایش دلاری، نه هیچ‌جای دیگر).
@@ -1906,6 +2413,20 @@ function holdingsBox(s){
     :((h.pnl_money!=null&&!isNaN(h.pnl_money))?Number(h.pnl_money)
       :((rowVal(h)!=null&&rowCost(h)!=null&&!isNaN(rowVal(h))&&!isNaN(rowCost(h)))
         ?(Number(rowVal(h))-Number(rowCost(h))):null));
+  /* درصد «سود از خرید» = (ارزش − مبلغ خرید) ÷ مبلغ خرید.
+     از همان دو عددی که کارت چاپ می‌کند ساخته می‌شود تا درصد و مبلغ هیچ
+     وقت با هم نخوانند (مبلغ پرداخت‌شده = مقدار × قیمت خرید، پس این با
+     (قیمت فعلی − قیمت خرید) ÷ قیمت خرید یکی است). ۲ رقم اعشار، بدون
+     «+0.00»/«-0.00» و با علامت همان پول. اگر یکی از دو عدد نبود، درصد
+     سرور به‌عنوان جایگزین می‌ماند. */
+  const rowPct=h=>{
+    const v=rowVal(h),c=rowCost(h);
+    if(v==null||c==null||isNaN(v)||isNaN(c)||Number(c)<=0)
+      return (h.profit_pct!=null&&!isNaN(h.profit_pct))?Number(h.profit_pct):null;
+    const p=(Number(v)-Number(c))/Number(c)*100;
+    return Math.abs(p)<0.005?0:Math.round(p*100)/100;
+  };
+  const pctTxt=p=>p==null?"—":((p>0?"+":p<0?"-":"")+Math.abs(p).toFixed(2)+"%");
   /* قیمت (قیمت لحظه‌ای/خرید/حد) هم در واحد همان بازار */
   const mfmt=fmtMkt;
   /* دو بخش: هر خرید زیر بخش بازار خودش (تتری زیر «موجودی تتر»،
@@ -1932,7 +2453,7 @@ function holdingsBox(s){
     const haddShown=(h.hadd_display!=null?h.hadd_display:(h.hadd!=null?h.hadd:entry));
     /* the (n) bracket is CLICKABLE: edit the strike counter and/or the
        hadd price; a hadd equal to the buy price is always stage 0 */
-    const haddBadge=`<span class="lockb hadd-edit" data-hadd-sym="${esc(sym)}" data-hadd-stage="${h.stage||0}" data-hadd-price="${haddShown||""}" data-hadd-buy="${entry||""}" style="cursor:pointer" title="کلیک: تغییر پله و قیمت حد — حد برابر قیمت خرید یعنی پله ۰ | تغییر پله حد ضرر/حد سود را جابه‌جا نمی‌کند؛ هر پله سرمایهٔ افزوده را روی همان سکه می‌گذارد">(<span class="num">${h.stage||0}</span>)</span>`;
+    const haddBadge=`<span class="lockb hadd-edit strike-badge" data-hadd-sym="${esc(sym)}" data-hadd-stage="${h.stage||0}" data-hadd-price="${haddShown||""}" data-hadd-buy="${entry||""}" title="strike = شمارهٔ پلهٔ نردبان (۰ = قیمت خرید) | کلیک: تغییر پله و قیمت حد | تغییر پله حد ضرر/حد سود را جابه‌جا نمی‌کند"><span class="sb-k">strike</span><span class="num">${h.stage||0}</span></span>`;
     /* percent base for BOTH triggers = the plan's FIXED strike base
        (`h.hadd`: پله ۰ = قیمت آخرین خرید، پلهٔ بالاتر = سطحی که قیمت به
        آن رسیده). Per the user: «حد ضرر و حد سود نباید با تغییر قیمت حد
@@ -1995,8 +2516,6 @@ function holdingsBox(s){
                  (h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct),
                  h.stop_money,
                  (h.hadd_stop_pct!=null?h.hadd_stop_pct:h.stop_pct));
-    const p24=p24For(h);
-    const p24Money=p24MoneyFor(h);
     /* last-buy as RELATIVE time in parentheses: (۵ دقیقه) / (۳ ساعت) /
        (۲ روز) / (۱ ماه) — no «ago» word. The exact Tehran timestamp
        stays available as the hover tooltip. */
@@ -2019,28 +2538,40 @@ function holdingsBox(s){
     (_u?holdUsdt:holdIrt).push(h);   /* for the section's value total */
     /* symbol + the market it was REALLY bought in — a coin held on both
        sides shows once under each box, so the row names its own market */
-    (_u?rowsUsdt:rowsIrt).push(`<div class="hrow">
-      <span class="sym">${esc(h.coin)} <span class="mut" style="font-size:10px">${esc(sym)}</span></span>
-      <span>مقدار: <b class="num">${fmt(h.amount,6)}</b></span>
-      <span>مبلغ خرید: <b class="num">${moneyCell(rowCost(h),sym)}</b></span>
-      <span>ارزش: <b class="num">${moneyCell(rowVal(h),sym)}</b></span>
-      <span class="muted">قیمت خرید: <span class="num">${entry?mfmt(entry,h.symbol):"—"}</span></span>
-      <span class="muted">قیمت حد: <span class="num">${haddShown?mfmt(haddShown,h.symbol):"—"}</span>${haddBadge}</span>
-      <span>سود از خرید:${buyAge} <b class="num ${h.profit_pct==null?"mut":h.profit_pct>0?"pos":h.profit_pct<0?"neg":"mut"}" title="درصد سود = (ارزش − مبلغ خرید) ÷ مبلغ خرید — روی میانگین خرید همین ردیف | مبلغ دقیق: ${h.pnl_exact!=null?fmt(h.pnl_exact,2):"—"} ${/USDT$/.test(sym)?"$":"ت"}">${h.profit_pct==null?"—":(h.profit_pct>0?"+":"")+h.profit_pct.toFixed(2)+"%"}</b> ${pnlCell(rowMoney(h),sym)}</span>
-      <span>سود ۲۴ساعت: <b class="num ${p24==null?"mut":parseFloat(p24)>=0?"pos":"neg"}" title="تغییر قیمت ۲۴ساعتِ همین سکه روی مقدار فعلی — همان مبنایی که کیف پول نوبیتکس برای «سود/زیان ۲۴ساعته» نشان می‌دهد">${p24==null?"—":p24}</b> ${p24Money==null?"":pnlCell(p24Money,sym)}</span>
-      <span>حد: ${stopPctCell(h,"stop")} ${stopPctCell(h,"profit")}</span>
-      <span style="flex:1"></span>
-      <button class="btn-buynow" data-sym="${esc(sym)}" title="خرید همین سکه در بازار «بازار معاملات» انتخاب‌شده (تتری یا تومانی) — مبلغ پیشنهادی از موجودی نقد همان بازار، قابل تغییر">خرید</button>
-      <button class="btn-sellnow" data-sym="${esc(sym)}" data-amt="${h.amount}" title="فروش کل موقعیت همین بازار (تتر یا تومان همان بخش)">فروش</button>
+    const profPct=rowPct(h);
+    const profCls=profPct==null?"mut":profPct>0?"pos":profPct<0?"neg":"mut";
+    const profTxt=pctTxt(profPct);
+    (_u?rowsUsdt:rowsIrt).push(`<div class="hold-card">
+      <div class="hold-head">
+        <span class="hold-coin">${esc(h.coin)}</span>
+        <span class="hold-mkt">${esc(sym)}</span>
+        <span class="hold-profit ${profCls}" title="درصد سود = (ارزش − مبلغ خرید) ÷ مبلغ خرید — روی میانگین خرید همین ردیف | مبلغ دقیق: ${h.pnl_exact!=null?fmt(h.pnl_exact,2):"—"} ${/USDT$/.test(sym)?"$":"ت"}">${profTxt}</span>
+      </div>
+      <div class="ct-grid">
+        <div><span class="k">ارزش</span><span class="v">${moneyCell(rowVal(h),sym)}</span></div>
+        <div><span class="k">مبلغ خرید</span><span class="v">${moneyCell(rowCost(h),sym)}</span></div>
+        <div><span class="k">مقدار</span><span class="v">${fmt(h.amount,6)}</span></div>
+        <div><span class="k">قیمت خرید</span><span class="v">${entry?mfmt(entry,h.symbol):"—"}</span></div>
+        <div><span class="k">قیمت حد</span><span class="v">${haddShown?mfmt(haddShown,h.symbol):"—"}${haddBadge}</span></div>
+      </div>
+      <div class="hold-line">سود از خرید: <b class="num ${profCls}">${profTxt}</b> ${pnlCell(rowMoney(h),sym)}${buyAge}</div>
+      <div class="hold-levels">
+        <div><span class="k">حد ضرر</span>${stopPctCell(h,"stop")}</div>
+        <div><span class="k">حد سود</span>${stopPctCell(h,"profit")}</div>
+      </div>
+      <div class="hold-acts">
+        <button class="btn-buynow" data-sym="${esc(sym)}" title="خرید همین سکه در بازار «بازار معاملات» انتخاب‌شده (تتری یا تومانی) — مبلغ پیشنهادی از موجودی نقد همان بازار، قابل تغییر">خرید</button>
+        <button class="btn-sellnow" data-sym="${esc(sym)}" data-amt="${h.amount}" title="فروش کل موقعیت همین بازار (تتر یا تومان همان بخش)">فروش</button>
+      </div>
     </div>`);
   }
   /* ردیف نقدی هر بخش در واحد پول خودش: تومان برای IRT (همیشه، حتی در
      حالت نمایش دلاری) و تتر برای USDT. عدد تومانی هرگز دلاری نمایش
      داده نمی‌شود تا دو بخش قابل جمع/مقایسهٔ اشتباهی نباشند. */
   /* موجودی و جزئیات تومان — بالای بخش تومانی (خریدهای تومانی زیر همین) */
-  const irtRow=irt?`<div class="hrow" style="background:var(--panel2)">
-    <span class="sym">IRT (تومان)</span>
-    <span>موجودی: <b class="num">${fmt(irt.total,0)} ت</b></span>
+  const irtRow=irt?`<div class="cash-card">
+    <span class="cc-name">IRT (تومان)</span>
+    <span>موجودی: <b class="cc-val">${fmt(irt.total,0)} ت</b></span>
     <span class="muted">آزاد: <span class="num">${fmt(irt.available,0)} ت</span></span>
     ${irt.locked?`<span class="muted">قفل در سفارش: <span class="num">${fmt(irt.locked,0)} ت</span></span>`:""}
     <span style="flex:1"></span>
@@ -2049,9 +2580,9 @@ function holdingsBox(s){
      شامل میشود یا هنوز سکهٔ تتری داریم نمایش داده میشود (حالت
      «فقط تومانی» بدون سکهٔ تتری مثل قبل بدون این بخش میماند) */
   const showUsdtGroup=!!(usdtRowAsset&&(displayUsd()||rowsUsdt.length));
-  const usdtCashRow=showUsdtGroup?`<div class="hrow" style="background:var(--panel2)">
-    <span class="sym">USDT (تتر)</span>
-    <span>موجودی: <b class="num">${fmt(usdtRowAsset.total,2)}$</b></span>
+  const usdtCashRow=showUsdtGroup?`<div class="cash-card">
+    <span class="cc-name">USDT (تتر)</span>
+    <span>موجودی: <b class="cc-val">${fmt(usdtRowAsset.total,2)}$</b></span>
     <span class="muted">آزاد: <span class="num">${fmt(usdtRowAsset.available,2)}$</span></span>
     ${usdtRowAsset.locked?`<span class="muted">قفل در سفارش: <span class="num">${fmt(usdtRowAsset.locked,2)}$</span></span>`:""}
     <span style="flex:1"></span>
@@ -2060,8 +2591,7 @@ function holdingsBox(s){
      trigger = its «قیمت خرید» (avg entry, updated to the LAST buy price
      after every re-buy) x (1 ± pct/100). Endpoint /api/control/set_all_stops.
      Editing a single coin stays possible on its own row. */
-  const allChip=`<div style="padding:7px 4px; border-bottom:1px solid var(--rowline);
-    display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+  const allChip=`<div class="allchip-card">
     <span style="font-weight:700; color:var(--orange)">حد ضرر همه (یکجا):</span>        <span class="stop-edit stop-all" data-stop-kind="stop-all" title="یک درصد برای همه‌ی سکه‌ها — حد ضرر هر سکه = «قیمت حد» (= قیمت لحظه‌ای همان سکه) × (۱ − درصد)؛ پله‌های بالاتر از این حد خودشان جلو می‌روند">یکجا تنظیم کن</span>
     <span style="font-weight:700; color:var(--green)">حد سود همه (یکجا):</span>
     <span class="stop-edit stop-all-profit" data-stop-kind="stop-all-profit" title="یک درصد برای همه‌ی سکه‌ها — حد سود هر سکه = «قیمت حد» (= قیمت لحظه‌ای همان سکه) × (۱ + درصد)">یکجا تنظیم کن</span>
@@ -2109,13 +2639,21 @@ function holdingsBox(s){
   const grpPnlTxt=(arr,isUsdt)=>{if(!grpPnlHas(arr))return "";
     const v=grpPnl(arr);
     return `<span class="num ${v>0?"pos":v<0?"neg":"mut"}">${v>0?"+":v<0?"-":""}${isUsdt?("$"+fmt(Math.abs(v),2)):(fmt(Math.abs(v),0)+" ت")}</span>`;};
+  /* درصد سود همین بازار = Σ(ارزش − مبلغ خرید) ÷ Σ(مبلغ خرید) — همان
+     تعریف کارت هر سکه، فقط روی همهٔ سکه‌های همان بخش؛ با ۲ رقم اعشار. */
+  const grpPct=arr=>{const c=grpCostSum(arr);
+    if(!(c>0)||!grpPnlHas(arr))return null;
+    const p=grpPnl(arr)/c*100;
+    return Math.abs(p)<0.005?0:Math.round(p*100)/100;};
+  const grpPctTxt=arr=>{const p=grpPct(arr);if(p==null)return "";
+    return `<span class="num ${p>0?"pos":p<0?"neg":"mut"}">(${pctTxt(p)})</span>`;};
   const grp=({title,cash,list,holds,emptyNote,isUsdt})=>`<div class="hgroup">
       <div class="hgroup-head"><span>${title}</span>
         <span style="flex:1"></span>
-        <span class="mut" style="font-size:11px" title="ارزش، مبلغ خرید و سود و زیان این بازار = جمع همان اعدادی که ردیف‌های همین بخش نشان می‌دهند (واحد پول همین بازار) — سود و زیان = Σ(ارزش − مبلغ خرید) سکه به سکه؛ ردیفی که مبلغ خریدش نامعلوم باشد در این جمع نمی‌آید">${list.length?list.length+" سکه — ارزش: "+grpVal(holds||[],isUsdt)+" — مبلغ خرید: "+grpCost(holds||[],isUsdt)+" — سود و زیان این بازار: "+grpPnlTxt(holds||[],isUsdt):""}</span>
+        <span class="mut" style="font-size:11px" title="ارزش، مبلغ خرید و سود و زیان این بازار = جمع همان اعدادی که ردیف‌های همین بخش نشان می‌دهند (واحد پول همین بازار) — سود و زیان = Σ(ارزش − مبلغ خرید) سکه به سکه؛ ردیفی که مبلغ خریدش نامعلوم باشد در این جمع نمی‌آید">${list.length?list.length+" سکه — ارزش: "+grpVal(holds||[],isUsdt)+" — مبلغ خرید: "+grpCost(holds||[],isUsdt)+" — سود و زیان این بازار: "+grpPnlTxt(holds||[],isUsdt)+" "+grpPctTxt(holds||[]):""}</span>
       </div>
-      ${cash||""}
-      ${list.length?head+list.join(""):`<div class="empty" style="padding:10px">${emptyNote}</div>`}
+      ${cash?`<div style="margin-bottom:8px">${cash}</div>`:""}
+      ${list.length?`<div class="clist">${list.join("")}</div>`:`<div class="empty" style="padding:14px">${emptyNote}</div>`}
     </div>`;
   const usdtGroup=showUsdtGroup||rowsUsdt.length?grp({
       title:"بخش تتری (USDT)",
@@ -2131,7 +2669,7 @@ function holdingsBox(s){
       <div class="hgroup-head"><span style="opacity:.6">بخش تومانی (IRT)</span>
         <span class="mut" style="font-size:11px">غیرفعال</span>
       </div></div>`:"";
-  return allChip+usdtGroup+irtGroup+irtOffGroup;
+  return head+allChip+usdtGroup+irtGroup+irtOffGroup;
 }
 
 document.addEventListener("click",e=>{

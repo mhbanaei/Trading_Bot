@@ -55,14 +55,14 @@
     "wallet_sync": true,
     "prefer_usdt_markets": true,
     "include_irt_markets": true,
-    "trade_quote_markets": "irt",
+    "trade_quote_markets": "usdt",
     "min_quote_volume_usdt": 50000,
     "min_order_usdt": 0.5,
     "rls_to_irt_divisor": 10,
     "rest_timeout": 12,
     "orderbook_depth": 20,
     "book_levels": 12,
-    "trade_market_interaction": "linked"
+    "trade_market_interaction": "independent"
   },
   "fee": {
     "maker_rate": 0.0025,
@@ -70,7 +70,7 @@
     "source": "CONFIG"
   },
   "quality": {
-    "min_ai_quality": 0.6,
+    "min_ai_quality": 0.7,
     "min_trade_quality": 0.75,
     "ticker_freshness_s": 90,
     "orderbook_freshness_s": 90,
@@ -132,6 +132,7 @@
     "max_output_tokens": 700,
     "max_candles_per_market": 60,
     "min_confidence": 0.55,
+    "min_conviction": 0.6,
     "buy_best": true,
     "entry_pullback_pct": 0.0025,
     "llm_models": "",
@@ -141,6 +142,7 @@
     "committee_min_upside_pct": 0,
     "committee_min_net_edge_pct": 0.2,
     "committee_min_votes": 2,
+    "committee_min_agreement": 0.6,
     "committee_horizon_s": 14400,
     "committee_hold_s": 86400,
     "committee_bar_s": 1800,

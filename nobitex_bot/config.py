@@ -309,6 +309,9 @@ class AICfg:
     committee_min_upside_pct: float = 0.0   # درصد حرکت مثبت انتظاری (۰=فقط مثبت)
     committee_min_net_edge_pct: float = 0.2  # ارزش انتظاری خالص بعد از هزینه
     committee_min_votes: int = 3            # حداقل رأی BUY (quorum)
+    # حداقل «توافق» مدل‌ها (۰..۱): ۱ = همه یک احتمال داده‌اند. زیر آستانه،
+    # BUY با MODELS_DISAGREE رد می‌شود. ۰ = خاموش.
+    committee_min_agreement: float = 0.0
     committee_horizon_s: int = 14400        # افق پیش‌بینی کوتاه‌مدت (ثانیه) — ۴ ساعت
     # افق نگه‌داری معامله برای اقتصاد پلن (حد سود/حد ضرر). مدل‌های کوتاه‌مدت
     # روی یک کندل ۳۰ دقیقه‌ای کالیبره‌اند؛ مقایسهٔ آن با کارمزد رفت‌وبرگشت
@@ -325,6 +328,10 @@ class AICfg:
     max_output_tokens: int = 700
     max_candles_per_market: int = 60
     min_confidence: float = 0.55
+    # حداقل «درجهٔ اطمینان» (۰..۱) برای خرید در حالت عادی: میانگین وزن‌دار
+    # شاهدهای مستقل (روند/مومنتوم/حجم/موقعیت نسبت به EMA20/کیفیت اجرا/
+    # تازگی داده). خریدِ «نه‌ضعیف نه‌قوی» را حذف می‌کند. ۰ = خاموش.
+    min_conviction: float = 0.60
     buy_best: bool = True             # always consider buying the top-ranked market
     # BUY limit entries rest this fraction BELOW the last price (0.0025 =
     # 0.25%) instead of paying the touch — realistic maker-style entry.

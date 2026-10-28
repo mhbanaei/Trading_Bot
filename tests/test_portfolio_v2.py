@@ -458,16 +458,16 @@ class TestDashboardPanel(unittest.TestCase):
         health = self.html.split("function pvHealthCards")[1].split("function pvSlices")[0]
         for label in ("وضعیت ریسک", "کیفیت داده", "چرخه‌ها و عملکرد"):
             self.assertIn(label, health)
-        # کارت ۲۴ساعتِ مبنای سرمایه هم داخل همین بلوک رسم می‌شود
-        self.assertIn("pvProfit24Card(s.profit_24h||{})", health)
-        self.assertIn("سود ۲۴ساعت کل حساب", self.html)
+        # کارت ۲۴ساعت از نمای کلی حذف شده (خواستهٔ ۱۴۰۵-۰۸-۰۶: فقط
+        # «سود از خرید») — بلا دیگر جای سازکاری ندارد و وصلی نمی‌سازد
+        self.assertNotIn("pvProfit24Card(s.profit_24h", health)
         hero = self.html.split("function pvHeroCards")[1].split("function pvHealthCards")[0]
         for label in ("وضعیت ریسک", "کیفیت داده", "ارزش کل (تومان)",
                       "موجودی نقد (تومان)", "چرخه‌ها"):
             self.assertNotIn(label, hero)
-        for label in ("ارزش کل حساب", "سود/زیان ۲۴ساعت دارایی‌ها",
-                      "سود/زیان کل", "موجودی نقد (قابل خرید)"):
+        for label in ("ارزش کل حساب", "سود/زیان کل", "موجودی نقد (قابل خرید)"):
             self.assertIn(label, hero)
+        self.assertNotIn("سود/زیان ۲۴ساعت دارایی‌ها", hero)
 
     def test_portfolio_tab_needs_no_snapshot_and_keeps_the_eye_and_unit(self):
         # تنظیم چشم/واحد در مرورگر ذخیره می‌شود و در هر دو نما یکی است
@@ -475,14 +475,21 @@ class TestDashboardPanel(unittest.TestCase):
         self.assertIn('localStorage.setItem("pvUnit"', self.html)
         self.assertIn("pvMoneySigned", self.html)
 
-    def test_holdings_24h_is_the_coin_move_and_shows_the_money(self):
-        self.assertIn("ch24_pct", self.html)
-        self.assertIn("ch24_money", self.html)
-        self.assertIn("p24MoneyFor", self.html)
-        self.assertIn("value_exact", self.html)
-        # the old «bought <24h -> profit since purchase» branch is gone:
-        # it made the ۲۴ساعت column change meaning and jump at 24h.
-        self.assertNotIn("age<24&&h.value_irt", self.html)
+    def test_holdings_24h_column_is_gone_profit_from_purchase_stays(self):
+        """خواستهٔ ۱۴۰۵-۰۸-۰۶: در باکس دارایی‌ها فقط «سود از خرید» — ستون
+        «سود ۲۴ساعت» و مبلغش حذف شده‌اند؛ سود از خرید از لحظهٔ خرید تا
+        فروش کامل همان سکه حساب می‌شود و خرید مجدد درصد تازه می‌سازد."""
+        # «سود ۲۴ساعت» فقط زیر واژه‌های متفاوت تب اختصاصی باقی مانده؛
+        # این بلوک همان باکس دارایی‌ها (holdingsBox) است:
+        bs = self.html.split("function holdingsBox")[1].split("return allChip")[0]
+        self.assertNotIn("p24For", self.html)
+        self.assertNotIn("p24MoneyFor", self.html)
+        self.assertNotIn("ch24", bs)
+        self.assertNotIn('hA("p24"', bs)
+        # «سود از خرید» روی میانگین همین ردیف می‌ماند (SS100d)
+        self.assertIn("سود از خرید", bs)
+        self.assertIn("h.profit_pct", bs)
+        self.assertIn("value_exact", bs)
 
     def test_theme_is_the_brand_teal(self):
         login = (STATIC_DIR / "login.html").read_text(encoding="utf-8")

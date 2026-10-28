@@ -45,6 +45,21 @@ button:disabled{opacity:.55; cursor:not-allowed}
 .msg.err{color:var(--red); border-color:#f5b5b5; background:#fdecec}
 .msg.ok{color:var(--green); border-color:#bfe8d7; background:#effaf3}
 .msg.warn{color:var(--orange); border-color:#f3d39a; background:#fef6e7}
+/* ---- لایهٔ طراحی تازه (همخوان با داشبورد): کاغذ روشن، کارت با گوشهٔ
+   بزرگ، خط مویی و بدون سایه — همان سادگی، ظاهری تازه. ---- */
+:root{--bg:#f1f4f8; --border:#e4eaf1; --text:#101a26; --muted:#6a7c93}
+html[data-theme="dark"]{--bg:#090e13; --border:#1b2733; --text:#e6eef8;
+  --muted:#8ba0b7}
+body{background:radial-gradient(900px 420px at 50% -8%,
+  rgba(16,207,137,.10),transparent 70%),var(--bg)}
+.card{border-radius:20px; padding:26px; box-shadow:none}
+h1{font-size:16px; letter-spacing:-.2px}
+label{margin-top:16px}
+input{border-radius:12px; padding:12px}
+input:focus{box-shadow:0 0 0 3px rgba(16,207,137,.14)}
+button{border-radius:12px; margin-top:16px; padding:12px 14px}
+.theme-toggle{border-radius:999px; font-size:12px; padding:7px 14px}
+.msg{border-radius:12px}
 </style>
 </head>
 <body>

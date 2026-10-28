@@ -12,6 +12,9 @@ so this module turns the decision into an explicit forecast + expected value:
     momentum     momentum + 24h momentum + MACD histogram sign
     breakout     detected breakout in the trade direction + liquidity
     meanrev      RSI zone + distance from EMA20 (never buy the top)
+    volume       مشارکت بازار: نسبت حجم + جهت مومنتوم ۲۴ساعته
+    pump_guard * low-volume pump / momentum-liquidity mismatch  (VETO)
+    extension  * قیمتِ کشیده (parabolic) — خرید در انتها ممنوع (VETO)
     liquidity *  liquidity score/status, spread, data quality  (VETO)
     volatility * ATR% regime — too dead or too wild       (VETO)
     llm:<name>   optional: every OpenAI-compatible model listed in
@@ -43,10 +46,14 @@ The gate has TWO economic tests, because the bot does not sell after a fixed
 A BUY is allowed only when ALL of these hold:
 
     1. no veto from any model
-    2. quorum: at least ai.committee_min_votes models vote BUY
+    2. quorum: at least ai.committee_min_votes models vote BUY AND the
+       BUY camp is a majority of the models that voted (half the models
+       pointing the other way is not a signal)
     3. p_up  >= ai.committee_min_p_up
     4. upside >= ai.committee_min_upside_pct   (0 = only has to be positive)
     5. plan_ev >= ai.committee_min_net_edge_pct
+    6. agreement >= ai.committee_min_agreement  (0 = off): the models'
+       probabilities must not be spread out — a split committee is noise
 
 Anything else is HOLD (or AVOID on a veto), with the blocking reasons kept
 in the payload. The committee may only ever *block* an entry — it can never
@@ -75,7 +82,7 @@ from typing import Optional
 
 from .config import Config
 
-COMMITTEE_VERSION = "committee/1.0"
+COMMITTEE_VERSION = "committee/1.2"
 SCOREBOARD_KEY = "committee_scoreboard"
 
 DEFAULT_WEIGHTS = {
@@ -83,6 +90,9 @@ DEFAULT_WEIGHTS = {
     "momentum": 1.1,
     "breakout": 0.9,
     "meanrev": 0.8,
+    "volume": 0.9,
+    "pump_guard": 0.9,
+    "extension": 0.6,
     "liquidity": 0.0,
     "volatility": 0.0,
 }
@@ -243,11 +253,14 @@ def vote_liquidity(cand: dict, snap: dict, ctx: dict) -> dict:
     status = str(liq.get("status") or "").upper()
     spread = _f(snap.get("spread_percent"), 0.0)
     dq = _f((snap.get("data_quality") or {}).get("score"), 1.0)
+    # سقف اسپرد «نسبی» است: در بازارِ پرنوسان spread یک‌درصدی عادی است،
+    # در بازارِ مردهٔ همان spread سم کشنده است. سقف سخت ۱٫۵٪ هم می‌ماند.
+    spread_cap = max(1.5, 0.55 * ctx.get("atr_pct", 0.0) * 100.0)
     if status in ("CRITICAL", "UNKNOWN"):
         code = "LIQUIDITY_%s" % (status or "UNKNOWN")
     elif score < 0.30:
         code = "LIQUIDITY_SCORE_LOW"
-    elif spread > 1.5:
+    elif spread > spread_cap:
         code = "WIDE_SPREAD"
     elif dq < 0.4:
         code = "LOW_DATA_QUALITY"
@@ -256,6 +269,93 @@ def vote_liquidity(cand: dict, snap: dict, ctx: dict) -> dict:
                 "reason": "ABSTAIN:TRADABLE"}
     return {"p_up": 0.05, "expected_move_pct": -ctx["atr_pct"] * 100,
             "verdict": AVOID, "reason": "AVOID:" + code, "veto": True}
+
+
+def vote_pump_guard(cand: dict, snap: dict, ctx: dict) -> dict:
+    """Veto model: پامپِ کم‌حجم هرگز خرید نیست.
+
+    پامپی که روی حجم پایین رخ می‌دهد معمولاً دستِ یک بازیگر کوچک است؛
+    قیمت بعد از آن سریع بر می‌گردد (کشقرق پایانی). اسکنر امتیاز را صفر
+    می‌کند ولی کمیته قبل از آن فقط سیگنال‌های تکنیکال را می‌دید و همین
+    «پامپ» با مومنتومِ بالا خرید می‌شد. این مدل مستقل آن را وتو می‌کند.
+    """
+    reasons = {str(r).upper() for r in (cand.get("reasons") or [])}
+    mom24 = _f((cand.get("signals") or {}).get("momentum_24h"), 0.5)
+    liq_s = _f((cand.get("signals") or {}).get("liquidity"), 0.0)
+    if "LOW_VOLUME_PUMP" in reasons:
+        return {"p_up": 0.08,
+                "expected_move_pct": -max(2.0, ctx.get("atr_pct", 0.0) * 100),
+                "verdict": AVOID, "reason": "AVOID:LOW_VOLUME_PUMP",
+                "veto": True}
+    # مومنتوم ۲۴ساعت خیلی بالا + نقدیِ پایین = پامپِ مشکوک (حتی بدون بورد)
+    if mom24 > 0.85 and liq_s < 0.35:
+        return {"p_up": 0.15,
+                "expected_move_pct": -max(1.5, ctx.get("atr_pct", 0.0) * 100),
+                "verdict": AVOID, "reason": "AVOID:MOM24_LIQUIDITY_MISMATCH",
+                "veto": True}
+    return {"p_up": 0.5, "expected_move_pct": 0.0, "verdict": ABSTAIN,
+            "reason": "ABSTAIN:NO_PUMP"}
+
+
+def vote_volume(cand: dict, snap: dict, ctx: dict) -> dict:
+    """مدل مستقل «مشارکت بازار»: حرکت باید با حجم تأیید شود.
+
+    نسبت حجم (volume_ratio) نسبت به میانگین است. حجم طبیعی/بالا در جهت
+    مثبت = تأیید؛ حجم بالا بدون جهت یا در جهت منفی = فشار فروش (تله).
+    دادهٔ حجم موجود نباشد، رأی نمی‌دهد — نه اینکه با حدس رأی بدهد.
+    """
+    tech = snap.get("technicals") or {}
+    vr = tech.get("volume_ratio")
+    qv = snap.get("quote_volume_24h")
+    if vr is None and qv is None:
+        return {"p_up": 0.5, "expected_move_pct": 0.0, "verdict": ABSTAIN,
+                "reason": "ABSTAIN:NO_VOLUME_DATA"}
+    vr = _f(vr, 1.0)
+    if vr <= 0:
+        vr = 1.0
+    sig = cand.get("signals") or {}
+    mom24 = _f(sig.get("momentum_24h"), 0.5)
+    s = _clamp(0.5 + (vr - 1.0) * 0.28)
+    if vr >= 1.15 and mom24 >= 0.55:
+        s = _clamp(s + 0.10)
+    if vr >= 1.6 and mom24 <= 0.45:
+        s = _clamp(s - 0.15)      # حجم انفجاری بدون جهت = توزیع
+    p = _p_from_score(s, 0.7)
+    exp = _move_pct(ctx, 0.5, s)
+    verdict = (BUY if (s >= 0.63 and exp > 0) else
+               AVOID if s < 0.32 else HOLD)
+    return {"p_up": p, "expected_move_pct": round(exp, 4),
+            "verdict": verdict,
+            "reason": _reason(verdict, "VOL_RATIO_%.2f" % vr)}
+
+
+def vote_extension(cand: dict, snap: dict, ctx: dict) -> dict:
+    """وتو: خرید در انتهای یک حرکتِ کشیده (parabolic).
+
+    فاصلهٔ قیمت از EMA20 بر حسب ATR سنجیده می‌شود، نه درصد ثابت: در بازار
+    پرنوسان ۵٪ فاصله عادی است، در بازار آرام همان ۵٪ یعنی اوجِ هیجان.
+    """
+    price = _f(ctx.get("price"))
+    atr_pct = _f(ctx.get("atr_pct"))
+    e20 = _f((((snap.get("technicals") or {}).get("ema") or {})).get("20"))
+    if price <= 0 or e20 <= 0 or atr_pct <= 0:
+        return {"p_up": 0.5, "expected_move_pct": 0.0, "verdict": ABSTAIN,
+                "reason": "ABSTAIN:NO_EMA20"}
+    ext_atr = (price / e20 - 1.0) / atr_pct
+    chg24 = _f(snap.get("change_24h"))
+    atr_pct_pct = atr_pct * 100.0
+    if ext_atr >= 6.0 or chg24 >= 45.0:
+        return {"p_up": 0.12,
+                "expected_move_pct": -max(1.5, atr_pct_pct),
+                "verdict": AVOID, "reason": "AVOID:PARABOLIC_EXTENSION",
+                "veto": True}
+    if ext_atr >= 4.0 and chg24 >= 15.0:
+        return {"p_up": 0.20,
+                "expected_move_pct": -max(1.0, atr_pct_pct * 0.8),
+                "verdict": AVOID, "reason": "AVOID:CHASING_EXTENSION",
+                "veto": True}
+    return {"p_up": 0.5, "expected_move_pct": 0.0, "verdict": ABSTAIN,
+            "reason": "ABSTAIN:NOT_EXTENDED"}
 
 
 def vote_volatility(cand: dict, snap: dict, ctx: dict) -> dict:
@@ -344,7 +444,8 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
             min_p_up: float = 0.60, min_upside_pct: float = 0.0,
             min_net_edge_pct: float = 0.2, min_votes: int = 3,
             plan_tp_pct: float = 0.0, plan_stop_pct: float = 0.0,
-            hold_s: float = 0.0, bar_s: float = 1800.0) -> dict:
+            hold_s: float = 0.0, bar_s: float = 1800.0,
+            min_agreement: float = 0.0, majority: bool = True) -> dict:
     """Weighted vote + plan expected-value gate. Pure function (easy to test).
 
     plan_tp_pct / plan_stop_pct describe the exit the bot will actually arm
@@ -386,8 +487,22 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
     plan_ev = p_up * tp - (1.0 - p_up) * sl - cost_pct
 
     buys = [v for v in active if v.get("verdict") == BUY]
-    need = min(max(1, int(min_votes)), len(active)) if active else max(
-        1, int(min_votes))
+    need = max(1, int(min_votes))
+    if majority and active:
+        # درجهٔ دقت: BUY باید اکثریتِ مدل‌های فعال را داشته باشد، نه فقط
+        # یک حداقلِ ثابت که با تعداد زیاد مدل بی‌معنا می‌شود.
+        need = max(need, int(math.ceil(len(active) / 2.0)))
+    need = min(need, len(active)) if active else need
+    # توافق مدل‌ها: اگر پیش‌بینی‌ها زیاد پراکنده باشند، میانگینِ آن‌ها
+    # قابل اعتماد نیست (نصف مدل‌ها بالا می‌بینند، نصف پایین).
+    ps = [_f(v.get("p_up"), 0.5) for v in active]
+    if len(ps) > 1:
+        mean_p = sum(ps) / len(ps)
+        disagreement = math.sqrt(
+            sum((p - mean_p) ** 2 for p in ps) / len(ps))
+    else:
+        disagreement = 0.0
+    agreement = round(1.0 - min(1.0, disagreement * 2.0), 4)
     blocked = []
     if vetoes:
         blocked.append(vetoes[0].get("reason") or "VETO")
@@ -399,6 +514,8 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
         blocked.append("UPSIDE_TOO_SMALL")
     if plan_ev < min_net_edge_pct:
         blocked.append("NEGATIVE_EXPECTED_VALUE")
+    if _f(min_agreement) > 0 and agreement < _f(min_agreement):
+        blocked.append("MODELS_DISAGREE")
     allow = bool(active) and not blocked
     consensus = BUY if allow else (AVOID if vetoes else HOLD)
 
@@ -432,6 +549,9 @@ def combine(votes: list, *, cost_pct: float, atr_pct: float,
         "min_upside_pct": round(min_upside, 4),
         "min_p_up": round(_f(min_p_up, 0.6), 4),
         "min_net_edge_pct": round(_f(min_net_edge_pct, 0.2), 4),
+        "agreement": agreement,
+        "disagreement": round(disagreement, 4),
+        "min_agreement": round(_f(min_agreement), 4),
         "horizon_s": 0,
     }
 
@@ -501,6 +621,8 @@ class AICommittee:
                 self.cfg.ai, "committee_min_net_edge_pct", 0.2), 0.2),
             "min_votes": int(_f(getattr(
                 self.cfg.ai, "committee_min_votes", 3), 3)),
+            "min_agreement": _f(getattr(
+                self.cfg.ai, "committee_min_agreement", 0.0), 0.0),
             "hold_s": _f(getattr(self.cfg.ai, "committee_hold_s", 86400),
                          86400),
             "bar_s": _f(getattr(self.cfg.ai, "committee_bar_s", 1800),
@@ -539,6 +661,9 @@ class AICommittee:
                          ("momentum", vote_momentum),
                          ("breakout", vote_breakout),
                          ("meanrev", vote_meanrev),
+                         ("volume", vote_volume),
+                         ("pump_guard", vote_pump_guard),
+                         ("extension", vote_extension),
                          ("liquidity", vote_liquidity),
                          ("volatility", vote_volatility)):
             v = fn(candidate, snap, ctx)

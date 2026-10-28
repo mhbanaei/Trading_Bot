@@ -219,6 +219,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/dust_preview":
                 # SS101 confirmation dialog data: dust rows + toman values
                 return self._json(eng.dust_preview())
+            if path == "/api/wallet_convert_preview":
+                # «تبدیل موجودی» dialog data: IRT/USDT cash balances + the
+                # exchange's own Toman value of one USDT — NO side effects
+                return self._json(eng.wallet_convert_preview())
             if path == "/api/events":
                 q = parse_qs(parsed.query)
                 return self._json(eng.recent_events(int(
@@ -399,16 +403,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(eng.sell_position_now(
                     str(body.get("symbol", ""))))
             if path == "/api/control/buy_now":
-                # manual BUY from the holdings box: optional Toman amount
-                # (None = engine suggestion from free cash)
+                # manual BUY from the holdings box: the amount may arrive
+                # in the market's OWN currency (`amount_quote` — USDT for
+                # *USDT markets, Toman for *IRT) or as a legacy Toman
+                # `amount_irt`; None = engine suggestion from free cash
                 amt = body.get("amount_irt")
+                aq = body.get("amount_quote")
                 try:
                     amt_f = float(amt) if amt is not None else None
+                    aq_f = float(aq) if aq is not None else None
                 except (TypeError, ValueError):
                     return self._json({"ok": False,
                                        "error": "مبلغ خرید نامعتبر است"})
                 return self._json(eng.manual_buy(
-                    str(body.get("symbol", "")), amt_f))
+                    str(body.get("symbol", "")), amt_f, aq_f))
             if path == "/api/control/set_stop":
                 # value may arrive as an absolute Toman number (stop) or as a
                 # percent relative to my invested value (pct): negative = below
@@ -481,20 +489,22 @@ class Handler(BaseHTTPRequestHandler):
                                        "error": "هیچ سکه‌ای انتخاب نشده است"})
                 return self._json({"ok": True,
                                    "result": eng.convert_selected(coins)})
+            if path == "/api/control/wallet_convert":
+                # «تبدیل موجودی» confirm step: target USDT (Toman→Tether) or
+                # IRT (Tether→Toman); amount=None means the WHOLE balance
+                target = str(body.get("target") or "").upper()
+                amt = body.get("amount")
+                try:
+                    amt_f = float(amt) if amt not in (None, "") else None
+                except (TypeError, ValueError):
+                    return self._json({"ok": False,
+                                       "error": "مبلغ تبدیل نامعتبر است"})
+                res = eng.wallet_convert(target, amt_f)
+                return self._json({"ok": bool(res.get("ok")),
+                                   **res})
             if path == "/api/dust_preview":
                 # list of dust holdings + toman values, NO side effects
                 return self._json(eng.dust_preview())
-            if path == "/api/control/buy_now":
-                # manual BUY from the holdings box: optional Toman amount
-                # (None = engine suggestion from free cash)
-                amt = body.get("amount_irt")
-                try:
-                    amt_f = float(amt) if amt is not None else None
-                except (TypeError, ValueError):
-                    return self._json({"ok": False,
-                                       "error": "مبلغ خرید نامعتبر است"})
-                return self._json(eng.manual_buy(
-                    str(body.get("symbol", "")), amt_f))
             if path.startswith("/api/"):
                 return self._json({"error": "unknown endpoint"}, 404)
             return self._json({"error": "not found"}, 404)

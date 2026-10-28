@@ -46,6 +46,14 @@ from .exchange import ExchangeAdapter
 from .utils import canonical_base, d, split_symbol, utc_now_iso
 
 API_BASE = "https://apiv2.nobitex.ir"
+
+
+def _to_float_or(v, default: float = 0.0) -> float:
+    """Best-effort float() over the exchange's decimal-string numbers."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
 USER_AGENT = "TraderBot/NobitexSmartBot-1.0"
 
 TF_TO_RESOLUTION = {"1m": "1", "5m": "5", "15m": "15", "30m": "30",
@@ -308,12 +316,15 @@ class NobitexSession:
         return self.login(remember=self.remember)["ok"] and self.token
 
     # ------------------------------------------------ convert (swap) market
-    def exchange_quote(self, src_coin: str, amount: str) -> dict:
+    def exchange_quote(self, src_coin: str, amount: str,
+                       direction: str = "sell") -> dict:
         """Ask the Nobitex convert market (panel/balance/convert) for a quote.
 
         Reverse-engineered contract of POST /exchange/get-quote:
           type          : "sell" (crypto -> rls) or "buy" (rls -> crypto)
-          baseCurrency  : lower-case crypto coin (e.g. "usdt")
+          baseCurrency  : lower-case crypto coin (e.g. "usdt"); with
+                          type=buy this is the coin to RECEIVE and
+                          `amount` is the rials to SPEND
           quoteCurrency : "rls" (rial market)
           refCurrency   : "rls"
           amount        : decimal string in RIALS (min notional enforced by
@@ -323,7 +334,7 @@ class NobitexSession:
                     create_trade() within expiresAt.
         """
         body = {
-            "type": "sell",
+            "type": "buy" if direction == "buy" else "sell",
             "baseCurrency": (src_coin or "").strip().lower(),
             "quoteCurrency": "rls",
             "refCurrency": "rls",
@@ -1382,3 +1393,86 @@ class NobitexAPI(ExchangeAdapter):
             "quote_id": quote.get("quote_id"),
             "expires_at": quote.get("expires_at"),
         }
+
+    # ------------------------------------ Toman ⇄ Tether (manual convert)
+    def convert_irt_to_usdt(self, toman_amount) -> dict:
+        """Convert `toman_amount` (TOMAN) into USDT via the exchange's own
+        convert market: get-quote (type=buy, baseCurrency=usdt, amount in
+        RIALS to spend) then create-trade. Returns the USDT received.
+
+        The exchange enforces its own minimum notional here (USDT ≈
+        12.5M rials); a smaller amount raises NobitexError with the
+        exchange's code so the dashboard can show the exact reason.
+        """
+        self._refuse_read_only("convert Toman to USDT")
+        div = Decimal(str(self._irt_divisor or 10))
+        rls_amount = (Decimal(str(toman_amount)) * div)
+        quote = self.session.exchange_quote(
+            "usdt", str(rls_amount.quantize(Decimal("1"))),
+            direction="buy")
+        if not quote.get("quote_id"):
+            raise NobitexError("CONVERT_NO_QUOTE",
+                               "پیش‌فاکتور تبدیل دریافت نشد", False)
+        res = self.session.exchange_create_trade(quote["quote_id"])
+        status = (res.get("status") or "").lower()
+        if status and status not in ("ok", "succeeded", "success", "done"):
+            raise NobitexError("CONVERT_FAILED",
+                               "تبدیل ناموفق: %s" % status, False)
+        # destAmount = USDT received; refAmount = rials actually spent
+        usdt_got = _to_float_or(quote.get("dest_amount"), 0.0)
+        rls_spent = _to_float_or(quote.get("ref_amount"), 0.0)
+        return {"converted": True,
+                "converted_amount": usdt_got,
+                "unit": "USDT",
+                "spent_toman": rls_spent / (self._irt_divisor or 10),
+                "quote_id": quote.get("quote_id"),
+                "expires_at": quote.get("expires_at")}
+
+    def convert_usdt_to_irt(self, usdt_amount, usdt_toman: float = 0.0) -> dict:
+        """Convert `usdt_amount` USDT into Toman via the convert market:
+        get-quote (type=sell, baseCurrency=usdt, amount = the RIAL value of
+        the USDT being sold) then create-trade.
+
+        usdt_toman = the Toman price of one USDT (from the wallet read);
+        when it is missing we fall back to the cached public USDTIRT
+        ticker so the rls value still lands in the right ballpark.
+        """
+        self._refuse_read_only("convert USDT to Toman")
+        price = Decimal(str(usdt_toman or 0))
+        if price <= 0:
+            cached = self._cached_usdtirt_toman()
+            price = Decimal(str(cached or 0))
+        if price <= 0:
+            raise NobitexError("CONVERT_NO_PRICE",
+                               "قیمت تتر برای محاسبهٔ مبلغ ریالی پیدا نشد",
+                               False)
+        div = Decimal(str(self._irt_divisor or 10))
+        rls_value = (Decimal(str(usdt_amount)) * price * div)
+        quote = self.session.exchange_quote(
+            "usdt", str(rls_value.quantize(Decimal("1"))),
+            direction="sell")
+        if not quote.get("quote_id"):
+            raise NobitexError("CONVERT_NO_QUOTE",
+                               "پیش‌فاکتور تبدیل دریافت نشد", False)
+        res = self.session.exchange_create_trade(quote["quote_id"])
+        status = (res.get("status") or "").lower()
+        if status and status not in ("ok", "succeeded", "success", "done"):
+            raise NobitexError("CONVERT_FAILED",
+                               "تبدیل ناموفق: %s" % status, False)
+        # destAmount = rials received -> Toman; refAmount = order rls value
+        usdt_sold = _to_float_or(quote.get("dest_amount"), 0.0) / (self._irt_divisor or 10)
+        return {"converted": True,
+                "converted_amount": usdt_sold,
+                "unit": "IRT",
+                "usdt_sold": float(usdt_amount),
+                "quote_id": quote.get("quote_id"),
+                "expires_at": quote.get("expires_at")}
+
+    def _cached_usdtirt_toman(self):
+        """Last cached USDTIRT price (Toman) from the public stats poll,
+        or None when no cached value exists yet."""
+        st = (self._stats_cache or {}).get("usdt-rls") or {}
+        try:
+            return self._to_irt_price(st.get("latest") or 0)
+        except Exception:
+            return None
