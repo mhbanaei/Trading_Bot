@@ -34,6 +34,122 @@ class ExecutionEngine:
         return (isinstance(self.exchange, NobitexAPI)
                 and bool(getattr(self.cfg.exchange, "live_trading", False)))
 
+    def _crossing_sell_price(self, market: str, last: Decimal,
+                             amount: Decimal | None = None,
+                             aggression: float = 0.0) -> Decimal:
+        """Price a limit SELL below the bids so the order actually fills.
+
+        Two user reports drive this: «فروش می‌رود در لیست فروش‌ها ولی
+        فروخته نمی‌شود». A SELL resting ABOVE the best bid never matches,
+        and a SELL at the best bid only fills the top level — a position
+        larger than that level rests forever.
+
+        So: walk the bid side of the book and take the price at which the
+        WHOLE amount fits (market-impact price). When the visible bids are
+        thinner than the order, use the lowest visible bid and lean a
+        little further down. The ticker's `best_bid` is the fallback and
+        the last price is the final fallback.
+        """
+        want = d(str(amount)) if amount is not None else Decimal("0")
+        base = Decimal("0")
+        try:
+            book = self.exchange.orderbook(market, depth=20) or {}
+            bids = [b for b in (book.get("bids") or []) if b]
+            bids = sorted(
+                ({**b, "price": d(str(b.get("price"))),
+                  "amount": d(str(b.get("amount") or 0))}
+                 if isinstance(b, dict) else
+                 {"price": d(str(b)), "amount": Decimal("0")}
+                 for b in bids),
+                key=lambda x: -x["price"])
+            if bids and want <= 0:
+                base = bids[0]["price"]           # unknown size: best bid
+            elif bids:
+                filled = Decimal("0")
+                for lvl in bids:
+                    filled += lvl["amount"]
+                    base = lvl["price"]           # deepest needed level
+                    if filled >= want:
+                        break
+                if filled < want:
+                    # book thinner than the order: lean below the last bid
+                    base = bids[-1]["price"]
+        except Exception:
+            base = Decimal("0")
+        if base <= 0:
+            try:
+                tick = self.exchange.ticker(market) or {}
+                base = d(str(tick.get("best_bid") or 0))
+            except Exception:
+                base = Decimal("0")
+        if base <= 0:
+            base = d(str(last or 0))
+        if base <= 0:
+            return last
+        slip = min(d("0.003"), d(str(getattr(self.cfg.risk,
+                                            "max_slippage", 0) or 0)))
+        if slip <= 0:
+            slip = d("0.001")      # always cross, never rest exactly on it
+        if aggression > 0:
+            # A RETRY means the first price did not match (stale book, a
+            # moved market): cross deeper so the sale completes. A limit
+            # SELL below the bid executes at the best bid, so the deeper
+            # price never gives the market more than it already asks.
+            slip = max(slip, min(d("0.03"), d(str(aggression))))
+        px = base * (Decimal("1") - slip)
+        return px if px > 0 else base
+
+    def _crossing_buy_price(self, market: str, last: Decimal,
+                            amount: Decimal | None = None) -> Decimal:
+        """Price a limit BUY above the asks so a manual click fills now.
+
+        The automatic path deliberately rests a BUY at a pullback price
+        (the AI's entry). A HUMAN click on «خرید» means «buy it now», so
+        the order is priced at the ask level that covers the whole size
+        (+ a hair) instead of waiting for the market to come down.
+        """
+        want = d(str(amount)) if amount is not None else Decimal("0")
+        base = Decimal("0")
+        try:
+            book = self.exchange.orderbook(market, depth=20) or {}
+            asks = [a for a in (book.get("asks") or []) if a]
+            asks = sorted(
+                ({**a, "price": d(str(a.get("price"))),
+                  "amount": d(str(a.get("amount") or 0))}
+                 if isinstance(a, dict) else
+                 {"price": d(str(a)), "amount": Decimal("0")}
+                 for a in asks),
+                key=lambda x: x["price"])
+            if asks and want <= 0:
+                base = asks[0]["price"]
+            elif asks:
+                filled = Decimal("0")
+                for lvl in asks:
+                    filled += lvl["amount"]
+                    base = lvl["price"]
+                    if filled >= want:
+                        break
+                if filled < want:
+                    base = asks[-1]["price"]
+        except Exception:
+            base = Decimal("0")
+        if base <= 0:
+            try:
+                tick = self.exchange.ticker(market) or {}
+                base = d(str(tick.get("best_ask") or 0))
+            except Exception:
+                base = Decimal("0")
+        if base <= 0:
+            base = d(str(last or 0))
+        if base <= 0:
+            return last
+        slip = min(d("0.003"), d(str(getattr(self.cfg.risk,
+                                            "max_slippage", 0) or 0)))
+        if slip <= 0:
+            slip = d("0.001")
+        px = base * (Decimal("1") + slip)
+        return px if px > 0 else base
+
     def _client_order_id(self, cycle_id: str, symbol: str) -> str:
         # SS40: bot_<cycle>_<symbol>_<seq>  — Nobitex REJECTS '_' in
         # clientOrderId (verified live: 'Invalid clientOrderId'), so use
@@ -43,8 +159,14 @@ class ExecutionEngine:
                                    symbol, seq)
 
     def execute(self, decision: dict, risk_decision: dict,
-                fresh_prices: dict, cycle_id: str) -> dict:
-        """Submit + fill a risk-approved decision. Returns execution record."""
+                fresh_prices: dict, cycle_id: str,
+                manual: bool = False) -> dict:
+        """Submit + fill a risk-approved decision. Returns execution record.
+
+        manual=True is a HUMAN click (holdings-box «خرید»): the order is
+        priced to cross the book and fill immediately instead of resting
+        at the AI's pullback price.
+        """
         if risk_decision.get("status") != "APPROVED":
             return {"status": "SKIPPED", "reason": "RISK_NOT_APPROVED"}
         if decision.get("action") not in ("BUY", "SELL"):
@@ -60,6 +182,17 @@ class ExecutionEngine:
             return {"status": "SKIPPED", "reason": "NO_APPROVED_SIZE"}
 
         side = decision["action"]
+
+        # LIVE SELLS MUST CROSS THE BOOK. Sending a SELL limit at the last
+        # traded price leaves it resting above the best bid whenever the
+        # market ticks down; the stale-order reaper then cancels it and the
+        # coin is never sold (user report: «دکمهٔ فروش را می‌زنم، نمی‌فروشد»).
+        # Price the sell at the best bid (minus a small buffer) so it
+        # matches immediately; the exchange still enforces its own limits.
+        if side == "SELL" and self._live():
+            price = self._crossing_sell_price(sym, price, amount)
+        elif side == "BUY" and manual and self._live():
+            price = self._crossing_buy_price(sym, price, amount)
 
         # paper-broker safety clamp: never promise more than the wallet can
         # cover (price + fee + slippage) — the risk check used the older price
@@ -259,13 +392,25 @@ class ExecutionEngine:
         # correctly everywhere (fills, portfolio, history)
         applied = self._live_fill_from_order(execution, order, cycle_id)
         if applied:
-            order["status"] = applied
+            # `applied` is the fill RECORD (dict), not a status string: the
+            # old assignment stored the whole dict in orders.status and
+            # sqlite raised «type 'dict' is not supported», so every live
+            # order that matched immediately crashed _submit_real AFTER
+            # the exchange had accepted it (the dashboard showed an error
+            # and the ledger never recorded the fill).
+            order["status"] = applied.get("status") or order["status"]
         self.storage.save_order(order)
 
         execution["status"] = (ExecutionStatus.FILLED.value
                                if order["status"] == OrderStatus.FILLED.value
                                else ExecutionStatus.SUBMITTED.value)
         execution["exchange_order_id"] = result.get("order_id", "")
+        # the caller must be able to tell HOW MUCH actually sold: a live
+        # limit order can rest unmatched, and «سفارش ثبت شد» for a resting
+        # order is exactly the bug the user reported
+        execution["matched_amount"] = str(order.get("matched_amount") or "0")
+        execution["unmatched_amount"] = str(order.get("unmatched_amount") or
+                                          execution["amount"])
         if applied:
             execution["fill_price"] = float(applied["fill_price"])
             execution["fee"] = float(applied["fee"])

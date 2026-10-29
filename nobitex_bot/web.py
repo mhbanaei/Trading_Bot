@@ -16,7 +16,8 @@ from urllib.parse import parse_qs, urlparse
 
 from .engine import TradingEngine
 from .nobitex_api import NobitexAPI
-from .webauth import COOKIE_NAME, DashboardAuth, is_loopback_host
+from .webauth import (COOKIE_NAME, DashboardAuth, host_header_allowed,
+                      is_loopback_host)
 
 STATIC_DIR = Path(__file__).resolve().parent / "web"
 
@@ -189,12 +190,20 @@ class Handler(BaseHTTPRequestHandler):
         return {"Set-Cookie": value}
 
     # -------------------------------------------------------------- routes
+    def _host_ok(self) -> bool:
+        """DNS-rebinding guard (see webauth.host_header_allowed)."""
+        return host_header_allowed(
+            self.server.server_address[0], self.headers.get("Host"),
+            self.server.auth.enabled())
+
     def do_GET(self):  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
         eng = self.server.engine
         q = parse_qs(parsed.query)
         try:
+            if not self._host_ok():
+                return self._json({"error": "invalid Host header"}, 400)
             authed = self._authed()
             # --- public: the login page needs this to render its state ---
             if path == "/api/auth/status":
@@ -276,6 +285,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/buy_suggestion":
                 return self._json(eng.suggest_buy(
                     q.get("symbol", [""])[0]))
+            if path == "/api/sell_preview":
+                # «فروش» dialog data: what the wallet really holds of this
+                # coin + the best bid a marketable SELL would get — no
+                # side effects, so opening the dialog never trades.
+                return self._json(eng.sell_preview(
+                    q.get("symbol", [""])[0]))
             if path == "/api/real_orders":
                 out = {"open": [], "recent": [], "error": ""}
                 try:
@@ -313,6 +328,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         auth = self.server.auth
         try:
+            if not self._host_ok():
+                return self._json({"ok": False,
+                                   "error": "invalid Host header"}, 400)
             # --- auth endpoints (reachable before login) ---
             if path == "/api/auth/login":
                 if not self._same_origin():
@@ -400,8 +418,25 @@ class Handler(BaseHTTPRequestHandler):
                                        "error": "decision_id لازم است"})
                 return self._json(eng.execute_decision(did))
             if path == "/api/control/sell_now":
-                return self._json(eng.sell_position_now(
-                    str(body.get("symbol", ""))))
+                # never let a bug look like «موتور ریست»: a manual click
+                # answers with a readable Persian error, never a bare 500.
+                # `amount` is the COIN quantity from the sell dialog (None
+                # or "all" = the whole holding).
+                raw_amt = body.get("amount")
+                amt = None
+                try:
+                    if raw_amt not in (None, "", "all", "ALL"):
+                        amt = float(str(raw_amt).replace("٫", ".")
+                                    .replace(",", "."))
+                    return self._json(eng.sell_position_now(
+                        str(body.get("symbol", "")), amt))
+                except (TypeError, ValueError):
+                    return self._json({"ok": False,
+                                       "error": "مقدار فروش نامعتبر است"})
+                except Exception as exc:
+                    return self._json({
+                        "ok": False,
+                        "error": "فروش انجام نشد: " + str(exc)[:200]})
             if path == "/api/control/buy_now":
                 # manual BUY from the holdings box: the amount may arrive
                 # in the market's OWN currency (`amount_quote` — USDT for
@@ -415,8 +450,13 @@ class Handler(BaseHTTPRequestHandler):
                 except (TypeError, ValueError):
                     return self._json({"ok": False,
                                        "error": "مبلغ خرید نامعتبر است"})
-                return self._json(eng.manual_buy(
-                    str(body.get("symbol", "")), amt_f, aq_f))
+                try:
+                    return self._json(eng.manual_buy(
+                        str(body.get("symbol", "")), amt_f, aq_f))
+                except Exception as exc:
+                    return self._json({
+                        "ok": False,
+                        "error": "خرید انجام نشد: " + str(exc)[:200]})
             if path == "/api/control/set_stop":
                 # value may arrive as an absolute Toman number (stop) or as a
                 # percent relative to my invested value (pct): negative = below
@@ -564,8 +604,11 @@ def save_config(engine: TradingEngine, body: dict) -> dict:
     setattr on engine.cfg reaches collector/executor/scanner instantly;
     exchange changes additionally re-make the adapter via _set_exchange.
     """
-    from .config import DEFAULT_CONFIG_PATH, load_config
-    current = load_config()
+    from .config import (DEFAULT_CONFIG_PATH, ConfigError, config_from_dict,
+                         load_config)
+    # strict=False: a config the bots refuses to START from must still be
+    # repairable from the settings page (this is the recovery path)
+    current = load_config(strict=False)
     from dataclasses import asdict
     cur = asdict(current)
     clean = {}
@@ -587,23 +630,39 @@ def save_config(engine: TradingEngine, body: dict) -> dict:
     # (e.g. the dashboard-security card posting only the web section) must
     # never wipe the untouched sections — that could drop the dashboard
     # password or the exchange credentials.
+    from contextlib import nullcontext
+    # the live-trading toggle writes the same file from the engine thread
+    write_lock = getattr(engine, "_config_write_lock", None) or nullcontext()
     try:
-        doc: dict = {}
-        if DEFAULT_CONFIG_PATH.exists():
-            try:
-                loaded = json.loads(DEFAULT_CONFIG_PATH.read_text(
-                    encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    doc = loaded
-            except Exception:
-                doc = {}
-        for sec_name, fields in clean.items():
-            base = doc.get(sec_name)
-            base = dict(base) if isinstance(base, dict) else {}
-            base.update(fields)
-            doc[sec_name] = base
-        DEFAULT_CONFIG_PATH.write_text(
-            json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        with write_lock:
+            doc: dict = {}
+            if DEFAULT_CONFIG_PATH.exists():
+                try:
+                    loaded = json.loads(DEFAULT_CONFIG_PATH.read_text(
+                        encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        doc = loaded
+                except Exception:
+                    doc = {}
+            for sec_name, fields in clean.items():
+                base = doc.get(sec_name)
+                base = dict(base) if isinstance(base, dict) else {}
+                base.update(fields)
+                doc[sec_name] = base
+            # VALIDATE BEFORE WRITING: a positive stop-loss, an
+            # out-of-range percent or an unknown quote mode must never reach
+            # the file the next start trusts. The old flow wrote first and
+            # applied later.
+            config_from_dict(doc, strict=True)
+            DEFAULT_CONFIG_PATH.write_text(
+                json.dumps(doc, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+    except ConfigError as exc:
+        return {"ok": False,
+                "error": "تنظیمات نامعتبر است و ذخیره نشد: " +
+                         "؛ ".join(exc.problems),
+                "failed": [{"field": "config", "error": p}
+                           for p in exc.problems]}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

@@ -1192,11 +1192,11 @@ class NobitexAPI(ExchangeAdapter):
         """Hard read-only lock for diagnostics (env ``NOBITEX_READ_ONLY=1``).
 
         WHY THIS EXISTS: a saved login token in data/real hot-attaches the
-        real adapter when the engine is constructed (and live_by_default
-        then turns ``live_trading`` on), so a script whose only intent was
-        to PRINT holdings could still send real orders and conversions.
-        Every wallet-moving call checks this lock at the ADAPTER boundary,
-        so a read-only process cannot move money through ANY engine path
+        real adapter when the engine is constructed, so a script whose only
+        intent was to PRINT holdings reached a fully live adapter (old
+        builds even force-enabled ``live_trading`` there). Every
+        wallet-moving call checks this lock at the ADAPTER boundary, so a
+        read-only process cannot move money through ANY engine path
         (executor, dust sweep, exit conversion, order reaper, cancel).
 
         Read side (tickers, orderbooks, portfolio, candles) is unaffected.

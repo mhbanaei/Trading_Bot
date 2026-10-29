@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from nobitex_bot.config import load_config
+from nobitex_bot.config import (ConfigError, load_config, validate_config)
 from nobitex_bot.engine import TradingEngine
 
 # windows console-control handlers must stay referenced or the callback
@@ -103,13 +103,34 @@ def main() -> int:
     # for weeks on a small VPS. --live turns it on for a debugging run.
     live_view = bool(args.live)
 
-    cfg = load_config()
+    try:
+        # --doctor must still run when the file is broken (it is the tool
+        # that reports WHY); every trading start fails closed instead.
+        cfg = load_config(strict=not args.doctor)
+    except ConfigError as exc:
+        print("[config] invalid configuration — refusing to start.")
+        for problem in exc.problems:
+            print("  - %s" % problem)
+        print("  fix config.json, then run: python run.py --doctor")
+        return 2
+    if not args.doctor:
+        for warning in getattr(cfg, "config_warnings", []) or []:
+            print("[config] warning: %s" % warning)
     if args.port:
         cfg.engine.server_port = args.port
     if args.host:
         cfg.engine.server_host = args.host
     if args.cycles:
         cfg.engine.max_cycles = args.cycles
+
+    # CLI overrides are validated too: `--port 0` or `--host 0.0.0.0`
+    # without a password must not bypass the file checks above.
+    override_problems = validate_config(cfg)
+    if override_problems and not args.doctor:
+        print("[config] invalid configuration after CLI overrides:")
+        for problem in override_problems:
+            print("  - %s" % problem)
+        return 2
 
     if args.doctor:
         # first thing to run on a new machine/VPS: it must not touch the

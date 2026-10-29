@@ -139,6 +139,9 @@ class TradingEngine:
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
         self._cycle_lock = threading.Lock()
+        # serializes read-modify-write of config.json (settings save vs the
+        # live-trading toggle) so two concurrent writers cannot truncate it
+        self._config_write_lock = threading.Lock()
         self._cycles_run = 0
         self._last_error = None
         self.safe_mode = False
@@ -179,14 +182,16 @@ class TradingEngine:
         # so the few-second dashboard poll cannot hammer the API
         self._open_orders_cache = (0.0, [])
         # seamless restart: a persisted login token hot-attaches the real
-        # Nobitex adapter at startup, so the bot goes straight back to
-        # trading the real account (no manual re-login, no demo detour)
-        if (self.nobitex_session.token and not self._real_attached and
-                getattr(self.cfg.exchange, "live_by_default", True)):
+        # adapter at startup so the wallet stays synced. It NEVER turns
+        # live trading on: an older build did exactly that here, which
+        # meant merely CONSTRUCTING the engine (a diagnostic script, a
+        # second copy of the bot) could place real orders while the
+        # dashboard said «معامله واقعی: خاموش». Real orders need the
+        # explicit `exchange.live_trading` opt-in.
+        if self.nobitex_session.token and not self._real_attached:
             attach = self._attach_real_exchange()
             if attach.get("attached"):
                 self.sync_real_wallet()
-                self.cfg.exchange.live_trading = True
 
     # ------------------------------------------------------------ safe mode
     def _on_position_event(self, event: dict) -> dict | None:
@@ -712,6 +717,12 @@ class TradingEngine:
             for symbol, plan in list(plans.items()):
                 try:
                     if not isinstance(plan, dict):
+                        continue
+                    if not self._quote_market_enabled(symbol):
+                        # «بازار معاملات»: the section is switched OFF — its
+                        # levels must not advance and no ladder capital may
+                        # be armed there (the buy gate alone left the strike
+                        # counter and stops moving on a disabled market).
                         continue
                     pos = self.storage.position(symbol)
                     if not pos or d(pos["amount"]) <= 0:
@@ -1542,6 +1553,34 @@ class TradingEngine:
         else:
             self._ticker_cache[market] = (None, now - timedelta(seconds=45))
         return px
+
+    def _live_market_row(self, symbol: str) -> dict | None:
+        """Minimal price row straight from the adapter.
+
+        Last resort for a manual click when neither the snapshot nor the
+        catalog can price the coin (engine stopped, universe call failed):
+        a SELL/ BUY must still reach the market instead of dying with
+        «قیمت زنده پیدا نشد».
+        """
+        symbol = (symbol or "").strip().upper()
+        try:
+            tick = self.exchange.ticker(symbol) or {}
+        except Exception:
+            return None
+        px = tick.get("last_price") or 0
+        if not px:
+            return None
+        now = utc_now_iso()
+        return {
+            "symbol": symbol,
+            "last_price": px,
+            "best_bid": tick.get("best_bid"),
+            "best_ask": tick.get("best_ask"),
+            "timestamp": tick.get("timestamp") or now,
+            "received_at": now,
+            "source": "live_ticker",
+            "quote_asset": "USDT" if symbol.endswith("USDT") else "IRT",
+        }
 
     def _exit_price(self, market: str, prices: dict | None = None):
         """Price to judge an exit trigger with — snapshot NOT required.
@@ -2387,6 +2426,10 @@ class TradingEngine:
                 snap_top = market_by_symbol.get(sym)
                 if not snap_top or sym in open_positions:
                     continue
+                if not self._quote_market_enabled(sym):
+                    # candidates may predate a settings change; the freed
+                    # cash must never rotate into the switched-off section
+                    continue
                 boosted = {**top, "signals": {
                     **top["signals"],
                     "trend": max(top["signals"].get("trend", 0), 0.9),
@@ -2407,16 +2450,40 @@ class TradingEngine:
             return []
 
     def _sync_exit_plans(self) -> None:
-        """Drop exit plans whose position is fully closed."""
+        """Drop exit plans whose position is fully closed — with ONE exception.
+
+        Deleting the plan also deleted its `stop_lock_until_ts`, so right
+        after a stop-loss exit the risk engine found no lock and the SAME
+        coin could be re-bought on the next cycle: the stop-loss worked
+        like a reset button. A closed market therefore keeps a tombstone
+        plan until its re-entry lock expires (or the price recovers past
+        the armed hadd, which risk.py checks); plans without a live lock
+        are removed exactly as before.
+        """
         plans = self.storage.kv_get("exit_plans", {})
         if not isinstance(plans, dict) or not plans:
             return
         changed = False
+        now = datetime.now(timezone.utc)
         for market in list(plans.keys()):
             pos = self.storage.position(market)
-            if not pos or d(pos["amount"]) <= 0:
-                plans.pop(market)
-                changed = True
+            if pos and d(pos["amount"]) > 0:
+                continue
+            plan = plans.get(market)
+            keep = False
+            if isinstance(plan, dict) and plan.get("stop_lock_until_ts"):
+                try:
+                    keep = parse_iso(str(plan["stop_lock_until_ts"])) > now
+                except Exception:
+                    keep = False
+            if keep:
+                if not plan.get("closed_at"):
+                    plan["closed_at"] = utc_now_iso()
+                    plans[market] = plan
+                    changed = True
+                continue
+            plans.pop(market)
+            changed = True
         if changed:
             self.storage.kv_set("exit_plans", plans)
 
@@ -3254,12 +3321,10 @@ class TradingEngine:
         sync = {"ok": False}
         if attach.get("attached"):
             sync = self.sync_real_wallet()
-            # product spec: once logged into the real account, the bot
-            # trades the real account immediately (no sandbox stop).
-            if getattr(self.cfg.exchange, "live_by_default", True):
-                self.cfg.exchange.live_trading = True
-                self.events.publish("LIVE_TRADING_CHANGED", "engine", "",
-                                    {"enabled": True, "reason": "LIVE_BY_DEFAULT"})
+            # Login is READ-ONLY by design. It never flips live trading on:
+            # the old «live_by_default» shortcut overrode the user's OFF
+            # switch after every re-login, so a real order could go out
+            # right after sign-in. Only the explicit flag/switch enables it.
         return {"ok": True, "device": result.get("device", ""),
                 "logged_in_at": result.get("logged_in_at", ""),
                 "live_trading": self.cfg.exchange.live_trading,
@@ -4294,7 +4359,8 @@ class TradingEngine:
             if (m.get("data_quality") or {}).get("score", 0)
             >= self.cfg.quality.min_trade_quality}
         candidates = [c for c in (self.latest_candidates or [])
-                      if c["symbol"] in market_by_symbol]
+                      if c["symbol"] in market_by_symbol and
+                      self._quote_market_enabled(c["symbol"])]
         if not candidates:
             return {"ok": False, "error": "بازار مجازی برای خرید نیست"}
         prices = {m["symbol"]: m["last_price"] for m in snap["markets"]
@@ -5723,8 +5789,17 @@ class TradingEngine:
         symbol = (symbol or "").strip().upper()
         if not symbol:
             return {"ok": False, "error": "نماد لازم است"}
+        manual_notes: list = []
         if self.safe_mode:
-            return {"ok": False, "error": "حالت امن فعال است — خرید مسدود"}
+            # a human click OUTRANKS the engine's own safety halt: the halt
+            # exists to stop the bot from trading by itself, not to lock the
+            # owner out of their account. The override is published so it
+            # stays visible in the event log.
+            manual_notes.append("حالت امن روشن بود — سفارش دستی با اولویت "
+                                "کاربر ثبت شد")
+            self.events.publish("MANUAL_OVERRIDE", "engine", "",
+                                {"symbol": symbol,
+                                 "scope": "safe_mode"})
         # quote-market selector (Settings): manual buys follow the same
         # USDT/IRT restriction as automatic ones. A click on a row whose
         # quote is switched OFF is re-targeted to the SAME COIN's market
@@ -5737,11 +5812,14 @@ class TradingEngine:
         if not market:
             return {"ok": False, "error": merr}
         symbol = market
-        note = ("خرید در بازار %s ثبت شد (انتخاب «بازار معاملات»: %s)"
+        if symbol != click_symbol:
+            manual_notes.append(
+                "خرید در بازار %s ثبت شد (انتخاب «بازار معاملات»: %s)"
                 % (symbol, "تتری (USDT)" if symbol.endswith("USDT")
-                   else "تومانی (IRT)")) if symbol != click_symbol else None
+                   else "تومانی (IRT)"))
+        note = " | ".join(manual_notes) if manual_notes else None
         snap = self.latest_snapshot or {}
-        m = self._market_row(symbol)
+        m = self._market_row(symbol) or self._live_market_row(symbol)
         if not m or not m.get("last_price"):
             return {"ok": False,
                     "error": "قیمت زنده برای " + symbol +
@@ -5810,7 +5888,7 @@ class TradingEngine:
         elif symbol.endswith("USDT") and irt_per_usdt > 0:
             want_quote = want_irt / irt_per_usdt
         want_coins = (want_quote / cur) if cur > 0 else ZERO
-        if amount_irt:
+        if want_quote > 0:
             dec["position_size"] = {
                 "amount": float(want_coins),
                 "quote_value": float(want_quote),
@@ -5843,19 +5921,23 @@ class TradingEngine:
                                 # مبلغ تایپ‌شدهٔ کاربر سقف اندازه هم هست: بدون
                                 # این سقف فقط کف می‌شد و موتور ریسک به اندازهٔ
                                 # بودجهٔ خودش (بزرگ‌تر از درخواست) می‌خرید
-                                size_cap=(want_coins if amount_irt and
-                                          want_coins > 0 else None))
+                                size_cap=(want_coins if want_coins > 0
+                                          else None),
+                                # کلیک کاربر بر گیت‌های نرمِ ربات اولویت دارد
+                                manual=True)
         self.storage.save_risk_decision(rd)
         self.latest_risk.append(rd)
         if rd["status"] != "APPROVED":
+            codes = rd.get("rejection_reasons") or []
             out = {"ok": False, "symbol": symbol, "market": symbol,
-                   "rejected": rd.get("rejection_reasons"),
-                   "error": "رد توسط موتور ریسک: " + ", ".join(
-                       rd.get("rejection_reasons") or [])}
+                   "rejected": codes,
+                   "error": "امکان ثبت سفارش نیست: " +
+                            self._manual_reason_fa(codes)}
             if note:
                 out["note"] = note
             return out
-        ex = self.executor.execute(dec, rd, prices, "manual_buy")
+        ex = self.executor.execute(dec, rd, prices, "manual_buy",
+                                   manual=True)
         self.latest_executions.append(ex)
         ok = ex.get("status") in ("FILLED", "OPEN", "SUBMITTED",
                                   "PARTIALLY_FILLED", "READY")
@@ -5866,12 +5948,32 @@ class TradingEngine:
                                  "amount_irt": amount_irt,
                                  "status": ex.get("status")})
         out = {"ok": bool(ok), "symbol": symbol, "market": symbol,
-               "execution": ex}
+               "execution": ex, "overridden": rd.get("overridden") or []}
         if note:
             out["note"] = note
         if click_symbol != symbol:
             out["click_symbol"] = click_symbol
         return out
+
+    _MANUAL_REJECT_FA = {
+        "BELOW_MIN_NOTIONAL":
+            "مبلغ از حداقل سفارش صرافی کمتر است — مبلغ را کمی بیشتر کنید",
+        "INSUFFICIENT_CASH": "موجودی نقد کافی نیست",
+        "NO_POSITION_TO_SELL": "سکه‌ای برای فروش در این بازار نیست",
+        "PRICE_UNAVAILABLE": "قیمت لحظه‌ای در دسترس نیست",
+        "POSITION_SIZE_TOO_SMALL": "حجم سفارش صفر شد — مبلغ را بیشتر کنید",
+        "INVALID_STOP_LOSS": "حد ضرر نقشهٔ خرید معتبر نیست",
+        "DECISION_EXPIRED": "تصمیم منقضی شد — دوباره تلاش کنید",
+    }
+
+    def _manual_reason_fa(self, codes: list) -> str:
+        """Persian, actionable text for the FEW hard rejections a manual
+        click can still hit (balance / exchange minimum). Soft gates are
+        overridden by the click itself and never reach the user."""
+        parts = []
+        for c in codes or []:
+            parts.append(self._MANUAL_REJECT_FA.get(c, str(c)))
+        return "، ".join(parts) if parts else "دلیل نامشخص"
 
     def suggest_buy(self, symbol: str = "") -> dict:
         """Suggested amount for the holdings-box buy button: the engine's
@@ -7015,30 +7117,135 @@ class TradingEngine:
             self._sync_after_cancel()
         return cancelled
 
+    def _chase_sell(self, symbol: str, ex: dict, amount: float,
+                    tries: int = 2) -> dict:
+        """Make a manual SELL actually fill instead of resting in the list.
+
+        A limit SELL can be ACCEPTED by the exchange and still match zero
+        coins (the user then sees it in «سفارش‌های در جریان» forever). This
+        helper watches the order for a few seconds; if part of it is still
+        unmatched it cancels the remainder and re-posts it at a freshly
+        computed crossing price (book-walk), up to `tries` times. The
+        caller reports what really sold, never just «ثبت شد».
+        """
+        res = {"attempts": 0, "matched": 0.0,
+               "remaining": float(amount or 0), "orders": [], "errors": []}
+        if not (self._real_attached and
+                getattr(self.cfg.exchange, "live_trading", False)):
+            return res
+        want = d(str(amount or 0))
+        matched = d(str(ex.get("matched_amount") or 0))
+        oid = str(ex.get("exchange_order_id") or "")
+        if not oid or want <= 0:
+            res["matched"] = float(matched)
+            res["remaining"] = float(max(ZERO, want - matched))
+            return res
+        terminal = ("FILLED", "CANCELED", "CANCELLED", "REJECTED",
+                    "FAILED")
+
+        def poll(order_id: str, seen: Decimal, rounds: int) -> Decimal:
+            for _ in range(rounds):
+                if seen >= want:
+                    break
+                time.sleep(0.45)
+                try:
+                    st = self.exchange.order_status(order_id, symbol) or {}
+                except Exception:
+                    continue
+                got = d(str(st.get("matched_amount") or 0))
+                if got > seen:
+                    seen = got
+                if (st.get("status") or "").upper() in terminal:
+                    break
+            return seen
+
+        matched = poll(oid, matched, 4)
+        while matched < want and res["attempts"] < max(1, int(tries)):
+            res["attempts"] += 1
+            remaining = want - matched
+            try:
+                self.exchange.cancel_order(oid)
+            except Exception as exc:
+                res["errors"].append("cancel %s: %s" % (oid, exc))
+            last = self._price_fallback(symbol) or ex.get("price") or 0
+            try:
+                price = self.executor._crossing_sell_price(
+                    symbol, d(str(last)), remaining,
+                    aggression=0.01 * res["attempts"])
+            except Exception:
+                price = d(str(ex.get("price") or 0))
+            if price <= 0:
+                break
+            cid = "bot-sellnow-%s-%s" % (symbol, new_id("s")[2:8])
+            try:
+                placed = self.exchange.place_limit_order(
+                    symbol, "SELL", price, remaining, cid) or {}
+            except Exception as exc:
+                res["errors"].append("place: %s" % exc)
+                break
+            oid = str(placed.get("order_id") or "")
+            got = d(str(placed.get("matched_amount") or 0))
+            matched += got
+            res["orders"].append({
+                "exchange_order_id": oid,
+                "price": str(price),
+                "amount": str(remaining),
+                "matched": str(got)})
+            # keep the ledger in step so backfill records the fill / status
+            try:
+                self.storage.save_order({
+                    "order_id": "ord_" + new_id("o")[2:],
+                    "client_order_id": cid,
+                    "decision_id": ex.get("decision_id") or "",
+                    "market": symbol,
+                    "side": "SELL",
+                    "order_type": "LIMIT",
+                    "price": str(price),
+                    "amount": str(remaining),
+                    "matched_amount": str(got),
+                    "unmatched_amount": str(
+                        max(ZERO, remaining - got)),
+                    "status": placed.get("status") or "OPEN",
+                    "fee_asset": ("USDT" if symbol.endswith("USDT")
+                                  else "IRT"),
+                    "created_at": utc_now_iso(),
+                    "updated_at": utc_now_iso(),
+                    "exchange_order_id": oid,
+                })
+            except Exception as exc:
+                res["errors"].append("ledger: %s" % exc)
+            if matched >= want or not oid:
+                break
+            matched = poll(oid, matched, 3)
+        try:
+            self.backfill_real_fills()
+        except Exception:
+            pass
+        res["matched"] = float(matched)
+        res["remaining"] = float(max(ZERO, want - matched))
+        self.events.publish("SELL_CHASE", "engine", "",
+                            {"symbol": symbol, "matched": res["matched"],
+                             "remaining": res["remaining"],
+                             "attempts": res["attempts"]})
+        return res
+
     def _sell_capital_to_irt(self, ex: dict) -> dict:
         """After a real SELL fill, move the freed capital into the wallet.
 
         The fill application credits IRT paper-side, but the real exchange
         still shows the coins locked until the order closes and the wallet
         is pulled again — without this step the user sees the capital as
-        neither sold nor spendable. Cancel leftovers, refresh statuses,
-        re-pull the wallet and report the proceeds.
+        neither sold nor spendable. Refresh statuses, re-pull the wallet
+        and report the proceeds.
+
+        It must NEVER cancel the SELL this call just placed: the previous
+        version cancelled every open sell on the market milliseconds after
+        submitting, so «فروش» ended as an order in the list with the coins
+        still in the wallet (user report) — i.e. it un-sold the position.
         """
         res = {"freed": 0, "irt_credited": None, "errors": []}
         if not self._real_attached:
             return res
-        market = ex.get("market") or ""
-        try:
-            opens = [o for o in self.exchange.open_orders(market)
-                     if (o.get("side") or "").upper() == "SELL"]
-            for o in opens:
-                try:
-                    self.exchange.cancel_order(o["order_id"])
-                    res["freed"] += 1
-                except Exception as exc:
-                    res["errors"].append(str(exc))
-        except Exception as exc:
-            res["errors"].append("open_orders: " + str(exc))
         try:
             self.backfill_real_fills()
         except Exception:
@@ -7051,36 +7258,151 @@ class TradingEngine:
         res["irt_credited"] = float(avail) if avail > 0 else 0.0
         return res
 
-    def sell_position_now(self, symbol: str) -> dict:
-        """One-click SELL of an entire held position at market reality.
+    def _sell_target(self, symbol: str) -> tuple:
+        """Market a «فروش» click must sell on, plus an optional note.
+
+        A click on a row whose quote is switched off is re-targeted to the
+        SAME coin's market in the enabled quote («بازار معاملات») — but only
+        when that market really holds the coin, otherwise the click would
+        try to sell a balance that is not there. Returns (market, note,
+        error) and is shared by the preview and the sell so the dialog can
+        never show a different market than the order uses.
+        """
+        symbol = (symbol or "").strip().upper()
+        if not symbol:
+            return None, None, "نماد لازم است"
+        pos = self.storage.position(symbol)
+        if pos and d(pos["amount"]) > 0:
+            return symbol, None, None
+        alt, err = self._click_market_for(symbol)
+        if alt and alt != symbol:
+            alt_pos = self.storage.position(alt)
+            if alt_pos and d(alt_pos["amount"]) > 0:
+                return alt, ("فروش از بازار %s انجام می‌شود (همان سکه در بازار "
+                             "انتخاب‌شدهٔ «بازار معاملات»)" % alt), None
+        return symbol, None, err
+
+    def _best_bid(self, market: str) -> Decimal:
+        """Best bid in the bot's units — what a marketable SELL really gets.
+
+        `last_price` is often a STALE last trade (verified live: 1K_BONK last
+        861.87 while the best bid was 843). Pricing a SELL from it left the
+        order above the book, so it rested forever.
+        """
+        px = ZERO
+        try:
+            book = self.exchange.orderbook(market, depth=5) or {}
+            bids = [b for b in (book.get("bids") or []) if b]
+            if bids:
+                first = bids[0]
+                px = (d(str(first.get("price")))
+                      if isinstance(first, dict) else d(str(first)))
+        except Exception:
+            px = ZERO
+        if px <= 0:
+            try:
+                t = self.exchange.ticker(market) or {}
+                px = d(str(t.get("best_bid") or t.get("last_price") or 0))
+            except Exception:
+                px = ZERO
+        if px <= 0:
+            row = self._market_row(market) or self._live_market_row(market)
+            px = d(str((row or {}).get("last_price") or 0))
+        return px if px > 0 else ZERO
+
+    def sell_preview(self, symbol: str) -> dict:
+        """Data for the dashboard «فروش» dialog — NO side effects.
+
+        The dialog must offer what can REALLY be sold: the local ledger's
+        amount capped by the exchange's own free balance when a real account
+        is attached (a stale ledger claiming 29 coins while the wallet holds
+        12 makes the exchange cancel the order — the coin is then never
+        sold). `price` is the best bid, i.e. what a SELL that crosses the
+        book receives.
+        """
+        market, note, err = self._sell_target(symbol)
+        if not market:
+            return {"ok": False, "error": err or "نماد لازم است"}
+        pos = self.storage.position(market)
+        ledger = d(pos["amount"]) if pos else ZERO
+        base = market[:-4] if market.endswith("USDT") else market[:-3]
+        real = None
+        if self._real_attached:
+            try:
+                real = d(str(self.portfolio.available(base)))
+            except Exception:
+                real = None
+        avail = ledger
+        if real is not None and real > 0 and ledger > 0:
+            avail = min(ledger, real)
+        elif real is not None and real > 0 and ledger <= 0:
+            avail = real
+        quote = "USDT" if market.endswith("USDT") else "IRT"
+        price = self._best_bid(market)
+        usdt_toman = ZERO
+        if quote == "IRT":
+            try:
+                snap = self.latest_snapshot or {}
+                prices = {m["symbol"]: m["last_price"]
+                          for m in (snap.get("markets") or [])
+                          if m.get("last_price")}
+                usdt_toman = d(str(prices.get("USDTIRT") or 0))
+            except Exception:
+                usdt_toman = ZERO
+            if usdt_toman <= 0:
+                try:
+                    tick = self.exchange.ticker("USDTIRT") or {}
+                    usdt_toman = d(str(tick.get("last_price") or 0))
+                except Exception:
+                    usdt_toman = ZERO
+        min_notional = d(str(getattr(self.cfg.exchange,
+                                     "min_order_usdt", 0.44)))
+        if quote == "IRT" and usdt_toman > 0:
+            min_notional = min_notional * usdt_toman
+        return {"ok": True, "symbol": (symbol or "").strip().upper(),
+                "market": market, "asset": base,
+                "available": float(avail), "ledger_amount": float(ledger),
+                "real_available": (float(real) if real is not None else None),
+                "price": float(price), "quote": quote,
+                "value_quote": float(avail * price) if price > 0 else 0.0,
+                "min_notional": float(min_notional),
+                "usdt_toman": float(usdt_toman),
+                "price_known": bool(price > 0),
+                "note": note}
+
+    def sell_position_now(self, symbol: str, amount: float | None = None) -> dict:
+        """One-click SELL of a held position at market reality.
+
+        `amount` is the COIN quantity typed in the sell dialog; None means
+        «کل موجودی». It is capped by what the wallet really holds.
 
         Before building the SELL decision any open REAL order on this
         market is cancelled (a standing order locks part of the coins),
         and the wallet is re-synced so the sell sees the full holding —
         coins locked in our own stale orders would otherwise be sold
-        short or rejected. Converts everything into IRT (quote). Builds
-        a market-referenced SELL decision for the full holding and
-        pushes it through the normal pipeline — the risk engine still
-        validates balance/limits (SS100), exits bypass entry-specific
-        caps but never balance checks.
+        short or rejected. Builds a market-referenced SELL decision for
+        the requested amount and pushes it through the normal pipeline —
+        the risk engine still validates balance/limits (SS100), exits
+        bypass entry-specific caps but never balance checks.
         """
         symbol = (symbol or "").strip().upper()
         note = None
-        pos_hit = self.storage.position(symbol) if symbol else None
-        if not pos_hit or d(pos_hit["amount"]) <= 0:
-            # the clicked row holds no coins (or the route only has the
-            # other quote): fall back to the SAME COIN's market in the
-            # quote the «بازار معاملات» selector points at, so a «فروش»
-            # click always reaches the real holding.
-            alt, _err = self._click_market_for(symbol)
-            if alt and alt != symbol:
-                alt_pos = self.storage.position(alt)
-                if alt_pos and d(alt_pos["amount"]) > 0:
-                    note = ("فروش از بازار %s انجام میشود (همان سکه در بازار "
-                            "انتخابشدهٔ «بازار معاملات»)" % alt)
-                    symbol = alt
+        target, target_note, _terr = self._sell_target(symbol)
+        if target:
+            symbol, note = target, target_note
+        if not symbol:
+            return {"ok": False, "error": _terr or "نماد لازم است"}
+        requested = None
+        if amount is not None:
+            try:
+                requested = d(str(amount))
+            except Exception:
+                return {"ok": False, "error": "مقدار نامعتبر است"}
+            if requested <= 0:
+                return {"ok": False, "error": "مقدار باید بیشتر از صفر باشد"}
         freed: list = []
         freed_errors: list = []
+        wallet_synced = False
         if self._real_attached:
             try:
                 opens = self.exchange.open_orders(symbol)
@@ -7100,6 +7422,16 @@ class TradingEngine:
             if freed:
                 # statuses + balances refresh so risk sees the full coins
                 self._sync_after_cancel()
+                wallet_synced = True
+            else:
+                # a click is a decision to act on the REAL wallet NOW: pull
+                # fresh balances even when no order had to be cancelled, so
+                # a stale paper balance cannot reject the sell with
+                # INSUFFICIENT_BALANCE while the coins sit in the wallet.
+                try:
+                    wallet_synced = bool(self.sync_real_wallet().get("ok"))
+                except Exception:
+                    wallet_synced = False
         pos = self.storage.position(symbol)
         if not pos or d(pos["amount"]) <= 0:
             out = {"ok": False,
@@ -7107,26 +7439,75 @@ class TradingEngine:
             if note:
                 out["note"] = note
             return out
+        avail = d(pos["amount"])
+        if self._real_attached:
+            # never try to sell more coins than the wallet actually holds:
+            # the exchange accepts such an order and THEN cancels it, so the
+            # coin stays in the wallet while the list shows a dead order.
+            # A zero free balance only counts when the pull SUCCEEDED — a
+            # failed wallet call (403 / expired token) must not look like
+            # «no coins» and block a real sale.
+            base = symbol[:-4] if symbol.endswith("USDT") else symbol[:-3]
+            try:
+                real = d(str(self.portfolio.available(base)))
+            except Exception:
+                real = ZERO
+            if real < avail and (real > 0 or wallet_synced):
+                avail = real
+        if avail <= 0:
+            out = {"ok": False, "symbol": symbol, "market": symbol,
+                   "error": "موجودی قابل فروش برای " + symbol + " نیست"}
+            if note:
+                out["note"] = note
+            return out
+        if requested is not None and requested > avail:
+            clamped = ("فقط " + ("%.8f" % float(avail)).rstrip("0").
+                       rstrip(".") + " از " + symbol + " موجود است")
+            note = (note + " | " + clamped) if note else clamped
+            requested = avail
+        sell_amount = avail if requested is None else requested
         snap = self.latest_snapshot or {}
         market_by_symbol = {m["symbol"]: m for m in snap.get("markets", [])}
-        m = self._market_row(symbol)
+        m = self._market_row(symbol) or self._live_market_row(symbol)
         if not m:
             return {"ok": False,
                     "error": "قیمت زنده برای " + symbol +
                     " پیدا نشد — نماد را بررسی کنید یا چند لحظه بعد "
                     "دوباره تلاش کنید"}
         market_by_symbol.setdefault(symbol, m)
-        prices = {mm["symbol"]: mm["last_price"] for mm in snap["markets"]
+        prices = {mm["symbol"]: mm["last_price"]
+                  for mm in snap.get("markets", [])
                   if mm.get("last_price")}
         prices.setdefault(symbol, m.get("last_price"))
         price = float(m.get("last_price") or prices.get(symbol) or 0)
         if price <= 0:
             return {"ok": False, "error": "قیمت موجود نیست"}
-        amount = float(d(pos["amount"]))
+        amount = float(sell_amount)
+        # Nobitex rejects a real order below its minimum value — say that
+        # instead of sending a doomed SELL that only lands in the list.
+        # Paper mode (adapter attached, live switch off) has no minimum.
+        if self._real_attached and getattr(self.cfg.exchange,
+                                          "live_trading", False):
+            min_notional = d(str(getattr(self.cfg.exchange,
+                                         "min_order_usdt", 0.44)))
+            if not symbol.endswith("USDT"):
+                usdtirt = d(str(prices.get("USDTIRT") or 0))
+                if usdtirt > 0:
+                    min_notional = min_notional * usdtirt
+            if d(str(amount)) * d(str(price)) < min_notional:
+                out = {"ok": False, "symbol": symbol, "market": symbol,
+                       "error": ("ارزش این سکه از حداقل سفارش صرافی کمتر "
+                                 "است — از «تبدیل موجودی» استفاده کنید")}
+                if note:
+                    out["note"] = note
+                return out
         now_dt = datetime.now(timezone.utc)
         dec = {
             "decision_id": new_id("dec"),
-            "snapshot_id": snap.get("snapshot_id", ""),
+            # an empty snapshot (engine stopped / no cycle yet) must not
+            # fail validation: a manual SELL is priced from the live ticker
+            "snapshot_id": (snap.get("snapshot_id") or
+                            "manual_sell_live"),
             "cycle_id": "manual_sell",
             "symbol": symbol,
             "action": "SELL",
@@ -7159,7 +7540,11 @@ class TradingEngine:
         self.latest_decisions.append(dec)
         portfolio_snapshot = self.portfolio.portfolio_snapshot(
             prices, self._usdt_rates(prices))
-        rd = self.risk.evaluate(dec, m, portfolio_snapshot, prices)
+        # manual=True: the owner's click outranks the bot's own soft gates
+        # (quality/liquidity/cooldown/caps). Hard reality — balance, price,
+        # minimum order — still rejects, so this cannot oversell.
+        rd = self.risk.evaluate(dec, m, portfolio_snapshot, prices,
+                                manual=True)
         self.storage.save_risk_decision(rd)
         self.latest_risk.append(rd)
         if rd["status"] != "APPROVED":
@@ -7171,17 +7556,66 @@ class TradingEngine:
             dec, rd, prices, "manual_sell_" +
             utc_now_iso().replace("-", "").replace(":", "")[:12])
         self.latest_executions.append(ex)
-        # sold capital must land in the wallet as spendable IRT: cancel
-        # leftovers, refresh order statuses, re-pull the real wallet
+        # A live SELL can be ACCEPTED and still match nothing. Chase it until
+        # it fills (or keep the honest remainder) — «در لیست فروش‌ها است»
+        # is not a sale.
+        chase = self._chase_sell(symbol, ex, amount)
         capital = self._sell_capital_to_irt(ex)
+        st = str(ex.get("status") or "").upper()
+        failed = st in ("FAILED", "REJECTED", "CANCELED", "CANCELLED",
+                        "SKIPPED")
+        is_live_order = bool(self._real_attached and getattr(
+            self.cfg.exchange, "live_trading", False))
+        if is_live_order:
+            sold = d(str(chase.get("matched") or 0))
+        elif st == "FILLED":
+            sold = d(str(ex.get("matched_amount") or 0)) or d(str(amount))
+        else:
+            sold = d(str(ex.get("matched_amount") or 0))
+        remaining = max(ZERO, d(str(amount)) - sold)
+        price_out = ex.get("price")
+        if chase.get("orders"):
+            try:
+                price_out = float(chase["orders"][-1]["price"])
+            except Exception:
+                pass
         self.events.publish("MANUAL_SELL", "engine", "",
                             {"symbol": symbol, "status": ex.get("status"),
+                             "sold": float(sold),
+                             "remaining": float(remaining),
+                             "attempts": chase.get("attempts"),
                              "irt_credited": capital.get("irt_credited")})
-        out = {"ok": True, "execution": ex, "market": symbol,
+        # A REJECTED/FAILED/SKIPPED exchange order is NOT a successful sell,
+        # and an order that matched ZERO coins is not one either: the old
+        # reply said ok=True for every submission, so the dashboard toasted
+        # «ثبت شد» while the coins stayed in the wallet.
+        notes = [note] if note else []
+        # status must describe what HAPPENED, not just what was submitted
+        realized = ("FILLED" if sold > 0 and remaining <= 0 else
+                    "PARTIALLY_FILLED" if sold > 0 else st)
+        out = {"ok": not failed, "execution": ex, "market": symbol,
+               "price": price_out, "status": realized,
+               "sold_amount": float(sold),
+               "remaining_amount": float(remaining),
+               "available_amount": float(avail),
+               "requested_amount": float(
+                   requested if requested is not None else avail),
+               "chase": chase,
                "freed_orders": freed, "freed_errors": freed_errors,
                "capital": capital}
-        if note:
-            out["note"] = note
+        if failed:
+            out["error"] = ex.get("error") or (
+                "سفارش فروش رد شد: " + (st or "?"))
+        elif sold <= 0:
+            out["ok"] = False
+            out["error"] = ("سفارش فروش پر نشد و در صف ماند — قیمت بازار "
+                            "جابه‌جا شد؛ یک‌بار دیگر بزنید")
+        elif remaining > 0:
+            notes.append("از %s سکه، %s فروخته شد و بقیه در صف فروش است"
+                         % (("%.8f" % amount).rstrip("0").rstrip("."),
+                            ("%.8f" % float(sold)).rstrip("0").rstrip(".")))
+        if notes:
+            out["note"] = " | ".join(notes)
         return out
 
     _NUM_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
@@ -7203,15 +7637,50 @@ class TradingEngine:
         except Exception:
             return ZERO
 
+    def _persist_live_flag(self, enabled: bool) -> bool:
+        """Write the live switch into config.json so OFF survives a restart.
+
+        The dashboard toggle used to change only the in-memory flag: config
+        still said true, so the next start silently re-enabled real orders
+        after the user had switched them off. Only a config that was LOADED
+        from a file has a path here (programmatic Configs skip the write).
+        """
+        path = str(getattr(self.cfg, "config_path", "") or "")
+        if not path:
+            return False
+        try:
+            with self._config_write_lock:
+                doc = {}
+                p = Path(path)
+                if p.exists():
+                    loaded = json.loads(p.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        doc = loaded
+                ex = doc.get("exchange")
+                ex = dict(ex) if isinstance(ex, dict) else {}
+                ex["live_trading"] = bool(enabled)
+                doc["exchange"] = ex
+                p.write_text(json.dumps(doc, ensure_ascii=False, indent=2),
+                             encoding="utf-8")
+            return True
+        except Exception as exc:
+            self.events.error("ENGINE", "LIVE_FLAG_PERSIST_FAILED", "WARNING",
+                              "%s: %s" % (path, str(exc)[:160]),
+                              retryable=False)
+            return False
+
     def set_live_trading(self, enabled: bool) -> dict:
         """Explicit live-order switch (SS101: demo stays paper by default)."""
         if enabled and not self._real_attached:
             return {"ok": False,
                     "error": "login to the real account first"}
         self.cfg.exchange.live_trading = bool(enabled)
+        persisted = self._persist_live_flag(bool(enabled))
         self.events.publish("LIVE_TRADING_CHANGED", "engine", "",
-                            {"enabled": bool(enabled)})
-        return {"ok": True, "live_trading": self.cfg.exchange.live_trading}
+                            {"enabled": bool(enabled),
+                             "persisted": persisted})
+        return {"ok": True, "live_trading": self.cfg.exchange.live_trading,
+                "persisted": persisted}
 
     def maybe_refresh_token(self) -> None:
         """Best-effort token refresh once per cycle (SS67 resync)."""
@@ -7541,8 +8010,11 @@ class TradingEngine:
         self.nobitex_session.wipe()
         self.events.publish("LOGOUT", "web", "", {})
         # fall back to the simulator so the engine keeps working; real
-        # trading must never continue without a real session
+        # trading must never continue without a real session. Persist the
+        # OFF too: a config left at true would re-enable real orders on the
+        # next login/start even though the user logged out.
         self.cfg.exchange.live_trading = False
+        self._persist_live_flag(False)
         try:
             if isinstance(self.exchange, NobitexAPI):
                 self._set_exchange(DemoMarket(self.cfg.exchange,

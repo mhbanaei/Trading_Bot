@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -132,8 +133,20 @@ class Storage:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "trading_bot.db"
         self._lock = threading.Lock()
-        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-        self._conn.executescript(SCHEMA)
+        self._conn = self._open_connection()
+        for attempt in range(4):
+            try:
+                self._conn.executescript(SCHEMA)
+                break
+            except sqlite3.OperationalError as exc:
+                # a second instance may hold the write lock for a moment on
+                # startup; anything else (full disk, corrupt file) must be a
+                # clear, actionable failure — not a half-migrated ledger
+                if "locked" in str(exc).lower() and attempt < 3:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise RuntimeError(self._db_failure("prepare the schema",
+                                                   exc)) from exc
         # lightweight migration for DBs created before live-order support
         cols = {r[1] for r in self._conn.execute(
             "PRAGMA table_info(orders)").fetchall()}
@@ -156,6 +169,53 @@ class Storage:
             self._conn.execute(
                 "ALTER TABLE positions ADD COLUMN last_buy_price TEXT")
         self._conn.commit()
+
+    def _db_failure(self, action: str, exc: Exception) -> str:
+        """Turn an sqlite OperationalError into an actionable message."""
+        msg = str(exc)
+        low = msg.lower()
+        if "disk is full" in low or "database or disk is full" in low:
+            return ("cannot %s: the disk holding %s is FULL (%s). Free space "
+                    "or point engine.data_dir at another drive before "
+                    "starting — the bot will not trade without a writable "
+                    "ledger." % (action, self.db_path, msg))
+        if "malformed" in low or "not a database" in low:
+            return ("cannot %s: %s is CORRUPT (%s). Move the file aside and "
+                    "restart to build a fresh ledger (keep the old file for "
+                    "recovery)." % (action, self.db_path, msg))
+        if "locked" in low or "busy" in low:
+            return ("cannot %s: %s is locked by another process (%s). Close "
+                    "the other bot/script and start again — two engines on "
+                    "one ledger can both trade." % (action, self.db_path, msg))
+        return "cannot %s database %s: %s" % (action, self.db_path, msg)
+
+    def _open_connection(self) -> sqlite3.Connection:
+        """Open the ledger with a bounded retry and honest failure messages.
+
+        A Windows host with a scanner/backup holding the file, or a second
+        copy of the bot, used to crash the start with a bare traceback. The
+        retry covers a short lock; disk-full and corrupt files stop the
+        start with instructions instead of leaving a half-written ledger.
+        """
+        last: Exception | None = None
+        for attempt in range(6):
+            try:
+                conn = sqlite3.connect(str(self.db_path), timeout=15.0,
+                                       check_same_thread=False)
+                conn.execute("PRAGMA busy_timeout=15000")
+                conn.execute("SELECT 1").fetchone()
+                return conn
+            except sqlite3.DatabaseError as exc:
+                # OperationalError is a DatabaseError; the broader catch is
+                # what turns «file is not a database» into a clear message
+                last = exc
+                if (isinstance(exc, sqlite3.OperationalError) and
+                        "locked" in str(exc).lower() and attempt < 5):
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise RuntimeError(self._db_failure("open", exc)) from exc
+        raise RuntimeError(self._db_failure("open", last or Exception(
+            "database is locked")))
 
     # ------------------------------------------------------------- candles
     def upsert_candle(self, symbol: str, timeframe: str, ts: str,

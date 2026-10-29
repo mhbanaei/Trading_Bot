@@ -32,6 +32,7 @@ import hmac
 import ipaddress
 import json
 import math
+import re
 import secrets
 import threading
 import time
@@ -126,6 +127,35 @@ def is_loopback_host(host: str) -> bool:
         return ipaddress.ip_address(h).is_loopback
     except ValueError:
         return False
+
+
+def host_header_allowed(bound_host: str, header: str | None,
+                        gate_on: bool) -> bool:
+    """Reject a Host header that cannot belong to this dashboard.
+
+    With the password gate OFF on a loopback bind, any web page the user
+    visits can point a hostname at 127.0.0.1 (DNS rebinding) and drive the
+    API from their browser. Requiring the Host to actually be loopback
+    closes that hole. When a password is configured — or the dashboard is
+    bound to a public interface, where a reverse proxy legitimately sends
+    its own domain in Host — the syntax is still checked but the name is
+    not restricted, so documented Caddy/nginx setups keep working.
+    """
+    raw = (header or "").strip()
+    if not raw:
+        return True                      # HTTP/1.0 clients, health probes
+    name = raw
+    if name.startswith("["):             # [::1]:8787
+        end = name.find("]")
+        name = name[1:end] if end != -1 else name
+    elif name.count(":") == 1:            # host:port
+        name = name.rsplit(":", 1)[0]
+    name = name.strip().strip(".").lower()
+    if not name:
+        return False
+    if is_loopback_host(bound_host) and not gate_on:
+        return is_loopback_host(name)
+    return bool(re.fullmatch(r"[a-z0-9._-]+", name))
 
 
 @dataclass
@@ -461,13 +491,15 @@ def _main() -> int:
               "the dashboard login page now asks for it")
         return 0
     if args.check:
-        cfg = load_config(cfg_path)
+        # strict=False: the password helper must keep working even when the
+        # rest of config.json is invalid — that is how the file gets fixed
+        cfg = load_config(cfg_path, strict=False)
         ok = verify_password(str(getattr(cfg.web, "password", "") or ""),
                              args.check)
         print("OK" if ok else "MISMATCH")
         return 0 if ok else 1
     if args.show_status:
-        cfg = load_config(cfg_path)
+        cfg = load_config(cfg_path, strict=False)
         auth = DashboardAuth(cfg, config_path=cfg_path)
         st = auth.status()
         print("password set: %s | locked: %s | fail_count: %s/%s"

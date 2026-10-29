@@ -647,6 +647,14 @@ class TestQuoteMarketSelection(TempCase):
         ندارد و همان سکه روی بازار انتخاب‌شدهٔ «بازار معاملات» هست، به
         همان بازار می‌رود تا کلیک فروش بی‌جواب نماند."""
         e = self._engine()
+        # موجودی پایه برای پر شدن فروش کاغذی؛ این تست دربارهٔ انتخاب بازار
+        # است، نه دربارهٔ موجودی کیف پول
+        e.portfolio.overwrite_balances({
+            "BTC": {"available": Decimal("10"), "locked": Decimal("0")},
+            "USDT": {"available": Decimal("10000"),
+                     "locked": Decimal("0")},
+            "IRT": {"available": Decimal("500000000"),
+                    "locked": Decimal("0")}})
         # هر دو بازار روشن تا اسنپ‌شات هر دو بخش (تتری و تومانی) را داشته باشد
         e.cfg.exchange.trade_quote_markets = "both"
         e.run_cycle()

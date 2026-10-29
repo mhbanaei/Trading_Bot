@@ -67,11 +67,15 @@ class ExchangeCfg:
     nobitex_totp_secret: str = ""      # base32 2FA secret (Google Authenticator)
     nobitex_remember: str = "yes"      # yes -> 30-day token, no -> 4h token
     # --- live-account behaviour
-    # live_trading: real orders on the real account once logged in. Default
-    # TRUE per product spec: after login the bot trades the real account
-    # (set false for watch-only paper mode).
-    live_trading: bool = True
-    live_by_default: bool = True       # after login, trade real immediately
+    # live_trading: real orders on the real account. FAIL-SAFE DEFAULT IS OFF
+    # (SS101): a missing/typoed value must never start a real-money bot. The
+    # only opt-in is an explicit `"live_trading": true` in config.json (or
+    # the dashboard switch, which is the same flag).
+    live_trading: bool = False
+    # Deprecated compatibility field. Older builds force-enabled live
+    # trading here after login/restart, which silently overrode the user's
+    # OFF switch; the engine now ignores it (kept so old configs load).
+    live_by_default: bool = False
     wallet_sync: bool = True           # mirror real spot balances into the engine
     prefer_usdt_markets: bool = True   # invest across USDT-quoted markets
     include_irt_markets: bool = True   # also allow IRT-quoted (BTCIRT...)
@@ -457,16 +461,289 @@ class Config:
         return d
 
 
-def load_config(path: Path | None = None) -> Config:
+class ConfigError(ValueError):
+    """config.json cannot be trusted well enough to trade real money.
+
+    Raised on startup (fail closed). Previously a malformed file printed a
+    line and the bot continued with dataclass defaults — which, together
+    with the old live-by-default flags, could attach the real account and
+    trade while the user believed their config was in charge.
+    """
+
+    def __init__(self, problems, path: Path | None = None):
+        self.problems = list(problems)
+        self.path = str(path) if path else ""
+        head = "invalid configuration"
+        if self.path:
+            head += " in %s" % self.path
+        super().__init__(head + ":\n" + "\n".join(
+            "  - " + p for p in self.problems))
+
+
+# words the engine accepts for exchange.trade_market_interaction; anything
+# else falls back to «independent» (no money moves), so an unknown token is
+# not fatal — the doctor reports it as a warning.
+_MARKET_INTERACTION_TOKENS = (
+    "linked", "link", "interact", "interaction", "connected", "transfer",
+    "transferable", "both_linked", "on", "independent", "separate",
+    "isolated", "split", "off", "no_transfer", "")
+
+
+def _coerce_value(name: str, old, value):
+    """Coerce a JSON value to the dataclass field's type (or raise)."""
+    if isinstance(old, bool):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and value in (0, 1):
+            return bool(value)
+        if isinstance(value, str):
+            v = value.strip().lower()
+            if v in ("true", "1", "yes", "on"):
+                return True
+            if v in ("false", "0", "no", "off", ""):
+                return False
+        raise ValueError("%s must be true/false (got %r)" % (name, value))
+    if isinstance(old, int) and not isinstance(old, bool):
+        if isinstance(value, bool):
+            raise ValueError("%s must be an integer (got a boolean)" % name)
+        f = float(value)
+        if f != int(f):
+            raise ValueError("%s must be an integer (got %r)" % (name, value))
+        return int(f)
+    if isinstance(old, float):
+        if isinstance(value, bool):
+            raise ValueError("%s must be a number (got a boolean)" % name)
+        return float(value)
+    if isinstance(old, str):
+        return str(value)
+    if isinstance(old, dict):
+        if not isinstance(value, dict):
+            raise ValueError("%s must be an object" % name)
+        return value
+    if isinstance(old, (list, tuple)):
+        if not isinstance(value, list):
+            raise ValueError("%s must be a list" % name)
+        return value
+    return value
+
+
+def _is_loopback(host: str) -> bool:
+    """Local copy of the loopback test (config cannot import webauth)."""
+    import ipaddress
+    h = (host or "").strip().strip("[]").lower()
+    if h in ("", "localhost", "localhost.localdomain", "ip6-localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
+
+
+def validate_config(cfg: Config) -> list[str]:
+    """Return every reason this config must NOT start a live engine.
+
+    Only values that can move real money, disable a safety gate, or make
+    the engine behave differently from what the file says are checked —
+    the goal is a small, auditable set of invariants, not schema pedantry.
+    """
+    p: list[str] = []
+
+    def bad(msg: str) -> None:
+        p.append(msg)
+
+    # ---- engine / web
+    host = str(getattr(cfg.engine, "server_host", "") or "")
+    port = cfg.engine.server_port
+    if not host:
+        bad("engine.server_host is empty")
+    if not (1 <= int(port) <= 65535):
+        bad("engine.server_port must be 1..65535 (got %r)" % port)
+    if int(cfg.engine.cycle_seconds) < 1:
+        bad("engine.cycle_seconds must be >= 1")
+    if int(cfg.engine.analyze_every) < 1:
+        bad("engine.analyze_every must be >= 1")
+    if int(cfg.engine.max_markets) < 1:
+        bad("engine.max_markets must be >= 1")
+    if float(cfg.engine.db_max_mb) <= 0:
+        bad("engine.db_max_mb must be > 0")
+    if int(cfg.engine.decisions_keep) < 0:
+        bad("engine.decisions_keep must be >= 0")
+    if int(cfg.engine.max_cycles) < 0:
+        bad("engine.max_cycles must be >= 0 (0 = unlimited)")
+
+    has_pw = bool(str(getattr(cfg.web, "password", "") or ""))
+    open_remote = bool(getattr(cfg.web, "allow_remote_without_password", False))
+    if not _is_loopback(host) and not has_pw and not open_remote:
+        bad("engine.server_host=%s exposes the dashboard without a password "
+            "(set web.password or bind 127.0.0.1)" % host)
+    if int(cfg.web.max_attempts) < 1:
+        bad("web.max_attempts must be >= 1")
+    if float(cfg.web.session_hours) <= 0:
+        bad("web.session_hours must be > 0")
+    if float(cfg.web.failure_delay_s) < 0:
+        bad("web.failure_delay_s must be >= 0")
+
+    # ---- exchange
+    mode = str(cfg.exchange.mode or "").strip().lower()
+    if mode not in ("demo", "nobitex"):
+        bad("exchange.mode must be demo or nobitex (got %r)" % mode)
+    raw_quote = str(getattr(cfg.exchange, "trade_quote_markets", "") or "")
+    quote = raw_quote.strip().lower()
+    if quote not in ("both", "usdt", "irt"):
+        if quote:
+            bad("exchange.trade_quote_markets must be both|usdt|irt "
+                "(got %r)" % raw_quote)
+        elif not (cfg.exchange.prefer_usdt_markets or
+                  cfg.exchange.include_irt_markets):
+            bad("exchange.trade_quote_markets is empty and both legacy flags "
+                "are off — the engine would silently re-enable BOTH markets")
+    ii = str(getattr(cfg.exchange, "trade_market_interaction", "") or "")
+    if ii.strip().lower() not in _MARKET_INTERACTION_TOKENS:
+        bad("exchange.trade_market_interaction has an unknown value %r "
+            "(use linked|independent)" % ii)
+    if float(cfg.exchange.min_order_usdt) <= 0:
+        bad("exchange.min_order_usdt must be > 0")
+    if float(cfg.exchange.rest_timeout) <= 0:
+        bad("exchange.rest_timeout must be > 0")
+    if float(cfg.exchange.rls_to_irt_divisor) <= 0:
+        bad("exchange.rls_to_irt_divisor must be > 0")
+    if float(cfg.exchange.min_quote_volume_usdt) < 0:
+        bad("exchange.min_quote_volume_usdt must be >= 0")
+
+    # ---- fees / risk
+    for name in ("maker_rate", "taker_rate"):
+        v = float(getattr(cfg.fee, name))
+        if not (0 <= v < 0.1):
+            bad("fee.%s must be 0..0.1 (got %r)" % (name, v))
+    for name in ("max_risk_per_trade", "max_position_fraction",
+                 "max_total_exposure", "max_drawdown", "max_slippage",
+                 "min_stop_distance_pct", "min_net_expected_return",
+                 "revalidate_price_tolerance"):
+        v = float(getattr(cfg.risk, name))
+        if not (0 <= v <= 1):
+            bad("risk.%s must be a fraction 0..1 (got %r)" % (name, v))
+    for name in ("default_stop_loss_pct", "risk_mode_stop_loss_pct",
+                 "risk_mode_drop_exit_pct", "risk_mode_atr_stop_floor_pct",
+                 "risk_mode_atr_stop_cap_pct"):
+        v = float(getattr(cfg.risk, name))
+        if v > 0:
+            bad("risk.%s must be zero or NEGATIVE (a stop-loss is below the "
+                "buy price); got %+g" % (name, v))
+    for name in ("default_take_profit_pct", "risk_mode_take_profit_pct",
+                 "profit_lock_step_pct", "topup_profit_pct",
+                 "risk_mode_chase_pct"):
+        if float(getattr(cfg.risk, name)) < 0:
+            bad("risk.%s must be >= 0 (got %r)" %
+                (name, getattr(cfg.risk, name)))
+    if float(cfg.risk.profit_lock_step_pct) <= 0:
+        bad("risk.profit_lock_step_pct must be > 0")
+    if float(cfg.risk.auto_stop_min_pct) <= 0 or \
+            float(cfg.risk.auto_stop_max_pct) <= 0:
+        bad("risk.auto_stop_min_pct / auto_stop_max_pct must be > 0")
+    if float(cfg.risk.auto_stop_min_pct) > float(cfg.risk.auto_stop_max_pct):
+        bad("risk.auto_stop_min_pct must be <= auto_stop_max_pct")
+    for name in ("buy_cooldown_s", "rotate_cooldown_s",
+                 "risk_mode_buy_cooldown_s", "stale_order_cancel_min",
+                 "dust_convert_threshold_irt", "risk_mode_sweep_max_value_irt"):
+        if float(getattr(cfg.risk, name)) < 0:
+            bad("risk.%s must be >= 0" % name)
+    if int(cfg.risk.max_open_positions) < 1:
+        bad("risk.max_open_positions must be >= 1")
+    if int(cfg.risk.profit_lock_max_stage) < 0:
+        bad("risk.profit_lock_max_stage must be >= 0")
+    if int(cfg.risk.decision_ttl_s) < 1:
+        bad("risk.decision_ttl_s must be >= 1")
+
+    # ---- ai
+    if str(cfg.ai.engine or "").strip().lower() not in ("heuristic", "llm"):
+        bad("ai.engine must be heuristic or llm (got %r)" % cfg.ai.engine)
+    if str(cfg.ai.committee_mode or "").strip().lower() not in ("gate", "decide"):
+        bad("ai.committee_mode must be gate or decide (got %r)" %
+            cfg.ai.committee_mode)
+    if int(cfg.ai.top_n_markets) < 1:
+        bad("ai.top_n_markets must be >= 1")
+    if int(cfg.ai.committee_min_votes) < 1:
+        bad("ai.committee_min_votes must be >= 1")
+    for name in ("min_confidence", "min_conviction",
+                 "committee_min_p_up", "committee_min_agreement"):
+        v = float(getattr(cfg.ai, name))
+        if not (0 <= v <= 1):
+            bad("ai.%s must be 0..1 (got %r)" % (name, v))
+    return p
+
+
+def _apply_document(cfg: Config, data: dict,
+                    problems: list[str], warnings: list[str]) -> None:
+    """Copy validated JSON sections onto ``cfg`` in place."""
+    for section, values in data.items():
+        if section not in cfg.__dict__:
+            warnings.append("unknown section %r (ignored)" % section)
+            continue
+        target = getattr(cfg, section)
+        if not isinstance(values, dict):
+            problems.append("%s must be a JSON object" % section)
+            continue
+        for key, value in values.items():
+            if not hasattr(target, key):
+                warnings.append("unknown setting %s.%s (ignored)" %
+                                (section, key))
+                continue
+            try:
+                setattr(target, key,
+                        _coerce_value("%s.%s" % (section, key),
+                                      getattr(target, key), value))
+            except (TypeError, ValueError) as exc:
+                problems.append(str(exc))
+
+
+def config_from_dict(data: dict | None, path: Path | None = None,
+                     strict: bool = False) -> Config:
+    """Build a Config from a raw JSON document (used by save_config)."""
     cfg = Config()
+    problems: list[str] = []
+    warnings: list[str] = []
+    if data is not None:
+        if not isinstance(data, dict):
+            problems.append("the root of config.json must be a JSON object")
+        else:
+            _apply_document(cfg, data, problems, warnings)
+    problems.extend(validate_config(cfg))
+    cfg.config_errors = problems
+    cfg.config_warnings = warnings
+    cfg.config_path = str(path) if path else ""
+    if problems and strict:
+        raise ConfigError(problems, path)
+    return cfg
+
+
+def load_config(path: Path | None = None, strict: bool = True) -> Config:
+    """Read config.json and validate it before anything can trade.
+
+    A broken file is a hard error on startup (fail closed) instead of a
+    printed warning followed by silent defaults. ``strict=False`` is for
+    tools that must still run to FIX a bad file (the dashboard settings
+    page, `--doctor`, the password helper): it returns the same Config
+    with ``.config_errors`` / ``.config_warnings`` attached.
+    """
     p = path or DEFAULT_CONFIG_PATH
+    data: dict | None = None
+    problems: list[str] = []
     if p.exists():
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
-            for section in ("engine", "exchange", "fee", "quality", "risk",
-                            "ai", "paper", "web"):
-                if section in data:
-                    getattr(cfg, section).__dict__.update(data[section])
-        except Exception as exc:  # never crash on bad config; log via event
-            print(f"[config] failed to load {p}: {exc}")
+        except Exception as exc:
+            problems.append("cannot parse %s: %s" % (p, exc))
+    cfg = Config()
+    warnings: list[str] = []
+    if data is not None and not problems:
+        if not isinstance(data, dict):
+            problems.append("the root of config.json must be a JSON object")
+        else:
+            _apply_document(cfg, data, problems, warnings)
+    problems.extend(validate_config(cfg))
+    cfg.config_errors = problems
+    cfg.config_warnings = warnings
+    cfg.config_path = str(p)
+    if problems and strict:
+        raise ConfigError(problems, p)
     return cfg

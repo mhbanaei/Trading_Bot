@@ -23,8 +23,11 @@ Exits ``2`` when a check FAILs, so it can gate a start script.
 from __future__ import annotations
 
 import http.client
+import os
 import socket
+import sqlite3
 import ssl
+import tempfile
 import textwrap
 import time
 import urllib.error
@@ -151,6 +154,7 @@ def run_doctor(cfg: Config, probe_net: bool = True) -> list[Check]:
         "runtime", OK,
         "python %s | %s | cwd %s" % (platform.python_version(),
                                      platform.platform(), Path.cwd())))
+    checks.append(_config_check(cfg))
     checks.append(_trust_check())
 
     api_host = urlsplit(API_BASE).hostname or "apiv2.nobitex.ir"
@@ -160,13 +164,153 @@ def run_doctor(cfg: Config, probe_net: bool = True) -> list[Check]:
     checks.append(_clock_check(probe))
     checks.append(_egress_check(public_ip() if probe_net else {}))
     checks.append(_account_check(cfg))
+    checks.append(_live_trading_check(cfg))
+    checks.append(_quote_check(cfg))
     checks.append(_bind_check(cfg))
     checks.append(_port_check(cfg))
     checks.append(_firewall_check(cfg))
+    checks.append(_database_check(cfg))
     # a single json line makes the report scriptable without parsing the table
     checks.append(Check("report_json", OK, json.dumps(
         {"checks": [c.__dict__ for c in checks]}, ensure_ascii=False)))
     return checks
+
+
+def _config_check(cfg: Config) -> Check:
+    """The engine now FAILS CLOSED on an invalid file: report it here first."""
+    errors = list(getattr(cfg, "config_errors", []) or [])
+    warnings = list(getattr(cfg, "config_warnings", []) or [])
+    if errors:
+        shown = " | ".join(errors[:6])
+        if len(errors) > 6:
+            shown += " | +%d more" % (len(errors) - 6)
+        return Check(
+            "config", FAIL, shown,
+            "fix these values in config.json — the engine refuses to start "
+            "until the file is trustworthy (percent fields are numbers, a "
+            "stop-loss is negative, live_trading needs an explicit true)")
+    detail = "parsed, typed and safety-checked (stop-loss < 0, quote mode, " \
+             "bind/password)"
+    if warnings:
+        return Check("config", WARN, detail + " | " + " | ".join(warnings[:4]),
+                     "unknown keys are ignored — a typo in a setting's name "
+                     "looks like the old value is still active; rename them")
+    return Check("config", OK, detail)
+
+
+def _live_trading_check(cfg: Config) -> Check:
+    """Live money must be a deliberate state, never an assumption."""
+    mode = (cfg.exchange.mode or "demo").lower()
+    live = bool(getattr(cfg.exchange, "live_trading", False))
+    legacy = bool(getattr(cfg.exchange, "live_by_default", False))
+    fixed = (os.environ.get("NOBITEX_READ_ONLY", "") or "").strip().lower()
+    read_only = fixed in ("1", "true", "yes", "on")
+    if live:
+        detail = "live_trading=ON | mode=%s | real orders are POSSIBLE" % mode
+        if read_only:
+            return Check(
+                "live trading", WARN, detail + " | NOBITEX_READ_ONLY=1",
+                "the adapter refuses every wallet-moving call in this "
+                "process, so the ON flag changes nothing here — unset "
+                "NOBITEX_READ_ONLY only when you really want orders")
+        return Check(
+            "live trading", WARN, detail,
+            "expected only on the trading host: verify the quote mode and "
+            "that this is not a diagnostic/second copy sharing the same "
+            "saved login token")
+    detail = "live_trading=OFF | mode=%s | paper/watch-only" % mode
+    if legacy:
+        return Check(
+            "live trading", WARN, detail + " | live_by_default=true is ignored",
+            "the old live_by_default shortcut no longer enables real "
+            "orders; set live_trading=true explicitly if that is intended")
+    return Check("live trading", OK, detail)
+
+
+def _quote_check(cfg: Config) -> Check:
+    """Which sections may trade — one line, because the gate is critical."""
+    raw = str(getattr(cfg.exchange, "trade_quote_markets", "") or "").strip().lower()
+    if raw in ("both", "usdt", "irt"):
+        usdt_on = raw in ("both", "usdt")
+        irt_on = raw in ("both", "irt")
+        src = "trade_quote_markets"
+    else:
+        usdt_on = bool(cfg.exchange.prefer_usdt_markets)
+        irt_on = bool(cfg.exchange.include_irt_markets)
+        src = "legacy flags"
+    mode = str(getattr(cfg.exchange, "trade_market_interaction", "") or "")
+    cross = bool(usdt_on and irt_on and mode.strip().lower() in (
+        "linked", "link", "interact", "interaction", "connected", "transfer",
+        "transferable", "both_linked", "on"))
+    detail = ("USDT=%s | IRT=%s | source=%s | interaction=%s | cross-market=%s"
+              % ("on" if usdt_on else "off", "on" if irt_on else "off", src,
+                 mode or "independent", "allowed" if cross else "blocked"))
+    if not (usdt_on or irt_on):
+        return Check(
+            "quote markets", WARN, detail,
+            "both sections are off in the legacy flags and "
+            "trade_quote_markets is empty — the engine fails safe by "
+            "re-enabling BOTH; set trade_quote_markets explicitly to "
+            "usdt|irt|both so the file says what actually trades")
+    return Check("quote markets", OK, detail)
+
+
+def _database_check(cfg: Config) -> Check:
+    """Data dir writable + ledger opens + quick_check (before it trades)."""
+    data_dir = Path(getattr(cfg.engine, "data_dir", "data") or "data")
+    db = data_dir / "trading_bot.db"
+    try:
+        if not data_dir.exists():
+            return Check("database", WARN,
+                         "%s does not exist yet (created on first start)"
+                         % data_dir,
+                         "make sure the account running the bot can create "
+                         "it; the ledger will be created empty")
+        with tempfile.NamedTemporaryFile(dir=str(data_dir), prefix=".doctor_",
+                                         delete=True):
+            pass
+    except Exception as exc:
+        return Check("database", FAIL,
+                     "%s is not writable: %s" % (data_dir, exc),
+                     "fix the folder permissions (or engine.data_dir); a bot "
+                     "that cannot write its ledger must not trade")
+    if not db.is_file():
+        return Check("database", OK,
+                     "%s is writable; no ledger yet (a fresh one is built on "
+                     "start)" % data_dir)
+    size_mb = db.stat().st_size / (1024 * 1024)
+    limit = float(getattr(cfg.engine, "db_max_mb", 0) or 0)
+    try:
+        conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True,
+                               timeout=2.0)
+        try:
+            verdict = conn.execute("PRAGMA quick_check").fetchone()
+            pages = conn.execute("PRAGMA page_count").fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        low = str(exc).lower()
+        if "locked" in low or "busy" in low:
+            return Check("database", WARN,
+                         "%s is locked by another process now" % db,
+                         "close the other bot/script before starting — two "
+                         "engines on one ledger can both trade")
+        return Check("database", FAIL, "%s cannot be opened: %s" % (db, exc),
+                     "move the file aside and restart to rebuild; keep the "
+                     "old file for recovery")
+    verdict = str((verdict or [""])[0] or "")
+    if verdict.lower() != "ok":
+        return Check("database", FAIL,
+                     "%s failed SQLite quick_check: %s" % (db, verdict),
+                     "back up the file, move it aside and restart to build a "
+                     "fresh ledger; the corrupt one needs recovery tools")
+    detail = "%s OK | %.1f MB | %s pages" % (db, size_mb,
+                                            (pages or ["?"])[0])
+    if limit and size_mb > limit:
+        return Check("database", WARN, detail,
+                     "above engine.db_max_mb=%.0f; the next cycle prunes and "
+                     "VACUUMs (orders/fills/positions are never pruned)" % limit)
+    return Check("database", OK, detail)
 
 
 def _trust_check() -> Check:
@@ -424,7 +568,9 @@ def exit_code(checks: list[Check]) -> int:
 def main(argv: list[str] | None = None) -> int:
     """`python -m nobitex_bot.doctor` — same report, standalone."""
     from .config import load_config
-    cfg = load_config()
+    # strict=False: this is the tool that REPORTS a bad config, so it must
+    # still run when the file is broken.
+    cfg = load_config(strict=False)
     checks = run_doctor(cfg)
     print(render(checks))
     return exit_code(checks)
