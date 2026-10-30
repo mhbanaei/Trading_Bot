@@ -1345,8 +1345,14 @@ class NobitexAPI(ExchangeAdapter):
                             "error": exc.code}}
 
     # ------------------------------------------------ convert (swap) market
-    def convert_wallet_balance(self, coin: str) -> dict:
-        """Convert the WHOLE spot balance of `coin` into IRT via
+    #: Nobitex's convert market refuses buying USDT with less Rials than
+    #: this (observed live on an undersized order; get-quote returns
+    #: "Amount should be more than 1.25E+7"). Used as the pre-check so a
+    #: coin is never half-converted (coin -> rls lands, USDT step fails).
+    USDT_CONVERT_MIN_RLS = 12_500_000
+
+    def convert_wallet_balance(self, coin: str, dst: str = "rls") -> dict:
+        """Convert the WHOLE spot balance of `coin` into `dst` via
         POST /users/wallets/convert — the "تبدیل موجودی‌های خرد" page.
 
         Discovered live: body {'srcCurrency': '<lower-coin>',
@@ -1354,22 +1360,110 @@ class NobitexAPI(ExchangeAdapter):
         NO minimum-notional floor (verified: XLM worth ~4k toman converted
         fine while the exchange/get-quote market rejects anything below
         25k toman). Response: {'status':'ok','converts':{'xlm':'0.08875'}}.
+        `dst` accepts 'rls' (Toman wallet) or 'usdt' (Tether wallet) — the
+        USDT target is the payload of the same endpoint, so an IRT- and a
+        USDT-side dust conversion share one API call shape.
 
         SAFETY: the convert market has no minimum and moves the WHOLE
         balance, so it is the single most destructive call in the adapter —
         it obeys the NOBITEX_READ_ONLY lock like every other write.
         """
+        dst_norm = str(dst or "rls").strip().lower()
+        if dst_norm not in ("rls", "irt", "usdt", "tether"):
+            raise NobitexError(
+                "CONVERT_BAD_DST",
+                "مقصد تبدیل مجاز نیست: %s" % (dst or ""), False)
+        dst_norm = "rls" if dst_norm == "irt" else (
+            "usdt" if dst_norm == "tether" else dst_norm)
         self._refuse_read_only("convert the whole %s balance" %
                               (coin or "").upper())
         data = self.session.authed_request("POST", "/users/wallets/convert",
             {"srcCurrency": (coin or "").strip().lower(),
-             "dstCurrency": "rls"})
+             "dstCurrency": dst_norm})
         converts = data.get("converts") or {}
         amount = converts.get((coin or "").lower())
+        if amount is None:
+            # dst=usdt به‌دست صرافی می‌تواند زیر کلیدِ خودِ مقصد بیاید؛
+            # هر دو کلید را ببین تا مقدار دریافتی گم نشود
+            amount = converts.get((dst_norm if dst_norm != "rls"
+                                   else "rls"))
+        div = float(self._irt_divisor or 10)
+        unit = "IRT" if dst_norm == "rls" else "USDT"
+        got = _to_float_or(amount, 0.0)
+        if dst_norm == "rls" and div > 0:
+            got = got / div   # کیسهٔ روبات تومانی است؛ ریال در پاسخ صرافی
         return {
             "converted": True,
-            "coin": coin.upper(),
-            "converted_amount": amount,
+            "coin": (coin or "").upper(),
+            "dst": unit,
+            "unit": unit,
+            "converted_amount": got,
+        }
+
+    def convert_coin_to_usdt(self, coin: str, est_value_irt: float = 0.0) -> dict:
+        """Convert a coin into USDT for the dust-cleaner's USDT target.
+
+        Two VERIFIED exchange steps, in this order:
+          1. POST /users/wallets/convert with dstCurrency=rls — the coin's
+             whole available balance lands in the Toman wallet (no minimum).
+          2. the USDT convert leg of the same mechanism (exchange/get-quote
+             baseCurrency=usdt, type=buy) turns the just-freed Toman into
+             USDT — it has the exchange's own minimum notional (~12.5M rls),
+             so the CALLER must refuse values below that BEFORE step 1:
+             a half-done conversion (coin became Toman, USDT step declined)
+             would leave the user's crumb stranded in the wrong wallet.
+
+        The estimate (`est_value_irt`, TOMAN) decides eligibility; the
+        spend is the rls actually received in step 1.
+        """
+        self._refuse_read_only("convert %s to USDT" % (coin or "").upper())
+        if (Decimal(str(est_value_irt or 0)) * Decimal(str(self._irt_divisor
+                                                          or 10))
+                < Decimal(self.USDT_CONVERT_MIN_RLS)):
+            raise NobitexError(
+                "CONVERT_MIN",
+                "ارزش این دارایی زیر حداقلِ تبدیل به تتر صرافی است "
+                "(≈۱۲٫۵ میلیون ریال) — به تومان تبدیل کنید", False)
+        step1 = self.convert_wallet_balance(coin, dst="rls")
+        rls_amount = Decimal(str(step1.get("converted_amount") or 0)) \
+            * Decimal(str(self._irt_divisor or 10))
+        if rls_amount <= 0:
+            raise NobitexError(
+                "CONVERT_EMPTY",
+                "موجودی دریافتی از تبدیل اولیه صفر بود", False)
+        try:
+            quote = self.session.exchange_quote(
+                "usdt", str(rls_amount.quantize(Decimal("1"))),
+                direction="buy")
+            if not quote.get("quote_id"):
+                raise NobitexError("CONVERT_NO_QUOTE",
+                                   "پیش‌فاکتور تبدیل به تتر دریافت نشد",
+                                   False)
+            res = self.session.exchange_create_trade(quote["quote_id"])
+            status = (res.get("status") or "").lower()
+            if status and status not in ("ok", "succeeded", "success", "done"):
+                raise NobitexError("CONVERT_FAILED",
+                                   "تبدیل ناموفق: %s" % status, False)
+        except NobitexError:
+            # step 2 declined AFTER step 1 converted the coins: report it
+            # loudly — the Toman already landed in the wallet (not lost,
+            # but in the OTHER currency than the requested USDT target)
+            self.events and self.events.publish(
+                "DUST_CONVERT_FAILED", "engine", "", {
+                    "coin": (coin or "").upper(), "code": "USDT_LEG_FAILED",
+                    "message": "سکه به تومان تبدیل شد ولی پلهٔ تتر ناکام ماند"})
+            raise
+        usdt_got = _to_float_or(quote.get("dest_amount"), 0.0)
+        return {
+            "converted": True,
+            "coin": (coin or "").upper(),
+            "dst": "USDT",
+            "unit": "USDT",
+            "converted_amount": usdt_got,
+            "spent_toman": _to_float_or(quote.get("ref_amount"), 0.0)
+                           / (self._irt_divisor or 10),
+            "quote_id": quote.get("quote_id"),
+            "expires_at": quote.get("expires_at"),
         }
 
     def convert_spot(self, coin: str, rls_amount) -> dict:

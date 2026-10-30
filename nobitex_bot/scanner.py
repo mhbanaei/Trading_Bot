@@ -92,6 +92,211 @@ def _risk_signal(features: dict, market_quality: float) -> float:
     return clamp01(base)
 
 
+def directional_setup(features: dict) -> dict:
+    """Long/Short setup of ONE market from its OWN candles (SS30d).
+
+    درخواست کاربر: «تب AI Decisions بر اساس واقعی نمودار هر کوین بگوید
+    کی می‌شود LONG گرفت، کی SHORT» — این تابع همان تحلیل را همه‌جا
+    قابل‌اجرا می‌کند: دادهٔ candle همان بازار (که collector آورده)،
+    شاخص‌های تکنیکالِ همان بازار و ساختار همان بازار.
+
+    خروجی : {long: {ready, score, reasons}, short: {ready, score,
+    reasons}, action: BUY|SELL|HOLD|WAIT} — همهٔ عددها بین 0 تا 1؛
+    reasons لیست کدهای قابل‌نمایش در فارسی.
+
+    نکتهٔ Short: این صرافی معاملهٔ Short را نمی‌پذیرد؛ short_ready یعنی
+    ساختار نزولی قوی برای «فروش/خرید نکن»، نه اینکه سفارش Short شونده
+    واقعی باشد.
+    """
+    tech = features.get("technicals", {})
+    st = features.get("structure", {})
+    vol = features.get("volatility", {})
+    liq = features.get("liquidity", {})
+    dq = clamp01(features.get("data_quality", {}).get("score") or 0)
+    def _base_r(dqf: float) -> dict:
+        return {"ready": False, "score": round(dqf, 4),
+                "reasons": ["DATA_QUALITY_LOW"]}
+    if dq < 0.4:
+        return {"long": _base_r(0.0), "short": _base_r(0.0),
+                "action": "WAIT", "evidence": {"data_quality": round(dq, 4)}}
+
+    ema9 = (tech.get("ema") or {}).get("9")
+    ema20 = (tech.get("ema") or {}).get("20")
+    ema50 = (tech.get("ema") or {}).get("50")
+    rsi = tech.get("rsi")
+    macd = tech.get("macd") or {}
+    hist = macd.get("histogram")
+    bb = tech.get("bollinger") or {}
+    vr = tech.get("volume_ratio")
+    trend = str(st.get("trend") or "").upper()
+    st_map = st.get("structure") or {}
+    br = st.get("breakout") or {}
+    breakout_dir = str(br.get("direction") or "").upper()
+    breakout_st = float(br.get("strength") or 0)
+    regime = str(vol.get("volatility_regime") or "").upper()
+    atr_pct = float(vol.get("atr_percent") or 0)
+    liq_status = str(liq.get("status") or "").upper()
+    liq_score = float(liq.get("score") or 0)
+
+    long_score = 0.45
+    short_score = 0.45
+    long_reasons: list = []
+    short_reasons: list = []
+
+    # ساختار بازار: HH/HL در برابر LH/LL
+    if trend == "UPTREND":
+        long_score += 0.20
+        long_reasons.append("UPTREND_STRUCTURE")
+        short_score -= 0.15
+        short_reasons.append("AGAINST_UPTREND")
+    elif trend == "DOWNTREND":
+        short_score += 0.20
+        short_reasons.append("DOWNTREND_STRUCTURE")
+        long_score -= 0.15
+        long_reasons.append("AGAINST_DOWNTREND")
+    else:
+        long_reasons.append("RANGE_MARKET")
+        short_reasons.append("RANGE_MARKET")
+
+    # ترتیب EMA ها
+    if ema9 and ema20 and ema50:
+        if ema9 > ema20 > ema50:
+            long_score += 0.15
+            long_reasons.append("EMA9_GT_EMA20_GT_EMA50")
+            short_score -= 0.10
+            short_reasons.append("EMA_STACK_BEARISH_CONFLICT")
+        elif ema9 < ema20 < ema50:
+            short_score += 0.15
+            short_reasons.append("EMA9_LT_EMA20_LT_EMA50")
+            long_score -= 0.10
+            long_reasons.append("EMA_STACK_BULLISH_CONFLICT")
+
+    # RSI: نه خریدِ سقف، نه فروشِ کف
+    if rsi is not None:
+        if rsi >= 72:
+            long_score -= 0.15
+            long_reasons.append("RSI_OVERBOUGHT")
+            short_score += 0.10
+            short_reasons.append("RSI_OVERBOUGHT_REVERSAL")
+        elif rsi <= 28:
+            short_score -= 0.12
+            short_reasons.append("RSI_OVERSOLD")
+            long_score += 0.10
+            long_reasons.append("RSI_OVERSOLD_REVERSAL")
+        elif 45 <= rsi <= 62:
+            long_score += 0.06
+            long_reasons.append("RSI_HEALTHY")
+
+    # MACD histogram
+    if hist is not None:
+        if hist > 0:
+            long_score += 0.08
+            long_reasons.append("MACD_POSITIVE")
+            short_score -= 0.05
+        elif hist < 0:
+            short_score += 0.08
+            short_reasons.append("MACD_NEGATIVE")
+            long_score -= 0.05
+
+    # Bollinger: شکست میانه
+    if bb.get("middle") and bb.get("upper"):
+        last_close = float(features.get("last_price") or 0)
+        if last_close > 0:
+            mid = float(bb.get("middle") or 0)
+            up = float(bb.get("upper") or 0)
+            lo = float(bb.get("lower") or 0)
+            if lo and last_close <= lo:
+                short_score -= 0.10
+                short_reasons.append("PRICE_BELOW_BB_LOWER")
+            elif up and last_close >= up:
+                long_score -= 0.10
+                long_reasons.append("PRICE_ABOVE_BB_UPPER")
+            elif last_close >= mid:
+                long_score += 0.05
+                long_reasons.append("PRICE_ABOVE_BB_MID")
+
+    # شکست‌ها
+    if br.get("detected"):
+        if breakout_dir == "UP":
+            long_score += 0.15
+            long_reasons.append("BREAKOUT_UP")
+            short_score -= 0.10
+        elif breakout_dir == "DOWN":
+            short_score += 0.15
+            short_reasons.append("BREAKDOWN_DETECTED")
+            long_score -= 0.10
+
+    # نقدداش: بدون نقدینگی چیزی قاطع نیست
+    if liq_score < 0.30 or liq_status in ("POOR", "CRITICAL", "UNKNOWN"):
+        long_reasons.append("LIQUIDITY_LOW")
+        short_reasons.append("LIQUIDITY_LOW")
+        long_score -= 0.10
+        short_score -= 0.10
+
+    # ولتیلید: بازار کم‌نوسان یا انفجاری = سیگنال کمتر
+    if regime in ("VERY_LOW", "UNKNOWN"):
+        long_reasons.append("LOW_VOLATILITY")
+        short_reasons.append("LOW_VOLATILITY")
+        long_score -= 0.05
+        short_score -= 0.05
+    elif regime == "EXTREME" or atr_pct > 0.06:
+        long_reasons.append("EXTREME_VOLATILITY")
+        short_reasons.append("EXTREME_VOLATILITY")
+        long_score -= 0.10
+        short_score -= 0.10
+
+    # حجم تأیید: حرکت با حجم پشتیبانی شود
+    if vr is not None:
+        try:
+            vr = float(vr)
+        except (TypeError, ValueError):
+            vr = None
+    if vr is not None:
+        if vr >= 1.5:
+            if hist is not None and hist > 0:
+                long_score += 0.08
+                long_reasons.append("VOLUME_CONFIRMED_UP")
+            elif hist is not None and hist < 0:
+                short_score += 0.08
+                short_reasons.append("VOLUME_CONFIRMED_DOWN")
+        elif vr < 0.6:
+            long_reasons.append("VOLUME_DRYING_UP")
+            short_reasons.append("VOLUME_DRYING_UP")
+            long_score -= 0.08
+            short_score -= 0.08
+
+    long_score = clamp01(long_score)
+    short_score = clamp01(short_score)
+
+    def _fa_score_ok(s: float, req: float = 0.62) -> bool:
+        return s >= req
+
+    long_ready = _fa_score_ok(long_score)
+    short_ready = _fa_score_ok(short_score)
+    if long_ready and not short_ready:
+        action = "BUY"
+    elif short_ready and not long_ready:
+        action = "SELL"
+    elif long_ready and short_ready:
+        # هر دو قوی: بازار پرنوسان/تناقض — صبر
+        action = "WAIT"
+        long_reasons.append("CONFLICTING_SIGNALS")
+        short_reasons.append("CONFLICTING_SIGNALS")
+    else:
+        action = "HOLD"
+
+    return {
+        "long": {"ready": long_ready, "score": round(long_score, 4),
+                 "reasons": long_reasons[-10:]},
+        "short": {"ready": short_ready, "score": round(short_score, 4),
+                  "reasons": short_reasons[-10:]},
+        "action": action,
+        "liquidity_status": liq_status,
+        "regime": regime,
+        "atr_percent": round(atr_pct, 6),
+    }
+
+
 def scan_market(symbol: str, features: dict, data_quality: dict,
                 risk_mode: bool = False,
                 min_quote_volume_usdt: float = 0.0) -> dict:
@@ -173,12 +378,16 @@ def scan_market(symbol: str, features: dict, data_quality: dict,
     if dq_score < 0.6:
         reasons.append("LOW_DATA_QUALITY")
 
+    # تحلیل Long/Short از دادهٔ تکنیکالِ همان بازار — «جدول AI Decisions»
+    # کاربر فقط وقتی قابل‌نمایش است که این تحلیل روی هر بازار از چرخهٔ
+    # داده گرفته باشد، نه صرفاً روی top-N.'
     return {
         "symbol": symbol,
         "rank": 0,
         "score": round(score, 4),
         "signals": {k: round(v, 4) for k, v in signals.items()},
         "reasons": reasons,
+        "directional": directional_setup(features),
     }
 
 

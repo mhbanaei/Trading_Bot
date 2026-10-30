@@ -226,8 +226,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/status":
                 return self._json(eng.status())
             if path == "/api/dust_preview":
-                # SS101 confirmation dialog data: dust rows + toman values
-                return self._json(eng.dust_preview())
+                # SS101 confirmation dialog data: dust rows + values in
+                # the TARGET unit (IRT تومان / USDT تتر) from the query
+                # string (?target=irt|usdt) — NO side effects
+                q = parse_qs(parsed.query)
+                target = str((q.get("target") or ["IRT"])[0] or "IRT").upper()
+                return self._json(eng.dust_preview(target=target))
             if path == "/api/wallet_convert_preview":
                 # «تبدیل موجودی» dialog data: IRT/USDT cash balances + the
                 # exchange's own Toman value of one USDT — NO side effects
@@ -513,22 +517,39 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/control/cancel_bot_orders":
                 return self._json(eng.cancel_bot_orders())
             if path == "/api/control/convert_dust":
-                # SS101: convert tiny coin balances into IRT via the
-                # exchange convert market. force=True (manual button)
-                # converts every sub-threshold coin immediately.
+                # SS101: convert tiny coin balances into the ACTIVE
+                # market's cash. force=True (manual button) converts every
+                # sub-threshold coin immediately; in «هر دو» (Both) mode the
+                # body may pin the destination (target=IRT|USDT) exactly the
+                # way the dialog picked it — None lets the engine's own
+                # per-section rules decide.
                 force = bool(body.get("force", False))
+                target = (str(body.get("target") or "").strip().upper()
+                          or None)
+                if target not in (None, "IRT", "USDT"):
+                    return self._json({"ok": False,
+                                       "error": "مقصد تبدیل نامعتبر است "
+                                                "(تومان یا تتر)"})
                 return self._json(
                     {"ok": True, "result": eng._convert_dust_holdings(
-                        force=force)})
+                        force=force, target=target)})
             if path == "/api/control/convert_selected":
                 # user-confirmed batch from the dialog: convert ONLY the
-                # picked coins (each with its real value shown beforehand)
+                # picked coins into the TARGET wallet (IRT تومان / USDT
+                # تتر — each with its real value shown beforehand)
                 coins = body.get("coins") or []
                 if not isinstance(coins, list) or not coins:
                     return self._json({"ok": False,
                                        "error": "هیچ سکه‌ای انتخاب نشده است"})
+                target = str(body.get("target") or body.get("dst")
+                             or "IRT").strip().upper()
+                if target not in ("IRT", "USDT"):
+                    return self._json({"ok": False,
+                                       "error": "مقصد تبدیل نامعتبر است "
+                                                "(تومان یا تتر)"})
                 return self._json({"ok": True,
-                                   "result": eng.convert_selected(coins)})
+                                   "result": eng.convert_selected(
+                                       coins, target=target)})
             if path == "/api/control/wallet_convert":
                 # «تبدیل موجودی» confirm step: target USDT (Toman→Tether) or
                 # IRT (Tether→Toman); amount=None means the WHOLE balance
@@ -543,8 +564,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": bool(res.get("ok")),
                                    **res})
             if path == "/api/dust_preview":
-                # list of dust holdings + toman values, NO side effects
-                return self._json(eng.dust_preview())
+                # list of dust holdings in the TARGET unit — NO side effects
+                q = parse_qs(parsed.query)
+                target = str((q.get("target") or ["IRT"])[0] or "IRT").upper()
+                return self._json(eng.dust_preview(target=target))
             if path.startswith("/api/"):
                 return self._json({"error": "unknown endpoint"}, 404)
             return self._json({"error": "not found"}, 404)

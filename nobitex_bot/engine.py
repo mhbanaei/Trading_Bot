@@ -33,7 +33,7 @@ from .demo_market import DemoMarket
 from .nobitex_api import NobitexAPI, NobitexError
 from .portfolio import PaperPortfolio, ZERO
 from .risk import RiskEngine
-from .scanner import pre_rank_from_catalog, rank_markets
+from .scanner import directional_setup, pre_rank_from_catalog, rank_markets
 from .regime import gate_candidates
 from .storage import Storage
 from .nobitex_api import NobitexSession
@@ -1207,6 +1207,12 @@ class TradingEngine:
                 m["technicals"] = technical_features(candles)
                 m["structure"] = market_structure(candles)
                 m["regime"] = market_regime(candles, m["volatility"])
+                # سیگنال دوسویهٔ (Long/Short) از دادهٔ نمودارِ «همان کوین»
+                # — برای «همهٔ» بازارهای واجدشرط ساخته می‌شود، نه فقط
+                # top-N كانتیدها؛ تب AI Decisions همین را رندر می‌کند.
+                # نکته: این صرافی Short را نمی‌پذیرد؛ short_ready صرفاً
+                # «سیگنال نزولی/پرهیز از خرید» است، نه سفارش قابل‌اجرا.
+                m["directional_setup"] = directional_setup(m)
                 m["snapshot_id"] = snap["snapshot_id"]
                 m["cycle_id"] = cycle_id
                 market_by_symbol[sym] = m
@@ -1528,26 +1534,24 @@ class TradingEngine:
     def _price_fallback(self, market: str):
         """Best-effort live price for a held market outside the snapshot.
 
-        Order: the WHOLE-EXCHANGE universe (one cached call covers ~all
-        markets), then the single-market ticker. A failure is only cached
-        for 15 seconds so one hiccup cannot park a position for a minute.
+        Order: the exchange server (live, authoritative, takes precedence
+        over any cached view), then the SINGLE-market ticker. A failure is
+        only cached for 15 seconds so one hiccup cannot park a position for
+        a minute. Reads NOTHING from the whole-exchange universe: salient
+        symbols there can be minutes older than the true market — a dust
+        dialog quoting yesterday's price would look like a real value.
         """
         now = datetime.now(timezone.utc)
         hit = self._ticker_cache.get(market)
-        if hit and hit[0] and (now - hit[1]).total_seconds() < 60:
+        if hit and hit[0] and (now - hit[1]).total_seconds() < 15:
             return hit[0]
         px = None
         try:
-            px = self.market_universe().price(market)
+            t = self.exchange.ticker(market) \
+                if hasattr(self.exchange, "ticker") else None
+            px = t.get("last_price") if t else None
         except Exception:
             px = None
-        if px is None:
-            try:
-                t = self.exchange.ticker(market) \
-                    if hasattr(self.exchange, "ticker") else None
-                px = t.get("last_price") if t else None
-            except Exception:
-                px = None
         if px:
             self._ticker_cache[market] = (px, now)
         else:
@@ -3168,6 +3172,7 @@ class TradingEngine:
             m = snap_rows.get(sym) or {}
             u = uni_rows.get(sym) or {}
             cand = cand_by_symbol.get(sym)
+            ds = m.get("directional_setup") or {}
             out.append({
                 "symbol": sym,
                 "last_price": m.get("last_price", u.get("last_price")),
@@ -3188,6 +3193,15 @@ class TradingEngine:
                 "rank": cand["rank"] if cand else None,
                 "data_quality": m.get("data_quality", {}).get("score"),
                 "data_quality_status": m.get("data_quality", {}).get("status"),
+                # سیگنال AI دوسویهٔ همان کوین (از نمودار خودش)
+                "ai_signal": {
+                    "action": ds.get("action"),
+                    "long": ds.get("long"),
+                    "short": ds.get("short"),
+                    "atr_percent": ds.get("atr_percent"),
+                    "regime": ds.get("regime"),
+                    "liquidity_status": ds.get("liquidity_status"),
+                },
                 # whole-catalog flags (the dashboard's «وضعیت» column)
                 "source": ("snapshot" if m else
                            ("universe" if u else "none")),
@@ -3486,18 +3500,26 @@ class TradingEngine:
             return None
         return "USDT" if market.endswith("USDT") else "IRT"
 
-    def _conversion_section_allowed(self, coin: str) -> tuple[bool, str]:
-        """Can this coin be converted (wallet convert pays out in Toman)?
+    def _conversion_section_allowed(self, coin: str,
+                                    dst: str = "IRT") -> tuple[bool, str]:
+        """Can this coin's dust convert into the TARGET market wallet?
 
-        The exchange's wallet conversion always lands in the Toman wallet,
-        so it may only run inside the IRT section. A coin filed under the
-        USDT section would be a cross-market transfer and is refused unless
-        the two markets are explicitly linked (Both + تعامل بین بازارها).
+        The conversion is now target-aware: `dst` is "IRT" (pays out in
+        Toman) or "USDT" (pays out in Tether). Converting within the
+        SAME section is always allowed; converting across sections is a
+        cross-market transfer and is refused unless the two markets are
+        explicitly linked (Both + تعامل بین بازارها).
         """
-        section = self._coin_section(coin)
-        if section == "USDT" and not self._cross_market_allowed():
-            return False, ("تبدیل به تومان یک انتقال بین دو بازار است — "
-                           "«بازار معاملات» روی تتری/مستقل است")
+        dst_u = (dst or "IRT").strip().upper()
+        if dst_u not in ("IRT", "USDT"):
+            dst_u = "IRT"
+        section = self._coin_section(coin) or "IRT"
+        if section == dst_u:
+            return True, ""
+        if not self._cross_market_allowed():
+            what = "تومان" if dst_u == "IRT" else "تتر"
+            return False, ("تبدیل این سکه به %s یک انتقال بین دو بازار "
+                           "است — «بازار معاملات» روی حالت مستقل است" % what)
         return True, ""
 
     def _apply_trading_universe(self) -> None:
@@ -6420,15 +6442,104 @@ class TradingEngine:
         excl.update({"USDT", "IRT", ""})
         return excl
 
-    def _convert_dust_holdings(self, force: bool = False) -> dict:
-        """SS101: convert tiny coin balances into IRT.
+    # ---------------------------------------------------- SS101 dust convert
+    def _toman_per_usdt(self, prices: dict):
+        """تومانِ یک تتر از نرخ‌های حساب — واحد único محاسبهٔ ارزش.
+
+        _usdt_rates["IRT"]، «تترِ یک تومان» است (1/T)؛ پس تومانِ یک تتر
+        معکوسِ آن است. هر جا قیمتِ سکه در بازار *USTT خودش را با پولِ
+        تومانی می‌سنجم، ضریب باید همین باشد — ضرب مستقیمِ نرخِ تتری
+        (باگ قدیمی) ارزش را در واحدهای ترکیبی می‌کاشت.
+        """
+        try:
+            rate = float((self._usdt_rates(prices) or {}).get("IRT") or 0)
+        except Exception:
+            rate = 0.0
+        return (1.0 / rate) if rate > 0 else None
+
+    def _dust_market_prices(self) -> tuple:
+        """(prices, toman_per_usdt) برای سه مسیر خرد — یک منبع واحد."""
+        snap = self.latest_snapshot or {}
+        prices = {}
+        for m in snap.get("markets", []):
+            if m.get("last_price"):
+                prices[m["symbol"]] = d(str(m["last_price"]))
+        return prices, self._toman_per_usdt(prices)
+
+    def _dust_coin_value(self, coin: str, prices: dict, tpu):
+        """価رزش تومانیِ یک سکه: بازار IRT خودش، وگرنه بازار USDT×نرخ.
+
+        (prices, tpu) از _dust_market_prices می‌آید؛ نرخِ تترِ یک تومان
+        هرگز مستقیماً ضرب نمی‌شود (واحدهای پراکنده)."""
+        px = None
+        for mkt in (coin + "IRT", coin + "USDT"):
+            p = prices.get(mkt)
+            if p is None:
+                fp = self._price_fallback(mkt)
+                p = d(str(fp)) if fp is not None else None
+            if p is not None:
+                px = p
+                if mkt.endswith("USDT") and tpu:
+                    # قیمت بازار تتری طبیعتاً دلاری است؛ تومانِ یک تتر
+                    # ضرب می‌شود تا ارزش تومانی به‌دست بیاید
+                    px = p * d(str(tpu))
+                break
+        if px is None:
+            return None
+        return px
+
+    def _dust_target_for(self, coin: str, requested: str | None = None,
+                         section_gate: bool = True) -> tuple[str, str]:
+        """مقصد تبدیل ریزدارایی این سکه (IRT/USDT) + دلیل بلوک.
+
+        حالت irt/usdt: مقصد همان بازار فعال است و انتخابِ دیگر مسدود؛
+        حالت both: هر سکه به بخش خودش می‌رود (مستقل) و درخواستِ مقصدِ
+        دیگرِ بخشِ سکه فقط با «تعامل بین بازارها» مجاز است. فراخوانی با
+        section_gate=False همیشه پاسخ می‌دهد (پیش‌نمایشِ دیالوگ، بی‌گِیت).
+        """
+        req = str(requested or "").strip().upper()
+        raw = str(getattr(self.cfg.exchange, "trade_quote_markets", "")
+                  or "").strip().lower()
+        if raw == "irt":
+            if req == "USDT":
+                return "", "«بازار معاملات» تومانی است — تبدیل به تتر ممکن نیست"
+            return "IRT", ""
+        if raw == "usdt":
+            if req == "IRT":
+                return "", "«بازار معاملات» تتری است — تبدیل به تومان ممکن نیست"
+            return "USDT", ""
+        mode, _src = self._effective_market_interaction()
+        section = self._coin_section(coin)
+        if req in ("IRT", "USDT"):
+            if req == "USDT" and section != "USDT" \
+                    and not self._cross_market_allowed():
+                return "", ("تبدیل به تتر یک انتقال بین دو بازار است — "
+                            "«بازار معاملات» روی تعامل مستقل است")
+            if req == "IRT" and section != "IRT" \
+                    and not self._cross_market_allowed():
+                return "", ("تبدیل به تومان یک انتقال بین دو بازار است — "
+                            "«بازار معاملات» روی تعامل مستقل است")
+            return req, ""
+        # بدون درخواست: سکه به بازارِ بخش خودش می‌رود — هیچ انتقالی
+        return (section or "IRT"), ""
+
+    def _convert_dust_holdings(self, force: bool = False,
+                               target: str = None) -> dict:
+        """SS101: convert tiny coin balances into the ACTIVE market's cash.
+
+        The destination follows «بازار معاملات» exactly like the rest of the
+        engine: irt-only pays Toman, usdt-only pays USDT; with Both + مستقل
+        each coin's OWN section decides (no cross-market move) and with
+        تعامل بین بازارها the caller may pin either destination (UI picker).
 
         A coin is "dust" when its IRT value is below
-        risk.dust_convert_threshold_irt. Conversion goes through the
-        exchange's own convert market (panel/balance/convert equivalent):
-        get-quote -> create-trade, executed on the real account. Each
-        conversion is logged as a DUST_CONVERTED event; failures are
-        logged per-coin and never break the cycle.
+        risk.dust_convert_threshold_irt. The IRT target goes through the
+        exchange's wallet convert (whole balance, no minimum); the USDT
+        target is the verified two-step path (wallet→Toman, then the
+        exchange's USDT convert leg) that refuses values below the
+        exchange's USDT minimum so a conversion never strands half-done.
+        Each conversion is logged as DUST_CONVERTED; failures are logged
+        per-coin and never break the cycle.
 
         force=True is used by the manual dashboard button: converts EVERY
         non-excluded coin below the threshold (no cap) — the UI shows the
@@ -6444,17 +6555,7 @@ class TradingEngine:
         cap = max(1, int(getattr(self.cfg.risk,
                                  "dust_convert_max_per_cycle", 3) or 3))
         excl = self._dust_exclude_set()
-        # current prices: snapshot first, then live ticker fallback
-        snap = self.latest_snapshot or {}
-        prices = {}
-        usdt_irt = None
-        for m in snap.get("markets", []):
-            if m.get("last_price"):
-                prices[m["symbol"]] = d(str(m["last_price"]))
-        try:
-            usdt_irt = self._usdt_rates(prices).get("IRT")
-        except Exception:
-            usdt_irt = None
+        prices, tpu = self._dust_market_prices()
         # evaluate every real holding that is not a quote asset
         balances = {}
         try:
@@ -6468,15 +6569,15 @@ class TradingEngine:
                     balances[coin] = amt
         except Exception:
             return out
+        usdt_min = Decimal(str(getattr(
+            self.exchange, "USDT_CONVERT_MIN_RLS", 12_500_000) or
+            12_500_000))
         candidates = []
         blocked = []
         for coin, amt in balances.items():
-            # انحصار بخشی: تبدیل کیف‌پول همیشه به تومان می‌نشیند، پس سکهٔ
-            # بخش تتری بدون «تعامل بین بازارها» تبدیل نمی‌شود (انتقال بین
-            # دو بازار = ممنوع)
-            ok_section, section_reason = self._conversion_section_allowed(coin)
-            if not ok_section:
-                blocked.append({"coin": coin, "reason": section_reason})
+            dest, reason = self._dust_target_for(coin, target)
+            if not dest:
+                blocked.append({"coin": coin, "reason": reason})
                 continue
             # «بازار معاملات»: with the coin's section switched OFF the
             # AUTOMATIC pass leaves it alone — converting a Toman-side coin
@@ -6485,62 +6586,66 @@ class TradingEngine:
             # keeps converting exactly the list they confirmed.
             if not force:
                 section = self._coin_section(coin)
-                if section and not self._quote_market_enabled(coin + section):
+                if section and dest == section and \
+                        not self._quote_market_enabled(coin + section):
                     blocked.append({
                         "coin": coin,
                         "reason": "بخش %s در «بازار معاملات» خاموش است" % (
                             "تومانی" if section == "IRT" else "تتری")})
                     continue
-            # IRT value of the holding: prefer the coin's own IRT market,
-            # else USDT market × USDT rate
-            px = None
-            for mkt in (coin + "IRT", coin + "USDT"):
-                p = prices.get(mkt)
-                if p is None:
-                    fp = self._price_fallback(mkt)
-                    p = d(str(fp)) if fp is not None else None
-                if p is not None:
-                    px = p
-                    if mkt.endswith("USDT") and usdt_irt:
-                        # usdt_irt comes from _usdt_rates() as a float while
-                        # the price is Decimal — mixing them raised
-                        # TypeError and aborted the whole conversion pass
-                        px = p * d(str(usdt_irt))
-                    break
+            px = self._dust_coin_value(coin, prices, tpu)
             if px is None:
                 continue
             value_irt = px * amt
             if value_irt >= thr:
                 continue
-            candidates.append((coin, amt, value_irt))
+            # هدف تتری: زیرِ حداقلِ صرافی هرگز شروع نمی‌کنیم — نیمه‌کاره
+            # یعنی سکه تومانی شده و پلهٔ تتر رفته (گرفتنِ کاربر در وسط)
+            if dest == "USDT" and value_irt * d(str(
+                    getattr(self.cfg.exchange, "rls_to_irt_divisor", 10)
+                    or 10)) < usdt_min:
+                blocked.append({"coin": coin,
+                                "reason": "زیرِ حداقلِ تبدیل به تترِ صرافی "
+                                "(≈۱٫۲۵ میلیون تومان)"})
+                continue
+            candidates.append((coin, amt, value_irt, dest))
         if blocked:
             # ONE event per cycle (not per coin) so the event file cannot be
             # flooded by a Tether-side dust balance we refuse to convert
             out["blocked"] = blocked
             self.events.publish("DUST_CONVERT_BLOCKED", "engine", "", {
                 "coins": [b["coin"] for b in blocked],
-                "reason": "CROSS_MARKET_TRANSFER_NOT_ALLOWED"})
+                "reason": ("USDT_TARGET_BELOW_EXCHANGE_MIN"
+                           if any("حداقل" in (b.get("reason") or "")
+                                  for b in blocked)
+                           else "CROSS_MARKET_TRANSFER_NOT_ALLOWED")})
         # biggest dust first so the cap spends on the most valuable crumbs
         candidates.sort(key=lambda x: -float(x[2]))
         # force mode (manual button) has NO cap — the user saw the full
         # list and confirmed; only auto mode respects the per-cycle cap.
         targets = candidates if force else candidates[:cap]
-        for coin, amt, value_irt in targets:
-            # «تبدیل موجودی‌های خرد» path (SS101): POST /users/wallets/convert
-            # converts the WHOLE available balance with NO min-notional
-            # floor — verified live (XLM ~4k toman converted fine while the
-            # exchange/get-quote market rejects anything below 25k toman).
+        for coin, amt, value_irt, dest in targets:
+            # «تبدیل موجودی‌های خرد» path (SS101): IRT target = one wallet-
+            # convert call (no min-notional); USDT target = the two-step
+            # adapter path that refuses below-minimum values itself.
             try:
-                res = self.exchange.convert_wallet_balance(coin)
+                if dest == "USDT":
+                    res = self.exchange.convert_coin_to_usdt(
+                        coin, est_value_irt=float(value_irt))
+                else:
+                    res = self.exchange.convert_wallet_balance(coin)
                 out["converted"] += 1
                 detail = {"coin": coin, "value_irt": float(value_irt),
+                          "target": dest,
                           "converted_amount": res.get("converted_amount"),
+                          "converted_currency": res.get("dst"),
                           "result": res}
                 out["details"].append(detail)
                 self.events.publish("DUST_CONVERTED", "engine", "", {
                     "coin": coin, "amount": float(amt),
-                    "value_irt": float(value_irt),
+                    "value_irt": float(value_irt), "target": dest,
                     "converted_amount": res.get("converted_amount"),
+                    "converted_currency": res.get("dst"),
                 })
             except NobitexError as exc:
                 out["failed"] += 1
@@ -6558,7 +6663,8 @@ class TradingEngine:
                     "message": str(exc)})
         if out["converted"] or out["failed"]:
             # funds changed — resync the ledger right away so the freed
-            # IRT is visible to the risk engine in the very next step
+            # cash (Toman OR Tether) is visible to the risk engine in the
+            # very next step
             try:
                 self.sync_real_wallet()
             except Exception:
@@ -6590,16 +6696,8 @@ class TradingEngine:
             return out
         excl = self._dust_exclude_set()
         # live prices: snapshot first, then the 60s ticker fallback
-        snap = self.latest_snapshot or {}
-        prices = {}
-        usdt_irt = None
-        for m in snap.get("markets", []):
-            if m.get("last_price"):
-                prices[m["symbol"]] = d(str(m["last_price"]))
-        try:
-            usdt_irt = self._usdt_rates(prices).get("IRT")
-        except Exception:
-            usdt_irt = None
+        # (نرخ واحد: toman_per_usdt — نرخ منفیِ «تترِ یک تومان» ضرب نشود)
+        prices, tpu = self._dust_market_prices()
         min_usdt = d(str(getattr(self.cfg.exchange, "min_order_usdt", 0.44)))
         usdtirt_d = d(str(prices.get("USDTIRT") or 0))
         min_irt = (min_usdt * usdtirt_d) if usdtirt_d else ZERO
@@ -6636,10 +6734,10 @@ class TradingEngine:
                     p = d(str(fp)) if fp is not None else None
                 if p is not None:
                     px = p
-                    if mkt.endswith("USDT") and usdt_irt:
-                        # float rate × Decimal price would raise TypeError
-                        # and kill the sweep half-way
-                        px = p * d(str(usdt_irt))
+                    if mkt.endswith("USDT") and tpu:
+                        # قیمت دلاری بازار تتری × «تومانِ یک تتر» → تومان؛
+                        # ضرب نرخ وارونه ارزش را دروغین می‌کرد
+                        px = p * d(str(tpu))
                     break
             if px is None:
                 continue
@@ -6673,21 +6771,116 @@ class TradingEngine:
                 pass
         return out
 
-    def dust_preview(self, coins: list | None = None) -> dict:
+    def _dust_target_ok(self, target: str) -> tuple[bool, str]:
+        """May dust convert into this target wallet at all?
+
+        The target follows «بازار معاملات»: with IRT-only trading a USDT
+        target does not exist and vice versa — the dialog says why instead
+        of silently converting into a wallet the bot never trades in.
+        """
+        target = (target or "IRT").strip().upper()
+        usdt_state, irt_state, _src = self._effective_quote_markets()
+        if target == "USDT" and usdt_state != "on":
+            return False, ("بازار تتری خاموش است — «بازار معاملات» فقط "
+                           "تومانی است")
+        if target == "IRT" and irt_state != "on":
+            return False, ("بازار تومانی خاموش است — «بازار معاملات» فقط "
+                           "تتری است")
+        return True, ""
+
+    def _toman_per_usdt(self, prices: dict) -> Decimal:
+        """Toman value of ONE USDT (the USDTIRT market price).
+
+        Snapshot price first, then the live ticker, then the inverse of
+        the valuation rate — whatever answers, it must be sane (>0).
+        """
+        p = prices.get("USDTIRT")
+        if p is None:
+            try:
+                t = self.exchange.ticker("USDTIRT") \
+                    if hasattr(self.exchange, "ticker") else None
+                p = t.get("last_price") if t else None
+            except Exception:
+                p = None
+        if p is None:
+            try:
+                r = self._usdt_rates(prices).get("IRT")
+                p = (1.0 / float(r)) if (r and float(r) > 0) else None
+            except Exception:
+                p = None
+        try:
+            v = d(str(p))
+        except Exception:
+            v = ZERO
+        return v if v > 0 else ZERO
+
+    def _coin_value_in(self, coin: str, amt: Decimal, target: str,
+                       prices: dict, toman_usdt: Decimal) -> tuple:
+        """Value of `amt` of a coin in the TARGET unit + its Toman value.
+
+        Returns (value_target, value_irt) — either may be None when a
+        price leg is unknown. IRT-quoted prices are Toman, USDT-quoted
+        are dollars; conversion goes through `toman_usdt` (Toman per
+        USDT) in BOTH directions so the two markets never mix up their
+        money units.
+        """
+        target = (target or "IRT").strip().upper()
+        if target not in ("IRT", "USDT"):
+            target = "IRT"
+        px = q = None
+        for mkt, qq in ((coin + "IRT", "IRT"), (coin + "USDT", "USDT")):
+            p = prices.get(mkt)
+            if p is None:
+                fp = self._price_fallback(mkt)
+                p = d(str(fp)) if fp is not None else None
+            if p is not None:
+                px, q = p, qq
+                break
+        if px is None:
+            return None, None
+        if q == "IRT":
+            v_irt = px * amt
+            if target == "IRT":
+                return v_irt, v_irt
+            if toman_usdt <= 0:
+                return None, v_irt
+            return v_irt / toman_usdt, v_irt
+        v_usdt = px * amt
+        if target == "USDT":
+            return v_usdt, (v_usdt * toman_usdt
+                            if toman_usdt > 0 else None)
+        if toman_usdt <= 0:
+            return None, None
+        return v_usdt * toman_usdt, v_usdt * toman_usdt
+
+    def dust_preview(self, coins: list | None = None,
+                     target: str = "IRT") -> dict:
         """List the dust holdings WOULD be converted — no side effects.
 
-        For the confirmation dialog: each row = coin, amount, IRT value,
-        convertible yes/no with the Persian reason when not. Used by the
-        dashboard before the user confirms the real conversion.
+        For the confirmation dialog: each row = coin, amount, value in the
+        TARGET unit (and its Toman equivalent), convertible yes/no +
+        Persian reason. `target` selects the conversion market: "IRT" or
+        "USDT". The threshold comparison stays in Toman for both targets
+        (one setting, one meaning); values are converted by the real
+        USDTIRT rate. Used by the dashboard before the user confirms the
+        real conversion.
         """
-        out = {"items": [], "total_irt": 0.0, "real_attached":
-               self._real_attached, "threshold_irt": float(
+        target = (target or "IRT").upper()
+        if target not in ("IRT", "USDT"):
+            target = "IRT"
+        out = {"items": [], "total": 0.0, "total_irt": 0.0, "target": target,
+               "unit": target, "real_attached": self._real_attached,
+               "threshold_irt": float(
                    getattr(self.cfg.risk, "dust_convert_threshold_irt", 0)
                    or 0),
                "cross_market_allowed": self._cross_market_allowed(),
                "interaction": self._effective_market_interaction()[0]}
         if not self._real_attached:
             out["error"] = "ابتدا به حساب واقعی لاگین کنید"
+            return out
+        ok_t, t_reason = self._dust_target_ok(target)
+        if not ok_t:
+            out["error"] = t_reason
             return out
         thr = d(str(out["threshold_irt"] or 0))
         excl = self._dust_exclude_set()
@@ -6696,11 +6889,7 @@ class TradingEngine:
         for m in snap.get("markets", []):
             if m.get("last_price"):
                 prices[m["symbol"]] = d(str(m["last_price"]))
-        usdt_irt = None
-        try:
-            usdt_irt = self._usdt_rates(prices).get("IRT")
-        except Exception:
-            usdt_irt = None
+        toman_usdt = self._toman_per_usdt(prices)
         balances = {}
         try:
             doc = self.exchange.portfolio()
@@ -6717,69 +6906,84 @@ class TradingEngine:
         for coin, amt in sorted(balances.items()):
             if coins and coin not in coins:
                 continue
-            # a Tether-section coin would be a cross-market transfer: the
-            # dialog greys it out with the reason instead of hiding it
-            ok_section, section_reason = self._conversion_section_allowed(coin)
-            px = None
-            for mkt in (coin + "IRT", coin + "USDT"):
-                p = prices.get(mkt)
-                if p is None:
-                    fp = self._price_fallback(mkt)
-                    p = d(str(fp)) if fp is not None else None
-                if p is not None:
-                    px = p
-                    if mkt.endswith("USDT") and usdt_irt:
-                        px = p * Decimal(str(usdt_irt))
-                    break
-            value_irt = (px * amt) if px is not None else None
+            # a cross-section direction is greyed with its reason, not
+            # silently hidden — even in «بازارهای مستقل» the user sees WHY
+            ok_section, section_reason \
+                = self._conversion_section_allowed(coin, target)
+            value_target, value_irt = self._coin_value_in(
+                coin, amt, target, prices, toman_usdt)
             item = {"coin": coin, "amount": float(amt),
-                    "value_irt": float(value_irt) if value_irt is not None
-                    else None}
-            if value_irt is None:
+                    "value": (float(value_target)
+                              if value_target is not None else None),
+                    "value_irt": (float(value_irt)
+                                  if value_irt is not None else None)}
+            if value_target is None:
                 item["convertible"] = False
                 item["reason"] = "قیمت لحظه‌ای پیدا نشد"
             elif not ok_section:
                 item["convertible"] = False
                 item["reason"] = section_reason
+            elif value_irt is None:
+                item["convertible"] = False
+                item["reason"] = "نرخ تتر برای سنجش آستانه پیدا نشد"
             elif thr > 0 and value_irt >= thr:
                 item["convertible"] = False
                 item["reason"] = "دارایی خرد نیست (بالای آستانه)"
             else:
                 item["convertible"] = True
             out["items"].append(item)
+            if value_target is not None:
+                out["total"] += float(value_target)
             if value_irt is not None:
                 out["total_irt"] += float(value_irt)
         # convertible first (bigger value first), then the not-convertible
-        out["items"].sort(key=lambda x: (not x.get("convertible"),
-                                         -(x.get("value_irt") or 0)))
+        out["items"].sort(key=lambda x: (
+            not x.get("convertible"),
+            -(x.get("value") or x.get("value_irt") or 0)))
         return out
 
-    def convert_selected(self, coins: list) -> dict:
+    def convert_selected(self, coins: list,
+                     target: str = "IRT") -> dict:
         """Convert ONLY the coins the user confirmed in the dialog.
 
-        Bypasses the threshold filter (the user already saw and picked the
-        rows) but keeps every safety: exclusions, min-notional floor,
-        per-coin error capture. The per-cycle cap does not apply — this is
-        an explicit user-confirmed batch.
+        `target` ("IRT" یا "USDT") واحد مقصد تبدیل — بازار معاملات تعیین
+        می‌کند کدام مقصد وجود دارد. Bypasses the threshold filter (the
+        user already saw and picked the rows) but keeps every safety:
+        exclusions, cross-market gate, per-coin error capture. The
+        per-cycle cap does not apply — this is an explicit user-confirmed
+        batch.
         """
         wanted = {str(c).strip().upper() for c in (coins or []) if str(c).strip()}
         if not wanted:
-            return {"converted": 0, "failed": 0,
+            return {"converted": 0, "failed": 0, "target": (target or "IRT").upper(),
                     "details": [{"error": "NO_SELECTION",
                                  "message": "سکه‌ای انتخاب نشده بود"}]}
-        prev_cap_guard = getattr(self.cfg.risk, "dust_convert_max_per_cycle",
-                                 0)
-        out = self._convert_selected_impl(wanted)
+        out = self._convert_selected_impl(wanted, target)
         return out
 
-    def _convert_selected_impl(self, wanted: set) -> dict:
-        """Real conversion of an explicit coin set (user-confirmed)."""
-        out = {"converted": 0, "failed": 0, "details": []}
+    def _convert_selected_impl(self, wanted: set, target: str = "IRT") -> dict:
+        """Real conversion of an explicit coin set (user-confirmed).
+
+        The payout currency follows `target`: "IRT" converts through the
+        wallet-convert endpoint into Toman; "USDT" uses the same endpoint
+        with dstCurrency=usdt — the exchange takes the WHOLE available
+        balance either way, so no here-computed amount is sent.
+        """
+        target = (target or "IRT").strip().upper()
+        if target not in ("IRT", "USDT"):
+            target = "IRT"
+        out = {"converted": 0, "failed": 0, "details": [], "target": target}
         if not self._real_attached:
             out["failed"] = len(wanted)
             out["details"] = [{"coin": c, "error": "NOT_ATTACHED",
                                "message": "حساب واقعی وصل نیست"}
                               for c in sorted(wanted)]
+            return out
+        ok_t, t_reason = self._dust_target_ok(target)
+        if not ok_t:
+            out["failed"] = len(wanted)
+            out["details"] = [{"coin": c, "error": "TARGET_BLOCKED",
+                               "message": t_reason} for c in sorted(wanted)]
             return out
         excl = self._dust_exclude_set()
         snap = self.latest_snapshot or {}
@@ -6787,11 +6991,7 @@ class TradingEngine:
         for m in snap.get("markets", []):
             if m.get("last_price"):
                 prices[m["symbol"]] = d(str(m["last_price"]))
-        usdt_irt = None
-        try:
-            usdt_irt = self._usdt_rates(prices).get("IRT")
-        except Exception:
-            usdt_irt = None
+        toman_usdt = self._toman_per_usdt(prices)
         balances = {}
         try:
             doc = self.exchange.portfolio()
@@ -6808,7 +7008,8 @@ class TradingEngine:
                                "message": str(exc)} for c in sorted(wanted)]
             return out
         for coin in sorted(wanted):
-            ok_section, section_reason = self._conversion_section_allowed(coin)
+            ok_section, section_reason \
+                = self._conversion_section_allowed(coin, target)
             if not ok_section:
                 out["failed"] += 1
                 out["details"].append({"coin": coin,
@@ -6816,7 +7017,7 @@ class TradingEngine:
                                        "message": section_reason})
                 self.events.publish("DUST_CONVERT_FAILED", "engine", "", {
                     "coin": coin, "code": "TRANSFER_BLOCKED",
-                    "message": section_reason})
+                    "target": target, "message": section_reason})
                 continue
             amt = balances.get(coin)
             if amt is None:
@@ -6827,55 +7028,52 @@ class TradingEngine:
                                        "موجودی‌ای از این سکه نیست"})
                 out["failed"] += 1
                 continue
-            px = None
-            for mkt in (coin + "IRT", coin + "USDT"):
-                p = prices.get(mkt)
-                if p is None:
-                    fp = self._price_fallback(mkt)
-                    p = d(str(fp)) if fp is not None else None
-                if p is not None:
-                    px = p
-                    if mkt.endswith("USDT") and usdt_irt:
-                        px = p * Decimal(str(usdt_irt))
-                    break
-            if px is None:
+            value_target, _v_irt = self._coin_value_in(
+                coin, amt, target, prices, toman_usdt)
+            if value_target is None:
                 out["failed"] += 1
                 out["details"].append({"coin": coin,
                                        "error": "NO_PRICE",
                                        "message": "قیمت لحظه‌ای پیدا نشد"})
                 continue
-            value_irt = px * amt
             # «تبدیل موجودی‌های خرد» path: POST /users/wallets/convert
             # converts the WHOLE available balance with NO min-notional
             # floor (verified live: XLM ~4k toman converted while the
             # get-quote market rejects < 25k toman). The value shown in
             # the dialog is informational only — the exchange takes all.
             try:
-                res = self.exchange.convert_wallet_balance(coin)
+                res = self.exchange.convert_wallet_balance(
+                    coin, dst=("rls" if target == "IRT" else "usdt"))
                 out["converted"] += 1
                 out["details"].append({"coin": coin,
-                                       "value_irt": float(value_irt),
+                                       "target": target,
+                                       "unit": target,
+                                       "value": float(value_target),
                                        "converted_amount":
                                            res.get("converted_amount"),
+                                       "converted_unit":
+                                           res.get("unit") or target,
                                        "result": res})
                 self.events.publish("DUST_CONVERTED", "engine", "", {
                     "coin": coin, "amount": float(amt),
-                    "value_irt": float(value_irt),
+                    "target": target, "value": float(value_target),
                     "converted_amount": res.get("converted_amount")})
             except NobitexError as exc:
                 out["failed"] += 1
                 out["details"].append({"coin": coin, "error": exc.code,
+                                       "target": target,
                                        "message": str(exc)})
                 self.events.publish("DUST_CONVERT_FAILED", "engine", "", {
-                    "coin": coin, "code": exc.code, "message": str(exc)})
+                    "coin": coin, "code": exc.code, "target": target,
+                    "message": str(exc)})
             except Exception as exc:
                 out["failed"] += 1
-                out["details"].append({"coin": coin,
+                out["details"].append({"coin": coin, "target": target,
                                        "error": "CONVERT_ERROR",
                                        "message": str(exc)})
                 self.events.publish("DUST_CONVERT_FAILED", "engine", "", {
                     "coin": coin, "code": "CONVERT_ERROR",
-                    "message": str(exc)})
+                    "target": target, "message": str(exc)})
         if out["converted"]:
             try:
                 self.sync_real_wallet()

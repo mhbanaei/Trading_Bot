@@ -126,8 +126,8 @@ header{display:flex; align-items:center; gap:12px; flex-wrap:wrap;
 header h1{font-size:17px; font-weight:700}
 header .spacer{flex:1}
 .badge{padding:3px 10px; border-radius:999px; font-size:12px; border:1px solid var(--border)}
-.badge.ok{color:var(--green); border-color:#bfe8d7; background:#effaf3}
-.badge.off{color:var(--muted)}
+.badge.ok{color:var(--green); border-color:#bfe8d7; background:#effaf3}  .badge.off{color:var(--muted)}
+  .badge.off_ver{color:var(--muted)}
 .badge.warn{color:var(--orange); border-color:#f3d39a; background:#fef6e7}
 .badge.err{color:var(--red); border-color:#f5b5b5; background:#fdecec}
 .badge.demo{color:var(--cyan); border-color:#b8e6ef; background:#e8f7fb}
@@ -460,7 +460,7 @@ tr:last-child td{border-bottom:none}
 .muted,.mut{color:var(--muted); font-size:11.5px}
 /* ---- فهرست کارتی مشترک: هر آیتم یک کارت لمسی --------------------- */
 .clist{display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(275px,1fr))}
-.clist.wide{grid-template-columns:1fr}
+.clist.wide{grid-template-columns:1fr; gap:5px}
 .ctile{border:1px solid var(--border); border-radius:var(--r);
   background:var(--panel2); padding:12px 13px; display:flex;
   flex-direction:column; gap:8px; min-width:0}
@@ -489,6 +489,15 @@ tr:last-child td{border-bottom:none}
 .ctile.on{border-color:rgba(16,207,137,.5);
   background:linear-gradient(160deg,var(--accent-soft),transparent 72%),var(--panel2)}
 .ctile .badges{display:flex; gap:4px; flex-wrap:wrap}
+/* تب تصمیم‌های AI: ردیف سیگنال دوسویه — نوار نمرهٔ Long/Short */
+.ctile.dai .ct-top .badge{margin-inline-start:auto}
+.dai-bars{display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin:8px 0}
+.dai-bars>div{display:flex; align-items:center; gap:8px; font-size:11.5px}
+.dai-bars .k{min-width:64px; color:var(--muted)}
+.dai-bars .v{min-width:34px; text-align:left; font-variant-numeric:tabular-nums}
+.dai-bars .ct-meter{flex:1}
+.dai-bars .i-l{background:var(--green)}
+.dai-bars .i-s{background:var(--red)}
 /* یک خط خلاصه بالای هر فهرست */
 .list-head{display:flex; gap:8px; align-items:center; flex-wrap:wrap;
   font-size:11.5px; color:var(--muted); margin:0 2px 10px}
@@ -507,12 +516,49 @@ tr:last-child td{border-bottom:none}
 .sortchip.on{background:var(--accent-soft); border-color:rgba(16,207,137,.45);
   color:var(--accent); font-weight:700}
 /* ---- کارت دارایی من (holdings) ------------------------------------ */
+/* ---- کارت دارایی من — چیدمان خطی (کم‌ارتفاع) ----------------------
+   همهٔ اعداد در یک ردیف افقی: کوین | قیمت | ۲۴ساعت | مقدار | ارزش | مبلغ
+   خرید | سود از خرید | حد ضرر | حد سود | دکمه‌ها. روی نمایشگر باریک
+   سلول‌ها طبیعی خط می‌شوند (بدون نوار افقی). جزئیات کم‌اهمیت (قیمت
+   خرید، سود دقیق، زمان/طول نگه‌داری) داخل باکس کشویی «⋯» است. */
 .hold-card{border:1px solid var(--border); border-radius:var(--r);
-  background:var(--panel2); padding:11px 13px; display:flex;
-  flex-direction:column; gap:7px; min-width:0}
-.hold-card:hover{border-color:rgba(16,207,137,.42)}
-.hold-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
-.hold-coin{font-weight:800; font-size:15px; direction:ltr; letter-spacing:.2px}
+  background:var(--panel2); padding:8px 12px; display:flex; flex-direction:column;
+  gap:7px; min-width:0}
+/* ردیف کم‌ارتفاع: فشرده‌تر — padding و فاصله‌ها کوچک‌تر تا هر کوین
+   ~۳۰px عمودی بگیرد و روی دسکتاپ همهٔ سلول‌ها در همین یک خط سا شوند */
+.hold-strip{flex-direction:row; flex-wrap:wrap; align-items:center;
+  gap:3px 12px; padding:5px 10px; min-height:0}
+.hold-strip:hover{border-color:rgba(16,207,137,.42)}
+.hc-id{display:flex; align-items:baseline; gap:6px; min-width:78px}
+.hc-coin{font-weight:800; font-size:13px; direction:ltr; letter-spacing:.2px}
+.hc-cell{display:flex; flex-direction:column; gap:0; min-width:56px}
+.hc-k{font-size:10px; color:var(--muted); white-space:nowrap}
+.hc-v{font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums;
+  direction:ltr; text-align:right; white-space:nowrap}
+.hc-v .strike-badge{margin-inline-start:6px}
+.hc-chip{font-size:10.5px; font-weight:800; border-radius:999px;
+  padding:1px 8px; direction:ltr; text-align:right; white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.hc-chip.pos{background:rgba(16,185,129,.13); color:var(--green)}
+.hc-chip.neg{background:rgba(239,68,68,.11); color:var(--red)}
+.hc-level .stop-edit{white-space:nowrap}
+.hc-acts{display:flex; gap:6px; margin-inline-start:auto}
+.hc-acts button{min-height:26px; padding:2px 12px; font-size:11.5px; flex:none}
+/* جزییات همان ردیف — عادی، بدون کلیک (قبلاً با «⋯» باز/بسته می‌شد) */
+.hc-extra{display:flex; gap:4px 14px; flex-wrap:wrap; font-size:10.5px;
+  color:var(--muted); white-space:nowrap}
+.hc-extra b{color:var(--text); font-weight:600; direction:ltr;
+  display:inline-block}
+.hc-extra b{color:var(--text); font-weight:700; direction:ltr;
+  display:inline-block}
+@media(max-width:900px){
+  .hold-strip{gap:6px 10px}
+  .hc-cell{min-width:56px}
+  .hc-v{font-size:12px}
+  .hc-coin{font-size:13px}
+  .hc-acts{flex-basis:100%; margin-inline-start:0}
+  .hc-acts button{flex:1; min-height:34px}
+}
 /* نشان «strike» کنار قیمت حد — عدد پله جدا و خوانا */
 .strike-badge{display:inline-flex; align-items:center; gap:4px;
   margin-inline-start:5px; font-size:9px; font-weight:800; letter-spacing:.5px;
@@ -695,7 +741,24 @@ html[data-theme="dark"] .strike-badge .num{color:var(--orange)}
   </section>
 
   <section id="tab-decisions" class="tabs">
-    <div class="card"><h3>تاریخچه تصمیم‌ها</h3><div id="histBox"></div></div>
+    <div class="card">
+      <h3>سیگنال لحظه‌ای — تحلیل دوسویهٔ (Long/Short) همهٔ کوین‌ها <span class="muted">ساخته‌شده از نمودار همان کوین</span></h3>
+      <details style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">راهنمای تب تصمیم‌های AI</summary>
+        <div class="mut" style="font-size:12px;line-height:1.9;margin-top:6px">
+          برای هر کوینِ واجدشرط، موتور از <b>نمودار همان کوین</b> (کندل، EMA، RSI، MACD، بولینگر، حجم و ساختار بازار) دو نمرهٔ <b>Long</b> و <b>Short</b> می‌سازد:
+          <ul style="margin:6px 0 0;padding-inline-start:18px">
+            <li><span class="badge ok">خرید (Long)</span> — ساختار صعودی تأییدشده با حجم؛ فقط اگر سفارش‌پذیر باشد.</li>
+            <li><span class="badge err">نزولی (Short)</span> — ساختار downwards؛ این صرافی معاملهٔ Short نمی‌پذیرد، پس این یعنی «پرهیز از خرید / فروشِ دارایی»، نه سفارش Short وارونه.</li>
+            <li><span class="badge off">انتظار (WAIT)</span> — تناقض سیگنال‌ها؛ <span class="badge off">نگه‌داشتن (HOLD)</span> — نه صعودی نه نزولیِ قوی.</li>
+            <li>پلن ورود (ورود/حد ضرر/هدف/سود به ضرر) هر کوین از تصمیم فعلی همان کوین می‌آید. اگر «بدون پلن» است یعنی تصمیم قابل‌اجرایی صادر نشده — زیر فشار خرید نکشید.</li>
+            <li>اعتبار تحلیل: هر چرخه تحلیل به‌روز می‌شود و تصمیم منقضی‌شده خودش خاموش می‌شود (ستون «اعتبار»).</li>
+          </ul>
+        </div>
+      </details>
+      <div id="daiBox"><div class="empty">هنوز چرخه‌ای اجرا نشده — موتور را شروع کنید</div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>تاریخچه تصمیم‌ها</h3><div id="histBox"></div></div>
   </section>
 
   <section id="tab-risk" class="tabs">
@@ -890,12 +953,39 @@ function toast(m){const t=$("#toast");t.textContent=m;t.style.display="block";se
 let dustModal=null;
 function closeDustModal(){ if(dustModal){dustModal.remove(); dustModal=null;} }
 function fmtTom(v){ if(v==null||isNaN(v))return "—"; v=Number(v); return v>=1000 ? Math.round(v).toLocaleString("en-US") : (Math.round(v*100)/100)+""; }
+/* تبدیل دارایی‌های خرد — مقصدآگاه: کاربر تومان یا تتر را انتخاب
+   می‌کند؛ در «بازار معاملات» تک‌بازاری فقط همان مقصد فعال است */
+let dustTarget="IRT";
+function dustUnitFa(t){return t==="USDT"?"تتر (USDT)":"تومان (IRT)";}
+function dustMoney(v,t){ if(v==null||isNaN(v))return "—";
+  return t==="USDT" ? "$"+fmt(Number(v),2) : fmtTom(v)+" تومان"; }
+function dustRowHtml(x,unitT){
+  return `<label style="display:flex;gap:8px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer">
+    <input type="checkbox" class="dustChk" data-coin="${esc(x.coin)}" checked>
+    <span style="min-width:72px;font-weight:700">${esc(x.coin)}</span>
+    <span class="mut" style="font-size:11px;direction:ltr">${x.amount>=1?fmtTom(x.amount):x.amount}</span>
+    <span style="flex:1"></span>
+    <span style="font-weight:700;color:var(--green)">${dustMoney(x.value,unitT)}${unitT==="USDT"&&x.value_irt!=null?` <span class="mut" style="font-size:10.5px">(≈ ${fmtTom(x.value_irt)} ت)</span>`:""}</span>
+  </label>`;}
 async function openDustModal(){
   closeDustModal();
+  /* مقصدهای مجاز از «بازار معاملات»: در حالت تک‌بازاری فقط همان بازار */
+  const qm=((cfg&&cfg.exchange&&cfg.exchange.trade_quote_markets)||"both").trim().toLowerCase();
+  const irtOn=qm!=="usdt", usdtOn=qm!=="irt";
+  dustTarget=!irtOn?"USDT":(!usdtOn?"IRT":(dustTarget||"IRT"));
+  let curTarget=dustTarget, items=[], unitT=dustTarget;
   const ov=document.createElement("div");
   ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center";
-  ov.innerHTML=`<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:520px;width:92%;max-height:80vh;display:flex;flex-direction:column" dir="rtl">
-    <div style="font-weight:800;font-size:15px;margin-bottom:6px">تبدیل دارایی‌های خرد به تومان</div>
+  ov.innerHTML=`<div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:540px;width:92%;max-height:80vh;display:flex;flex-direction:column" dir="rtl">
+    <div style="font-weight:800;font-size:15px;margin-bottom:6px">تبدیل دارایی‌های خرد</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <span class="mut" style="font-size:12px">مقصد تبدیل:</span>
+      <span id="dustTargets" style="display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden">
+        <button type="button" data-t="IRT" class="dust-t">تومان</button>
+        <button type="button" data-t="USDT" class="dust-t">تتر</button>
+      </span>
+      <span id="dustHint" class="mut" style="font-size:11px"></span>
+    </div>
     <div class="mut" style="font-size:12px;margin-bottom:10px" id="dustSub">در حال خواندن دارایی‌ها…</div>
     <div id="dustRows" style="overflow:auto;flex:1;min-height:120px;border:1px solid var(--border);border-radius:8px;padding:6px">…</div>
     <div id="dustSum" style="font-size:13px;margin-top:10px;font-weight:700"></div>
@@ -907,53 +997,66 @@ async function openDustModal(){
   document.body.appendChild(ov); dustModal=ov;
   ov.addEventListener("click",e=>{ if(e.target===ov) closeDustModal(); });
   ov.querySelector("#dustCancel").onclick=closeDustModal;
-  const rowsEl=ov.querySelector("#dustRows"), sumEl=ov.querySelector("#dustSum"), goBtn=ov.querySelector("#dustGo"), subEl=ov.querySelector("#dustSub");
-  let items=[];
-  try{ const r=await fetch("/api/dust_preview"); const d=await r.json();
-    if(d.error){ subEl.textContent=d.error; rowsEl.innerHTML="<div class='empty'>—</div>"; return; }
-    items=d.items||[];
-    if(!items.length){ subEl.textContent="دارایی خرد قابل تبدیلی پیدا نشد"; rowsEl.innerHTML="<div class='empty'>—</div>"; return; }
-    subEl.textContent="تیک بزن و تایید کن — فقط ردیف‌های تیک‌خورده واقعاً تبدیل می‌شوند";
-    const conv=items.filter(x=>x.convertible), noc=items.filter(x=>!x.convertible);
-    rowsEl.innerHTML=`<div style="padding:4px 6px;display:flex;gap:8px;align-items:center;position:sticky;top:0;background:var(--panel);z-index:1">
+  const rowsEl=ov.querySelector("#dustRows"), sumEl=ov.querySelector("#dustSum"), goBtn=ov.querySelector("#dustGo"), subEl=ov.querySelector("#dustSub"), hintEl=ov.querySelector("#dustHint");
+  const tBtn={IRT:ov.querySelector('.dust-t[data-t="IRT"]'),USDT:ov.querySelector('.dust-t[data-t="USDT"]')};
+  if(!irtOn){tBtn.IRT.disabled=true; tBtn.IRT.title="بازار معاملات تومانی خاموش است";}
+  if(!usdtOn){tBtn.USDT.disabled=true; tBtn.USDT.title="بازار معاملات تتری خاموش است";}
+  const markT=()=>Object.entries(tBtn).forEach(([k,b])=>{
+    b.style.cssText="padding:5px 14px;font-size:12px;cursor:pointer;border:none;background:transparent;color:var(--muted)";
+    if(k===curTarget)b.style.cssText+=";background:var(--accent-soft);color:var(--accent);font-weight:800";
+    if(b.disabled)b.style.cssText+=";opacity:.4;cursor:not-allowed";});
+  const rowsHtml=()=>{ const conv=items.filter(x=>x.convertible), noc=items.filter(x=>!x.convertible);
+    return `<div style="padding:4px 6px;display:flex;gap:8px;align-items:center;position:sticky;top:0;background:var(--panel);z-index:1">
       <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px"><input type="checkbox" id="dustAll" checked> انتخاب همه‌ی قابل‌تبدیل‌ها</label>
-      <span class="mut" style="font-size:11px">ارزش به تومان</span>
+      <span class="mut" style="font-size:11px">ارزش به ${unitT==="USDT"?"دلار":"تومان"}</span>
     </div>`
-    + conv.map(x=>`<label style="display:flex;gap:8px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" class="dustChk" data-coin="${esc(x.coin)}" checked>
-        <span style="min-width:72px;font-weight:700">${esc(x.coin)}</span>
-        <span class="mut" style="font-size:11px;direction:ltr">${x.amount>=1?fmtTom(x.amount):x.amount}</span>
-        <span style="flex:1"></span>
-        <span style="font-weight:700;color:var(--green)">${fmtTom(x.value_irt)} تومان</span>
-      </label>`).join("")
-    + (noc.length? `<div class="mut" style="padding:6px;font-size:11px;margin-top:4px">غیرقابل تبدیل (کف صرافی یا بدون قیمت):</div>`
+    + conv.map(x=>dustRowHtml(x,unitT)).join("")
+    + (noc.length? `<div class="mut" style="padding:6px;font-size:11px;margin-top:4px">غیرقابل تبدیل (کف صرافی / بدون قیمت / ممنوعیت بازار):</div>`
       + noc.map(x=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 6px 4px 26px;opacity:.65">
           <span style="min-width:72px">${esc(x.coin)}</span><span style="flex:1"></span>
-          <span class="mut" style="font-size:11px">${x.value_irt!=null?fmtTom(x.value_irt)+" تومان — ":""}${esc(x.reason||"")}</span>
-        </div>`).join("") : "");
-    const upd=()=>{ const sel=[...rowsEl.querySelectorAll(".dustChk:checked")];
-      const tot=sel.reduce((s,c)=>{const it=items.find(x=>x.coin===c.dataset.coin); return s+(it?(it.value_irt||0):0);},0);
-      goBtn.disabled=!sel.length; goBtn.style.opacity=sel.length?1:.5;
-      sumEl.textContent=sel.length?(sel.length+" سکه انتخاب شد — مجموع " + fmtTom(tot) + " تومان"):"هیچ سکه‌ای انتخاب نشده"; };
-    rowsEl.addEventListener("change",e=>{ if(e.target.id==="dustAll"){ rowsEl.querySelectorAll(".dustChk").forEach(c=>c.checked=e.target.checked); } upd(); });
-    upd();
-    goBtn.onclick=async()=>{
-      const coins=[...rowsEl.querySelectorAll(".dustChk:checked")].map(c=>c.dataset.coin);
-      if(!coins.length)return;
-      goBtn.disabled=true; goBtn.textContent="در حال تبدیل…";
-      try{ const r=await jpost("/api/control/convert_selected",{coins}); const res=(r&&r.result)||{};
-        const ok=res.converted||0, bad=res.failed||0;
-        const det=(res.details||[]).map(x=>x.coin+": "+(x.error? ("رد شد — "+(x.message||x.error)) : ("تبدیل شد"+(x.value_irt!=null?(" ("+fmtTom(x.value_irt)+" تومان)"):"")))).join("\n");
-        closeDustModal();
-        toast(ok? (ok+" سکه تبدیل شد"+(bad?(" | "+bad+" ناموفق — جزئیات در ادامه"):"")) : ("تبدیلی انجام نشد"+(bad?" — "+bad+" سکه رد شد، جزئیات در ادامه":"")));
-        if(det) setTimeout(()=>{ toast(det); const t=$("#toast"); t.style.whiteSpace="pre-line"; setTimeout(()=>t.style.whiteSpace="",3000); }, (ok&&bad)?2400:150);
-      }catch(e){ toast("خطا: "+e); }
-      poll();
-    };
-  }catch(e){ subEl.textContent="خطا در دریافت لیست: "+e; }
-}
-
-/* ---------------- tabs ---------------- */
+          <span class="mut" style="font-size:11px">${x.value!=null?dustMoney(x.value,unitT)+" — ":""}${esc(x.reason||"")}</span>
+        </div>`).join("") : "");};
+  const upd=()=>{ const sel=[...rowsEl.querySelectorAll(".dustChk:checked")];
+    const tot=sel.reduce((s,c)=>{const it=items.find(x=>x.coin===c.dataset.coin); return s+(it?(it.value||0):0);},0);
+    goBtn.disabled=!sel.length; goBtn.style.opacity=sel.length?1:.5;
+    goBtn.textContent=sel.length?("تبدیل به "+dustUnitFa(unitT)):"تبدیل کن";
+    sumEl.textContent=sel.length?(sel.length+" سکه انتخاب شد — مجموع "+dustMoney(tot,unitT)):"هیچ سکه‌ای انتخاب نشده"; };
+  rowsEl.onchange=e=>{ if(e.target.id==="dustAll"){ rowsEl.querySelectorAll(".dustChk").forEach(c=>c.checked=e.target.checked); } upd(); };
+  goBtn.onclick=async()=>{
+    const coins=[...rowsEl.querySelectorAll(".dustChk:checked")].map(c=>c.dataset.coin);
+    if(!coins.length)return;
+    goBtn.disabled=true; goBtn.style.opacity=.5; goBtn.textContent="در حال تبدیل…";
+    try{ const r=await jpost("/api/control/convert_selected",{coins,target:unitT}); const res=(r&&r.result)||{};
+      const okN=res.converted||0, bad=res.failed||0;
+      const tt=res.target||unitT;
+      const det=(res.details||[]).map(x=>x.coin+": "+(x.error? ("رد شد — "+(x.message||x.error)) : ("تبدیل شد"+(x.converted_amount!=null?(" ("+dustMoney(x.converted_amount,tt)+" دریافت شد)"):"")))).join("\n");
+      closeDustModal();
+      toast(okN? (okN+" سکه به "+dustUnitFa(tt)+" تبدیل شد"+(bad?(" | "+bad+" ناموفق — جزئیات در ادامه"):"")) : ("تبدیلی انجام نشد"+(bad?" — "+bad+" سکه رد شد، جزئیات در ادامه":"")));
+      if(det) setTimeout(()=>{ toast(det); const t=$("#toast"); t.style.whiteSpace="pre-line"; setTimeout(()=>t.style.whiteSpace="",3000); }, (okN&&bad)?2400:150);
+    }catch(e){ toast("خطا: "+e); }
+    poll();
+  };
+  /* پیش‌نمایش مقصد: هر چیپ لیست همان بازار را می‌خواند و دکمهٔ
+     تبدیل همیشه با مقصدِ همان پیش‌نمایش ارسال می‌شود */
+  const renderRows=async(target)=>{
+    curTarget=target; dustTarget=target; markT();
+    subEl.textContent="در حال خواندن دارایی‌ها…"; rowsEl.innerHTML="…"; sumEl.textContent="";
+    goBtn.disabled=true; goBtn.style.opacity=.5;
+    try{
+      const r=await fetch("/api/dust_preview?target="+encodeURIComponent(target));
+      const d=await r.json();
+      if(d.error){ subEl.textContent=d.error; rowsEl.innerHTML="<div class='empty'>—</div>"; sumEl.textContent=""; return; }
+      items=d.items||[]; unitT=d.target||target;
+      hintEl.textContent=d.hint??"";
+      if(!items.length){ subEl.textContent="دارایی خرد قابل تبدیلی در این مقصد پیدا نشد"; rowsEl.innerHTML="<div class='empty'>—</div>"; sumEl.textContent=""; return; }
+      subEl.textContent="تیک بزن و تایید کن — فقط ردیف‌های تیک‌خورده واقعاً به "+dustUnitFa(unitT)+" تبدیل می‌شوند";
+      rowsEl.innerHTML=rowsHtml();
+      upd();
+    }catch(e){ subEl.textContent="خطا در دریافت لیست: "+e; }
+  };
+  Object.entries(tBtn).forEach(([k,b])=>b.onclick=()=>{ if(!b.disabled&&k!==curTarget) renderRows(k); });
+  await renderRows(curTarget);
+}/* ---------------- tabs ---------------- */
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#tabs button").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tabs").forEach(x=>x.classList.remove("active"));
@@ -1884,6 +1987,73 @@ function marketsTable(ms){if(!ms||!ms.length)return `<div class="empty">داده
       <span class="mut" style="margin-inline-start:auto">${esc(m.regime||"")}</span></div>
   </div>`).join("")+`</div>`}
 
+/* سیگنال لحظه‌ای دوسویه (Long/Short) همهٔ بازارها — تب تصمیم‌های AI.
+   از m.ai_signal موتور می‌آید که از نمودار «همان کوین» ساخته شده؛ پلن
+   ورود/حد ضرر/هدف هم از تصمیم فعلی همان کوین ادغام می‌شود. */
+const DAI_FA={UPTREND_STRUCTURE:"ساختار صعودی HH/HL",DOWNTREND_STRUCTURE:"ساختار نزولی LH/LL",
+  RANGE_MARKET:"بازار خنثی/رنج",AGAINST_UPTREND:"علیه روند صعودی",AGAINST_DOWNTREND:"علیه روند نزولی",
+  EMA9_GT_EMA20_GT_EMA50:"ترتیب EMA صعودی",EMA9_LT_EMA20_LT_EMA50:"ترتیب EMA نزولی",
+  EMA_STACK_BEARISH_CONFLICT:"تضاد با ترتیب EMA نزولی",EMA_STACK_BULLISH_CONFLICT:"تضاد با ترتیب EMA صعودی",
+  RSI_HEALTHY:"RSI سالم",RSI_OVERBOUGHT_REVERSAL:"RSI اشباع خرید — احتمال برگشت",
+  RSI_OVERSOLD_REVERSAL:"RSI اشباع فروش — احتمال برگشت",
+  MACD_POSITIVE:"هیستوگرام MACD مثبت",MACD_NEGATIVE:"هیستوگرام MACD منفی",
+  PRICE_ABOVE_BB_MID:"بالا از میانه بولینگر",PRICE_ABOVE_BB_UPPER:"فوق باند بالای بولینگر",
+  PRICE_BELOW_BB_LOWER:"زیر باند پایین بولینگر",BREAKOUT_UP:"شکست مقاومت",BREAKDOWN_DETECTED:"شکست حمایت",
+  LIQUIDITY_LOW:"نقدینگی کم",LOW_VOLATILITY:"نوسان بسیار کم",VOLUME_CONFIRMED_UP:"حجم تأیید صعود",
+  VOLUME_CONFIRMED_DOWN:"حجم تأیید نزول",VOLUME_DRYING_UP:"حجم در حال خشک‌شدن",
+  DATA_QUALITY_LOW:"کیفیت داده کم",CONFLICTING_SIGNALS:"سیگنال‌های تناقضی"};
+function daiTable(mv,decs,snapMeta){
+  if(!mv||!mv.length)return `<div class="empty">هنوز چرخه‌ای اجرا نشده — موتور را شروع کنید</div>`;
+  const rows=mv.filter(m=>m.ai_signal&&m.ai_signal.action);
+  if(!rows.length)return `<div class="empty">هنوز تحلیل دوسویه‌ای ساخته نشده — بعد از اولین چرخه دوباره ببینید</div>`;
+  const decBy={};(decs||[]).forEach(d=>{const sym=d.symbol;if(!decBy[sym]||
+    Date.parse(d.created_at||"")>Date.parse(decBy[sym].created_at||""))decBy[sym]=d});
+  const sigFa=a=>a==="BUY"?["خرید (Long)","ok"]:a==="SELL"?["نزولی (Short)","err"]:
+    a==="WAIT"?["انتظار (WAIT)","warn"]:"HOLD"===a?["نگه‌داشتن (HOLD)","off_ver"]:[a,"off_ver"];
+  const bar=(sc,cls)=>`<div class="ct-meter" title="${sc!=null?Math.round(sc*100):0}%"><i class="${cls}" style="width:${sc!=null?Math.max(0,Math.min(100,sc*100)):0}%"></i></div>`;
+  const head=`<div class="muted" style="margin-bottom:8px">${rows.length} بازار واجدشرط`+
+    (snapMeta&&snapMeta.created_at?` · آخرین تحلیل: ${tehran(snapMeta.created_at)}`:"")+
+    ` · امتیاز ۰–۱۰۰ برای هر جهت؛ پلن ورود از آخرین تصمیم همان کوین</div>`;
+  return head+`<div class="clist">`+rows.map(m=>{
+    const sg=m.ai_signal||{};
+    const L=sg.long||{},S=sg.short||{};
+    const d1=decBy[m.symbol]||{};
+    const sl=(d1.stop_loss||{}).price,tp=((d1.take_profit||[])[0]||{}).price;
+    const ent=(d1.entry||{}).price;
+    const rr=(d1.risk||{}).risk_reward;
+    const conf=d1.confidence!=null?Math.round(d1.confidence*100):null;
+    const [lbl,lbCls]=sigFa(sg.action);
+    const chips=(L.reasons||[]).slice(0,3).map(c=>`<span class="dec-chip ${L.ready?"ok":""}">${DAI_FA[c]||REJECT_FA(c)||esc(c)}</span>`).join("");
+    const chipsS=(S.reasons||[]).slice(0,3).map(c=>`<span class="dec-chip ${S.ready?"bad":""}">${DAI_FA[c]||REJECT_FA(c)||esc(c)}</span>`).join(" ");
+    return `<div class="ctile dai">
+      <div class="ct-top">
+        <span class="ct-name">${esc(m.symbol)}</span>
+        <span class="ct-chg ${cls(m.change_24h)}">${m.change_24h!=null?(m.change_24h>=0?"+":"")+m.change_24h.toFixed(2)+"%":"—"}</span>
+        <span class="badge ${lbCls}" style="margin-inline-start:auto">${lbl}</span>
+      </div>
+      <div class="dai-bars">
+        <div><span class="k">Long ${L.ready!=null&&L.ready?"✓":""}</span>${bar(L.score,"i-l")}<span class="v num">${L.score!=null?Math.round((L.score||0)*100):"—"}</span></div>
+        <div><span class="k">Short ${S.ready?"✓":""}</span>${bar(S.score,"i-s")}<span class="v num">${S.score!=null?Math.round((S.score||0)*100):"—"}</span></div>
+      </div>
+      <div class="ct-grid">
+        <div><span class="k">قیمت</span><span class="v num">${fmtD(m.last_price,m.symbol)}</span></div>
+        <div><span class="k">RSI</span><span class="v num">${m.rsi!=null?m.rsi.toFixed(1):"—"}</span></div>
+        <div><span class="k">ATR٪</span><span class="v num">${sg.atr_percent!=null?(sg.atr_percent*100).toFixed(1):"—"}</span></div>
+        <div><span class="k">روند</span><span class="v fa">${esc(m.trend||"—")}</span></div>
+        <div><span class="k">نقدینگی</span><span class="v">${pill(m.liquidity)}</span></div>
+        <div><span class="k">کیفیت داده</span><span class="v">${pill(m.data_quality_status)}</span></div>
+      </div>
+      <div class="ct-grid">
+        <div><span class="k">ورود</span><span class="v num">${ent!=null?fmtD(ent,m.symbol):"—"}</span></div>
+        <div><span class="k">حد ضرر</span><span class="v num neg">${sl!=null?fmtD(sl,m.symbol):"—"}</span></div>
+        <div><span class="k">هدف ۱</span><span class="v num pos">${tp!=null?fmtD(tp,m.symbol):"—"}</span></div>
+        <div><span class="k">سود/ضرر</span><span class="v num">${rr!=null?fmt(rr,2):"—"}</span></div>
+        <div><span class="k">اطمینان</span><span class="v num">${conf!=null?conf+"%":"—"}</span></div>
+        <div><span class="k">اعتبار</span><span class="v">${d1.expires_at?tehran(d1.expires_at):"—"}</span></div>
+      </div>
+      <div class="ct-foot" style="gap:4px;flex-wrap:wrap">${chips}${chipsS}</div>
+    </div>`}).join("")+`</div>`}
+
 function riskTable(rs){if(!rs||!rs.length)return `<div class="empty">موردی نیست</div>`;
   const rows=sortRows(rs,"risk",{time:r=>Date.parse(r.created_at),status:r=>r.status},"time","desc");
   return `<div class="clist">`+rows.map(r=>`<div class="ctile">
@@ -2159,14 +2329,20 @@ function renderCfg(c){
     quality:"فیلترهای کیفیت داده — با دقت بیشتر، ریسک تصمیم اشتباه کم می‌شود",
     risk:"میزان ریسک و مدیریت خرید/فروش — حد ضرر، حد سود و حالت ریسک",
     ai:"انتخاب استراتژی و تعداد بازارهای تحلیلی"};
-  const faLabels={cycle_seconds:"فاصله چرخه (ثانیه)",analyze_every:"تحلیل هر چند چرخه",max_cycles:"حداکثر چرخه",server_host:"هاست",server_port:"پورت",data_dir:"پوشه داده",max_markets:"حداکثر بازار در چرخه",persist_snapshots:"ذخیرهٔ فایل اسنپ‌شات روی دیسک (خاموش = داده مستقیم از API، بدون فایل)",max_snapshots:"حداکثر تعداد اسنپ‌شات روی دیسک (۰=هیچ فایلی نگه ندار — پیش‌فرض)",events_retention_mb:"سقف حجم فایل رویدادها (مگابایت، ۰=نامحدود)",decisions_keep:"چند تصمیم AI در دیتابیس نگه داشته شود (قدیمی‌ترها پاک می‌شوند)",db_max_mb:"سقف حجم دیتابیس (مگابایت؛ بالاتر = هرس و فشرده‌سازی)",db_maintenance_every:"هر چند چرخه یک‌بار پاک‌سازی دیسک انجام شود",mode:"حالت اتصال",demo_seed:"بذر دمو",nobitex_base_url:"آدرس API نوبیتکس",nobitex_api_key:"کلید API",nobitex_username:"ایمیل نوبیتکس",nobitex_password:"رمز عبور",nobitex_totp_secret:"رمز مخفی 2FA",nobitex_remember:"طول عمر توکن",live_trading:"معامله واقعی",live_by_default:"معامله واقعی خودکار پس از ورود (منسوخ — دیگر اعمال نمی‌شود)",prefer_usdt_markets:"بازارهای تتری",include_irt_markets:"بازارهای تومانی",trade_quote_markets:"بازار معاملات (خرید و فروش با تتر یا تومان — دکمه‌های خرید/فروش نمای کلی هم با همین بازار کار می‌کنند)",trade_market_interaction:"تعامل دو بازار در حالت «هر دو» (Both) — تعامل بین بازارها = تبدیل/جابه‌جایی مجاز؛ بازارهای مستقل = بدون هیچ انتقالی",min_quote_volume_usdt:"حداقل حجم روزانه بازار ($)",min_order_usdt:"حداقل مبلغ هر سفارش ($)",wallet_sync:"همگام‌سازی موجودی واقعی",rls_to_irt_divisor:"تقسیم ریال به تومان",rest_timeout:"تایم‌اوت اتصال (ثانیه)",orderbook_depth:"عمق دفتر سفارش",book_levels:"سطح دفتر سفارش",maker_rate:"کارمزد میکر",taker_rate:"کارمزد تیکر",source:"منبع کارمزد",min_ai_quality:"حداقل کیفیت برای AI",min_trade_quality:"حداقل کیفیت برای معامله",ticker_freshness_s:"تازگی تیکر (ثانیه)",orderbook_freshness_s:"تازگی دفتر سفارش (ثانیه)",max_stale_before_no_ai:"حد تازگی قبل از توقف AI (ثانیه)",max_risk_per_trade:"ریسک هر معامله",max_position_fraction:"حداکثر حجم هر موقعیت",max_total_exposure:"حداکثر کل سرمایه در معرض",max_drawdown:"حداکثر افت سرمایه",min_net_expected_return:"حداقل سود خالص مورد انتظار",max_open_positions:"حداکثر موقعیت باز",allow_topup:"افزودن پول به سکه‌های نگه‌داری‌شده (خرید مجدد)",auto_stop_min_pct:"حد ضرر خودکار (حالت ATR) — کمترین درصد",auto_stop_max_pct:"حد ضرر خودکار (حالت ATR) — بیشترین درصد",default_stop_loss_pct:"حد ضرر پیش‌فرض خرید — درصد از قیمت خرید (منفی مثل ‎-2؛ ۰=حالت ATR)",default_take_profit_pct:"حد سود پیش‌فرض خرید — درصد از قیمت خرید (مثبت مثل 20؛ ۰=خاموش)",topup_profit_pct:"خرید مجدد خودکار وقتی سود از خرید به این درصد رسید (۰=خاموش)",stale_order_cancel_min:"لغو خودکار سفارش پرنشده بعد از چند دقیقه (آزاد شدن تومان، ۰=خاموش)",dust_convert_threshold_irt:"تبدیل خودکار دارایی‌های خرد — آستانه تومان (زیر این مقدار به تومان تبدیل می‌شود، ۰=خاموش)",dust_convert_exclude:"سکه‌های مستثنی از تبدیل (با کاما جدا کنید)",dust_convert_max_per_cycle:"حداکثر تعداد تبدیل در هر چرخه",risk_mode:"حالت ریسک — چرخش روی پرسودترین‌های ۲۴ساعته",risk_mode_stop_loss_pct:"حالت ریسک — حد ضرر خرید (درصد منفی از خرید)",risk_mode_take_profit_pct:"حالت ریسک — حد سود خرید (درصد مثبت از خرید)",risk_mode_drop_exit_pct:"حالت ریسک — خروج هنگام افت از سقف قیمت (درصد منفی؛ ۰=خاموش)",risk_mode_buy_cooldown_s:"حالت ریسک — فاصله خرید تکراری از یک بازار (ثانیه)",risk_mode_chase_pct:"حالت ریسک — فاصله سفارش خرید از قیمت لحظه‌ای (درصد؛ ۰=خرید فوری)",risk_mode_require_uptrend:"حالت ریسک — خرید فقط در رژیم صعودی (گیت رژیم بازار)",risk_mode_regime_atr_crash_pct:"آستانه ATR٪ برای رژیم نوسان شدید (درصد؛ بالاتر از این = غیرقابل معامله)",risk_mode_atr_stop_floor_pct:"حالت ریسک — کف حد ضرر ATR-محور (درصد منفی)",risk_mode_atr_stop_mult:"حالت ریسک — ضریب ATR در حد ضرر (مثلاً ۱٫۵ = ۱٫۵ برابر نوسان روزانه)",risk_mode_atr_stop_cap_pct:"حالت ریسک — سقف مطلق حد ضرر ATR-محور (درصد منفی)",max_slippage:"حداکثر لغزش",decision_ttl_s:"اعتبار تصمیم (ثانیه)",buy_cooldown_s:"فاصله خرید تکراری از یک بازار (ثانیه)",revalidate_price_tolerance:"تلورانس بازبینی قیمت",min_stop_distance_pct:"حداقل فاصله حد ضرر از ورود",engine:"موتور تصمیم",top_n_markets:"تعداد بازار برتر",llm_base_url:"آدرس LLM",llm_api_key:"کلید LLM",llm_model:"مدل LLM",max_context_tokens:"حداکثر توکن زمینه",max_output_tokens:"حداکثر توکن خروجی",max_candles_per_market:"حداکثر کندل هر بازار",min_confidence:"حداقل اطمینان",buy_best:"خرید بهترین گزینه",entry_pullback_pct:"فاصله خرید از قیمت لحظه‌ای (درصد؛ ۰=خرید فوری در همان قیمت)",llm_models:"مدل‌های LLM کمیته (با کاما؛ هر مدل یک رأی)",committee_enabled:"کمیتهٔ چندمدلی (گیتِ ارزش انتظاری مثبت)",committee_mode:"نقش کمیته (gate=فقط وتو / decide=تصمیم خرید با کمیته)",committee_min_p_up:"حداقل احتمال صعود (۰ تا ۱)",committee_min_upside_pct:"حداقل حرکت مثبت انتظاری (درصد؛ ۰=فقط مثبت بودن لازم است)",committee_min_net_edge_pct:"حداقل ارزش انتظاری خالص پلن بعد از کارمزد (درصد)",committee_min_votes:"حداقل رأی BUY برای خرید",committee_horizon_s:"افق پیش‌بینی کوتاه‌مدت کمیته (ثانیه)",committee_hold_s:"افق نگه‌داری معامله برای محاسبهٔ ارزش انتظاری (ثانیه)",committee_bar_s:"طول کندل تحلیل (ثانیه)",committee_llm_top_n:"چند کندیدیت برتر به مدل‌های LLM برود",committee_weights:"وزن مدل‌ها در رأی‌گیری (dict)"};
+  const faLabels={cycle_seconds:"فاصله چرخه (ثانیه)",analyze_every:"تحلیل هر چند چرخه",max_cycles:"حداکثر چرخه",server_host:"هاست",server_port:"پورت",data_dir:"پوشه داده",max_markets:"حداکثر بازار در چرخه",persist_snapshots:"ذخیرهٔ فایل اسنپ‌شات روی دیسک (خاموش = داده مستقیم از API، بدون فایل)",max_snapshots:"حداکثر تعداد اسنپ‌شات روی دیسک (۰=هیچ فایلی نگه ندار — پیش‌فرض)",events_retention_mb:"سقف حجم فایل رویدادها (مگابایت، ۰=نامحدود)",decisions_keep:"چند تصمیم AI در دیتابیس نگه داشته شود (قدیمی‌ترها پاک می‌شوند)",db_max_mb:"سقف حجم دیتابیس (مگابایت؛ بالاتر = هرس و فشرده‌سازی)",db_maintenance_every:"هر چند چرخه یک‌بار پاک‌سازی دیسک انجام شود",mode:"حالت اتصال",demo_seed:"بذر دمو",nobitex_base_url:"آدرس API نوبیتکس",nobitex_api_key:"کلید API",nobitex_username:"ایمیل نوبیتکس",nobitex_password:"رمز عبور",nobitex_totp_secret:"رمز مخفی 2FA",nobitex_remember:"طول عمر توکن",live_trading:"معامله واقعی",trade_quote_markets:"بازار معاملات (خرید و فروش با تتر یا تومان — دکمه‌های خرید/فروش نمای کلی هم با همین بازار کار می‌کنند)",trade_market_interaction:"تعامل دو بازار در حالت «هر دو» (Both) — تعامل بین بازارها = تبدیل/جابه‌جایی مجاز؛ بازارهای مستقل = بدون هیچ انتقالی",min_quote_volume_usdt:"حداقل حجم روزانه بازار ($)",min_order_usdt:"حداقل مبلغ هر سفارش ($)",wallet_sync:"همگام‌سازی موجودی واقعی",rls_to_irt_divisor:"تقسیم ریال به تومان",rest_timeout:"تایم‌اوت اتصال (ثانیه)",orderbook_depth:"عمق دفتر سفارش",book_levels:"سطح دفتر سفارش",maker_rate:"کارمزد میکر",taker_rate:"کارمزد تیکر",source:"منبع کارمزد",min_ai_quality:"حداقل کیفیت برای AI",min_trade_quality:"حداقل کیفیت برای معامله",ticker_freshness_s:"تازگی تیکر (ثانیه)",orderbook_freshness_s:"تازگی دفتر سفارش (ثانیه)",max_stale_before_no_ai:"حد تازگی قبل از توقف AI (ثانیه)",max_risk_per_trade:"ریسک هر معامله",max_position_fraction:"حداکثر حجم هر موقعیت",max_total_exposure:"حداکثر کل سرمایه در معرض",max_drawdown:"حداکثر افت سرمایه",min_net_expected_return:"حداقل سود خالص مورد انتظار",max_open_positions:"حداکثر موقعیت باز",allow_topup:"افزودن پول به سکه‌های نگه‌داری‌شده (خرید مجدد)",auto_stop_min_pct:"حد ضرر خودکار (حالت ATR) — کمترین درصد",auto_stop_max_pct:"حد ضرر خودکار (حالت ATR) — بیشترین درصد",default_stop_loss_pct:"حد ضرر پیش‌فرض خرید — درصد از قیمت خرید (منفی مثل ‎-2؛ ۰=حالت ATR)",default_take_profit_pct:"حد سود پیش‌فرض خرید — درصد از قیمت خرید (مثبت مثل 20؛ ۰=خاموش)",topup_profit_pct:"خرید مجدد خودکار وقتی سود از خرید به این درصد رسید (۰=خاموش)",stale_order_cancel_min:"لغو خودکار سفارش پرنشده بعد از چند دقیقه (آزاد شدن تومان، ۰=خاموش)",dust_convert_threshold_irt:"تبدیل خودکار دارایی‌های خرد — آستانه تومان (زیر این مقدار به تومان تبدیل می‌شود، ۰=خاموش)",dust_convert_exclude:"سکه‌های مستثنی از تبدیل (با کاما جدا کنید)",dust_convert_max_per_cycle:"حداکثر تعداد تبدیل در هر چرخه",risk_mode:"حالت ریسک — چرخش روی پرسودترین‌های ۲۴ساعته",risk_mode_stop_loss_pct:"حالت ریسک — حد ضرر خرید (درصد منفی از خرید)",risk_mode_take_profit_pct:"حالت ریسک — حد سود خرید (درصد مثبت از خرید)",risk_mode_drop_exit_pct:"حالت ریسک — خروج هنگام افت از سقف قیمت (درصد منفی؛ ۰=خاموش)",risk_mode_buy_cooldown_s:"حالت ریسک — فاصله خرید تکراری از یک بازار (ثانیه)",risk_mode_chase_pct:"حالت ریسک — فاصله سفارش خرید از قیمت لحظه‌ای (درصد؛ ۰=خرید فوری)",risk_mode_require_uptrend:"حالت ریسک — خرید فقط در رژیم صعودی (گیت رژیم بازار)",risk_mode_regime_atr_crash_pct:"آستانه ATR٪ برای رژیم نوسان شدید (درصد؛ بالاتر از این = غیرقابل معامله)",risk_mode_atr_stop_floor_pct:"حالت ریسک — کف حد ضرر ATR-محور (درصد منفی)",risk_mode_atr_stop_mult:"حالت ریسک — ضریب ATR در حد ضرر (مثلاً ۱٫۵ = ۱٫۵ برابر نوسان روزانه)",risk_mode_atr_stop_cap_pct:"حالت ریسک — سقف مطلق حد ضرر ATR-محور (درصد منفی)",max_slippage:"حداکثر لغزش",decision_ttl_s:"اعتبار تصمیم (ثانیه)",buy_cooldown_s:"فاصله خرید تکراری از یک بازار (ثانیه)",revalidate_price_tolerance:"تلورانس بازبینی قیمت",min_stop_distance_pct:"حداقل فاصله حد ضرر از ورود",engine:"موتور تصمیم",top_n_markets:"تعداد بازار برتر",llm_base_url:"آدرس LLM",llm_api_key:"کلید LLM",llm_model:"مدل LLM",max_context_tokens:"حداکثر توکن زمینه",max_output_tokens:"حداکثر توکن خروجی",max_candles_per_market:"حداکثر کندل هر بازار",min_confidence:"حداقل اطمینان",buy_best:"خرید بهترین گزینه",entry_pullback_pct:"فاصله خرید از قیمت لحظه‌ای (درصد؛ ۰=خرید فوری در همان قیمت)",llm_models:"مدل‌های LLM کمیته (با کاما؛ هر مدل یک رأی)",committee_enabled:"کمیتهٔ چندمدلی (گیتِ ارزش انتظاری مثبت)",committee_mode:"نقش کمیته (gate=فقط وتو / decide=تصمیم خرید با کمیته)",committee_min_p_up:"حداقل احتمال صعود (۰ تا ۱)",committee_min_upside_pct:"حداقل حرکت مثبت انتظاری (درصد؛ ۰=فقط مثبت بودن لازم است)",committee_min_net_edge_pct:"حداقل ارزش انتظاری خالص پلن بعد از کارمزد (درصد)",committee_min_votes:"حداقل رأی BUY برای خرید",committee_horizon_s:"افق پیش‌بینی کوتاه‌مدت کمیته (ثانیه)",committee_hold_s:"افق نگه‌داری معامله برای محاسبهٔ ارزش انتظاری (ثانیه)",committee_bar_s:"طول کندل تحلیل (ثانیه)",committee_llm_top_n:"چند کندیدیت برتر به مدل‌های LLM برود",committee_weights:"وزن مدل‌ها در رأی‌گیری (dict)"};
   // fraction fields are shown as PERCENT (value×100) and saved back as fraction
   const pctFields=new Set(["maker_rate","taker_rate","min_ai_quality","min_trade_quality","max_risk_per_trade","max_position_fraction","max_total_exposure","max_drawdown","min_net_expected_return","max_slippage","revalidate_price_tolerance","min_stop_distance_pct","min_confidence","entry_pullback_pct","risk_mode_chase_pct"]);
-  const boolFields=new Set(["buy_best","wallet_sync","live_trading","live_by_default","allow_topup","risk_mode","committee_enabled","persist_snapshots"]);
+  const boolFields=new Set(["buy_best","wallet_sync","live_trading","allow_topup","risk_mode","committee_enabled","persist_snapshots"]);
   // انتخاب بازار معاملات: تتری / تومانی / هر دو — دراپ‌داون ساده (بدون تیک)
   const quoteModeLabels={both:"هر دو (تتری + تومانی)",usdt:"فقط تتری (USDT)",irt:"فقط تومانی (IRT)"};
   let html="";
-  const hidden={nobitex_username:1,nobitex_password:1,nobitex_totp_secret:1};
+  /* پاک‌سازی تنظیمات منسوخ از رابط: live_by_default دیگر هیچ‌جا اعمال
+     نمی‌شود (فقط در doctor هشدار می‌گیرد)؛ prefer_usdt_markets و
+     include_irt_markets تکراری‌اند — دراپ‌داون «بازار معاملات»
+     (trade_quote_markets) جایگزین کامل آنهاست و این دو فقط برای
+     config‌های قدیمی به‌عنوان fallback در موتور باقی مانده‌اند. */
+  const hidden={nobitex_username:1,nobitex_password:1,nobitex_totp_secret:1,
+    live_by_default:1,prefer_usdt_markets:1,include_irt_markets:1};
   for(const sec of ["engine","exchange","fee","quality","risk","ai"]){
     html+=`<fieldset><legend>${labels[sec]}</legend>`
       +(hints[sec]?`<div class="muted" style="font-size:12px;margin:2px 0 8px">${hints[sec]}</div>`:"")
@@ -2472,6 +2648,7 @@ document.getElementById('btnLiveTrading').onclick = async () => {
   poll();
 };
 
+
 /* ---------------- holdings box (overview) ---------------- */
 function holdingsBox(s){
   const p=s.portfolio||{};
@@ -2668,25 +2845,41 @@ function holdingsBox(s){
     const profPct=rowPct(h);
     const profCls=profPct==null?"mut":profPct>0?"pos":profPct<0?"neg":"mut";
     const profTxt=pctTxt(profPct);
-    (_u?rowsUsdt:rowsIrt).push(`<div class="hold-card">
-      <div class="hold-head">
-        <span class="hold-coin">${esc(h.coin)}</span>
-        <span class="hold-mkt">${esc(sym)}</span>
-        <span class="hold-profit ${profCls}" title="درصد سود = (ارزش − مبلغ خرید) ÷ مبلغ خرید — از قیمت آخرین خرید همین ردیف؛ با هر خرید مجدد صفر می‌شود | مبلغ دقیق: ${h.pnl_exact!=null?fmt(h.pnl_exact,2):"—"} ${/USDT$/.test(sym)?"$":"ت"}">${profTxt}</span>
+    /* درصد ۲۴ساعتِ بازارِ همین سکه — چیپ کوچک سبز/قرمز کنار قیمت؛
+       مبلغش در تولتیپ */
+    const ch24Pct=(h.ch24_pct!=null&&!isNaN(h.ch24_pct))?Number(h.ch24_pct):null;
+    const ch24Cls=ch24Pct==null?"":(ch24Pct>0?"pos":ch24Pct<0?"neg":"");
+    const ch24Txt=ch24Pct==null?"—":((ch24Pct>0?"+":ch24Pct<0?"-":"")+Math.abs(ch24Pct).toFixed(1)+"٪");
+    (_u?rowsUsdt:rowsIrt).push(`<div class="hold-card hold-strip">
+      <div class="hc-id">
+        <b class="hc-coin">${esc(h.coin)}</b>
+        <span class="hold-mkt" title="بازار خرید همین موقعیت">${esc(sym)}</span>
       </div>
-      <div class="ct-grid">
-        <div><span class="k">ارزش</span><span class="v">${moneyCell(rowVal(h),sym)}</span></div>
-        <div><span class="k">مبلغ خرید</span><span class="v">${moneyCell(rowCost(h),sym)}</span></div>
-        <div><span class="k">مقدار</span><span class="v">${fmt(h.amount,6)}</span></div>
-        <div><span class="k">قیمت خرید</span><span class="v">${entry?mfmt(entry,h.symbol):"—"}</span></div>
-        <div><span class="k">قیمت حد</span><span class="v">${haddShown?mfmt(haddShown,h.symbol):"—"}${haddBadge}</span></div>
+      <div class="hc-cell"><span class="hc-k">مبلغ خرید</span><span class="hc-v">${moneyCell(rowCost(h),sym)}</span></div>
+      <div class="hc-cell"><span class="hc-k">ارزش</span><span class="hc-v">${moneyCell(rowVal(h),sym)}</span></div>
+      <div class="hc-cell"><span class="hc-k">مقدار</span><span class="hc-v">${fmt(h.amount,6)}</span></div>
+      <div class="hc-cell" title="تغییر قیمت این سکه در ۲۴ ساعتِ گذشته${h.ch24_money!=null?(" | مبلغ: "+moneyCell(h.ch24_money,sym)):""}">
+        <span class="hc-k">۲۴ساعت</span>
+        <span class="hc-chip ${ch24Cls}">${ch24Txt}</span>
       </div>
-      <div class="hold-line" title="از قیمت آخرین خرید همین سکه حساب می‌شود؛ با هر خرید مجدد صفر می‌شود و تا فروش کامل ادامه دارد">سود از خرید (از آخرین خرید): <b class="num ${profCls}">${profTxt}</b> ${pnlCell(rowMoney(h),sym)}${buyAge}</div>
-      <div class="hold-levels">
-        <div><span class="k">حد ضرر</span>${stopPctCell(h,"stop")}</div>
-        <div><span class="k">حد سود</span>${stopPctCell(h,"profit")}</div>
+      <div class="hc-cell" title="قیمت لحظه‌ای همین سکه در بازار خودش — مرجع درصد حد ضرر/حد سود">
+        <span class="hc-k">قیمت</span>
+        <span class="hc-v">${haddShown?mfmt(haddShown,h.symbol):"—"}${haddBadge}</span>
       </div>
-      <div class="hold-acts">
+      <div class="hc-cell" title="از قیمت آخرین خرید همین سکه حساب می‌شود؛ با هر خرید مجدد صفر می‌شود و تا فروش کامل ادامه دارد">
+        <span class="hc-k">سود از خرید</span>
+        <span class="hc-v ${profCls}" title="سود از آخرین خرید، در واحد پول همین بازار — با هر خرید مجدد صفر می‌شود">${profTxt} ${pnlCell(rowMoney(h),sym)}${buyAge}</span>
+      </div>
+      <div class="hc-cell hc-level"><span class="hc-k">حد ضرر</span>${stopPctCell(h,"stop")}</div>
+      <div class="hc-cell hc-level"><span class="hc-k">حد سود</span>${stopPctCell(h,"profit")}</div>
+      <div class="hc-extra">
+        <span>قیمت خرید: <b>${entry?mfmt(entry,h.symbol):"—"}</b></span>
+        <span>مرجع پله: <b>${h.hadd?mfmt(h.hadd,h.symbol):"—"}</b></span>
+        <span>سود دقیق: <b class="num ${profCls}" style="direction:ltr">${moneyCell(h.pnl_exact,sym)}</b></span>
+        <span>آخرین خرید: <b>${h.last_buy_at?tehranFull(h.last_buy_at):"—"}</b></span>
+        <span>طول نگه‌داری: <b>${h.holding_fa||"—"}</b></span>
+      </div>
+      <div class="hc-acts">
         <button class="btn-buynow" data-sym="${esc(sym)}" title="خرید همین سکه در بازار «بازار معاملات» انتخاب‌شده (تتری یا تومانی) — مبلغ پیشنهادی از موجودی نقد همان بازار، قابل تغییر">خرید</button>
         <button class="btn-sellnow" data-sym="${esc(sym)}" data-amt="${h.amount}" title="فروش کل موقعیت همین بازار (تتر یا تومان همان بخش)">فروش</button>
       </div>
@@ -2774,13 +2967,15 @@ function holdingsBox(s){
     return Math.abs(p)<0.005?0:Math.round(p*100)/100;};
   const grpPctTxt=arr=>{const p=grpPct(arr);if(p==null)return "";
     return `<span class="num ${p>0?"pos":p<0?"neg":"mut"}">(${pctTxt(p)})</span>`;};
+  /* سربرگ جمع‌وجور: «N سکه · ارزش X · سود Y%» — مبلغ خرید در تولتیپ
+     */
   const grp=({title,cash,list,holds,emptyNote,isUsdt})=>`<div class="hgroup">
       <div class="hgroup-head"><span>${title}</span>
         <span style="flex:1"></span>
-        <span class="mut" style="font-size:11px" title="ارزش، مبلغ خرید و سود و زیان این بازار = جمع همان اعدادی که ردیف‌های همین بخش نشان می‌دهند (واحد پول همین بازار) — سود و زیان = Σ(ارزش − مبلغ خرید) سکه به سکه؛ ردیفی که مبلغ خریدش نامعلوم باشد در این جمع نمی‌آید">${list.length?list.length+" سکه — ارزش: "+grpVal(holds||[],isUsdt)+" — مبلغ خرید: "+grpCost(holds||[],isUsdt)+" — سود و زیان این بازار: "+grpPnlTxt(holds||[],isUsdt)+" "+grpPctTxt(holds||[]):""}</span>
+        <span class="mut" style="font-size:11px" title="ارزش: ${grpVal(holds||[],isUsdt)} — مبلغ خرید: ${grpCost(holds||[],isUsdt)} — سود و زیان این بازار = Σ(ارزش − مبلغ خرید) سکه به سکه (واحد پول همین بازار)؛ ردیفی که مبلغ خریدش نامعلوم باشد در این جمع نمی‌آید">${list.length?list.length+" سکه · ارزش "+grpVal(holds||[],isUsdt)+" · سود "+grpPnlTxt(holds||[],isUsdt)+" "+grpPctTxt(holds||[]):""}</span>
       </div>
-      ${cash?`<div style="margin-bottom:8px">${cash}</div>`:""}
-      ${list.length?`<div class="clist">${list.join("")}</div>`:`<div class="empty" style="padding:14px">${emptyNote}</div>`}
+      ${cash?`<div style="margin-bottom:6px">${cash}</div>`:""}
+      ${list.length?`<div class="clist wide">${list.join("")}</div>`:`<div class="empty" style="padding:14px">${emptyNote}</div>`}
     </div>`;
   const usdtGroup=showUsdtGroup||rowsUsdt.length?grp({
       title:"بخش تتری (USDT)",
@@ -3077,6 +3272,10 @@ async function poll(){
     }else if(activeTab==="risk"){
       setBox("#riskBox",()=>riskTable(s.risk),"ریسک");
       setBox("#execBox",()=>execTable(s.executions),"اجراها");
+    }else if(activeTab==="decisions"){
+      /* تب تصمیم‌های AI: جدول سیگنال دوسویه از همان /api/status
+         (درخواست تازه نیست) + تاریخچه از slow tick */
+      setBox("#daiBox",()=>daiTable(s.markets_view,s.decisions,s.snapshot),"سیگنال‌های AI");
     }else if(activeTab==="portfolio"){
       const p=s.portfolio||{};
       setBox("#posBox",()=>positionsTable(p.positions||[]),"موقعیت‌ها");
