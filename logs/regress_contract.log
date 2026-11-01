@@ -1,0 +1,27 @@
+.................C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027D47E3E0>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.....C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027B1BDA80>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027D47E6B0>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027D47E4D0>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027D47E3E0>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027D47EA70>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:65: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002027B0FF880>
+  return Decimal(repr(x))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.........
+----------------------------------------------------------------------
+Ran 33 tests in 61.216s
+
+OK
+CONTRACT_EXIT=0

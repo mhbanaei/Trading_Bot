@@ -1,0 +1,132 @@
+..........C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018860813790>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018860813880>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018860813A60>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018860813D30>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018860813F10>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198130>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198310>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.....C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018860813010>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188608132E0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188608135B0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198F40>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188608136A0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119AD40>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119BD30>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:330: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018862786200>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:65: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119BD30>
+  return Decimal(repr(x))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:65: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119AC50>
+  return Decimal(repr(x))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:65: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198220>
+  return Decimal(repr(x))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.........C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119A6B0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611986D0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119AE30>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198130>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198400>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861199030>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861199C60>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861199A80>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611997B0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198E50>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..........C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861199990>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611987C0>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861199D50>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198D60>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861199F30>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119BD30>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:341: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119AC50>
+  @property
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.....C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\demo_market.py:61: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119AD40>
+  self._vol = {sym: 0.006 for sym in cfg.demo_base_prices}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\demo_market.py:61: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611984F0>
+  self._vol = {sym: 0.006 for sym in cfg.demo_base_prices}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\demo_market.py:61: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001886119AE30>
+  self._vol = {sym: 0.006 for sym in cfg.demo_base_prices}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\demo_market.py:61: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000018861198400>
+  self._vol = {sym: 0.006 for sym in cfg.demo_base_prices}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+......C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611985E0>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:49: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611986D0>
+  return utc_iso(datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\demo_market.py:174: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000188611986D0>
+  "price": round(ask_p, 8),
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+............
+----------------------------------------------------------------------
+Ran 63 tests in 100.065s
+
+OK
+RISK_EXIT=0

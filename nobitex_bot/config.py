@@ -133,6 +133,41 @@ class QualityCfg:
 
 
 @dataclass
+class AnalysisCfg:
+    """Professional multi-timeframe decision engine (analysis.py).
+
+    enabled: master switch. When ON, the analysis engine is the AUTHORITY
+      on entry: it can allow a buy the legacy gate refuses, and it refuses
+      buys the legacy gate would take.
+    frames: timeframes fetched per analysed market. Higher frames set the
+      direction, lower frames only time the entry.
+    max_markets: how many ranked candidates get the deep multi-frame pass
+      per cycle (one candle request per timeframe per market — keep it
+      inside the exchange's rate limits).
+    weights_*: factor weights; empty = analysis.py defaults.
+    """
+    enabled: bool = False
+    frames: list = field(default_factory=lambda: ["5m", "15m", "1h",
+                                                  "4h", "1d"])
+    max_markets: int = 4
+    min_candles: int = 60
+    min_growth_safe: float = 62.0
+    min_growth_risk: float = 55.0
+    min_confirmations_safe: int = 3
+    min_confirmations_risk: int = 2
+    min_entry_safe: float = 55.0
+    min_entry_risk: float = 40.0
+    max_correction_risk_safe: float = 0.45
+    max_correction_risk_risk: float = 0.62
+    min_rr_safe: float = 1.25
+    min_rr_risk: float = 1.0
+    weights_safe: dict = field(default_factory=dict)
+    weights_risk: dict = field(default_factory=dict)
+    cache_ttl_s: float = 0.0
+    exit_cooldown_s: float = 300.0
+
+
+@dataclass
 class RiskCfg:
     max_risk_per_trade: float = 0.01   # fraction of equity at stop loss
     max_position_fraction: float = 0.15
@@ -288,6 +323,13 @@ class RiskCfg:
     risk_mode_atr_stop_floor_pct: float = -3.0
     risk_mode_atr_stop_mult: float = 1.5
     risk_mode_atr_stop_cap_pct: float = -8.0
+    # حالت ریسک — خروج بر اساس تحلیل (بدون حد سود/حد ضرر ثابت).
+    # true: هیچ حد سود/ضرر ثابتی بسته نمی‌شود؛ موقعیت تا زمانی که شواهد
+    # تحلیلی ادامهٔ رشد را تأیید می‌کنند نگه داشته می‌شود و با تغییر
+    # ساختار/مومنتوم/توزیع بسته می‌شود (analysis.exit_analysis). حد ضرر
+    # فقط برای «اندازه‌گیری ریسک» محاسبه می‌شود و روی صرافی قرار نمی‌گیرد،
+    # پس موتور ریسک همچنان سایز و سقف‌ها را می‌بندد.
+    risk_mode_analysis_exit: bool = False
 
 
 @dataclass
@@ -383,6 +425,7 @@ class Config:
     exchange: ExchangeCfg = field(default_factory=ExchangeCfg)
     fee: FeeCfg = field(default_factory=FeeCfg)
     quality: QualityCfg = field(default_factory=QualityCfg)
+    analysis: AnalysisCfg = field(default_factory=AnalysisCfg)
     risk: RiskCfg = field(default_factory=RiskCfg)
     ai: AICfg = field(default_factory=AICfg)
     paper: PaperCfg = field(default_factory=PaperCfg)
@@ -458,6 +501,17 @@ class Config:
                       self.risk.risk_mode_atr_stop_mult)
         rk.setdefault("risk_mode_atr_stop_cap_pct",
                       self.risk.risk_mode_atr_stop_cap_pct)
+        rk.setdefault("risk_mode_analysis_exit",
+                      self.risk.risk_mode_analysis_exit)
+        an = d.setdefault("analysis", {})
+        for f in ("enabled", "frames", "max_markets", "min_candles",
+                  "min_growth_safe", "min_growth_risk",
+                  "min_confirmations_safe", "min_confirmations_risk",
+                  "min_entry_safe", "min_entry_risk",
+                  "max_correction_risk_safe", "max_correction_risk_risk",
+                  "min_rr_safe", "min_rr_risk", "weights_safe",
+                  "weights_risk", "cache_ttl_s", "exit_cooldown_s"):
+            an.setdefault(f, getattr(self.analysis, f))
         return d
 
 

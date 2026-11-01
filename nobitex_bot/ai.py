@@ -231,6 +231,29 @@ class HeuristicAI:
             if (signals.get("trend", 1) < 0.45 and
                     signals.get("momentum", 1) < 0.5):
                 action = "SELL"
+        # --- professional multi-timeframe engine (analysis.py) — the
+        # AUTHORITY when it produced a verdict for this market. The gates
+        # above only know ONE timeframe and a few thresholds; the analysis
+        # engine weighs trend, structure, candles, volume, momentum, entry
+        # location and correction risk across five frames. It may both
+        # allow a buy the gates refused and refuse a buy the gates
+        # allowed — a lone upward spike is exactly what it exists to
+        # reject. Missing analysis = no buy (fail closed).
+        ana = candidate.get("analysis") or {}
+        ana_cfg = getattr(self.cfg, "analysis", None)
+        if ana and bool(getattr(ana_cfg, "enabled", False)):
+            ana_allow = bool(ana.get("allow_buy"))
+            if ana_allow and (not held or allow_topup) \
+                    and action != "SELL":
+                action = "BUY"
+            elif (not ana_allow) and action == "BUY":
+                action = "HOLD" if held else "AVOID"
+            for _code in (ana.get("vetoes") or [])[:4]:
+                if _code not in gate_notes:
+                    gate_notes.append(str(_code))
+            if not ana_allow and not gate_notes:
+                gate_notes.append("ANALYSIS_VETO")
+
         # explanation for the dashboard: exactly which gate decided.
         # HOLD while the price stack looks BUY-ish but data/volatility
         # fails is THE case users could never see before — now the card
@@ -352,6 +375,7 @@ class HeuristicAI:
             # تحلیل کامل این تصمیم: همهٔ سیگنال‌ها + نتیجهٔ هر گیت + notِ‌های
             # گیت — کارت «آخرین تصمیم‌ها» همین را به‌صورت خوانا نشان می‌دهد
             "why": why,
+            "analysis": ana or None,
         }
 
         if action in ("BUY", "SELL"):
@@ -449,6 +473,17 @@ class HeuristicAI:
                 "amount": round(amount, 8),
                 "quote_value": round(quote_value, 2),
             }
+            # حالت ریسک + خروج تحلیلی: بدون حد سود/حد ضرر ثابت. حد
+            # ضرر فقط برای اندازه‌گیری ریسک (سایز سفارش) محاسبه می‌شود
+            # و روی صرافی یا پلن خروج قرار نمی‌گیرد؛ خروج با تحلیل.
+            if (risk_mode_on and bool(getattr(
+                    self.cfg.risk, "risk_mode_analysis_exit", False))):
+                decision["take_profit"] = []
+                decision["stop_loss"]["sizing_only"] = True
+                decision["stop_loss"]["method"] = "ATR_SIZING"
+                decision["stop_loss"]["reason"] = "RISK_SIZING_ONLY"
+                decision["reason_codes"] = (["EXIT_BY_ANALYSIS"] + list(
+                    decision.get("reason_codes") or []))[:8]
             rr = abs(t1 - entry) / stop_dist if stop_dist else 0
             decision["risk"] = {
                 "max_loss": round(max_loss, 2),

@@ -1,0 +1,15 @@
+  [safe] BTCUSDT -> 0 trades (bars=300)
+  [safe] ETHUSDT -> 0 trades (bars=300)
+  [safe] ADAUSDT -> 0 trades (bars=300)
+
+== SAFE ==
+  trades=0 net=0.0% win=None pf=None maxDD=0.0% expectancy=None%
+  [risk] BTCUSDT -> 0 trades (bars=300)
+  [risk] ETHUSDT -> 0 trades (bars=300)
+  [risk] ADAUSDT -> 1 trades (bars=300)
+
+== RISK ==
+  trades=1 net=-2.47% win=0.0 pf=0.0 maxDD=2.47% expectancy=-2.475%
+    NEUTRAL                n=1   avg=-2.47% win=0.0
+
+saved data/backtest/analysis_gate.json

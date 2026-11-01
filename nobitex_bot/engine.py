@@ -35,6 +35,7 @@ from .portfolio import PaperPortfolio, ZERO
 from .risk import RiskEngine
 from .scanner import directional_setup, pre_rank_from_catalog, rank_markets
 from .regime import gate_candidates
+from . import analysis as analysis_engine
 from .storage import Storage
 from .nobitex_api import NobitexSession
 from .universe import MarketUniverse
@@ -151,6 +152,11 @@ class TradingEngine:
         # می‌خوانند (هیچ مقداری جهش نمی‌کند تا ذخیره تنظیمات یا
         # ری‌استارت چیزی را خراب کند)
         self.risk_mode = bool(getattr(self.cfg.risk, "risk_mode", False))
+        # تحلیل چند‌تایم‌فریمی (analysis.py): آخرین احکام برای تب AI
+        # Decisions و کش کندل هر بازار/تایم‌فریم (درخواست‌ها محدود بمانند)
+        self.latest_analysis: list = []
+        self._mtf_cache: dict = {}
+        self._analysis_ctx: dict = {}
         self.latest_snapshot = None
         self.latest_candidates = []
         self.latest_decisions = []
@@ -279,6 +285,25 @@ class TradingEngine:
                                  "stop": plan.get("stop"),
                                  "take_profit": plan.get(
                                      "take_profit_manual")})
+            return plan
+        # حالت ریسک + خروج تحلیلی: هیچ حد ثابتی بسته نمی‌شود؛ موقعیت
+        # فقط با تغییر واقعی ساختار/مومنتوم بسته می‌شود.
+        # «بدون حد ثابت» = بدون ترمز قیمتی، نه بدون مدیریت سرمایه:
+        # موتور ریسک همچنان سایز، نقدی و سقف‌ها را می‌بندد.
+        if self.risk_mode and bool(getattr(
+                self.cfg.risk, "risk_mode_analysis_exit", False)):
+            plan = {"analysis_exit": True,
+                    "base_price": float(buy_price),
+                    "stage": 0,
+                    "ladder_anchor": float(buy_price),
+                    "ladder_rungs": [float(buy_price)],
+                    "risk_mode_peak": float(buy_price)}
+            plans[symbol] = plan
+            self.storage.kv_set("exit_plans", plans)
+            self.events.publish("AUTO_STOP_SET", "engine", "",
+                                {"symbol": symbol, "stop": None,
+                                 "pct": None, "take_profit": None,
+                                 "exit": "ANALYSIS"})
             return plan
         # ---- stop-loss: fixed % (default) or ATR band (opt-in via 0)
         # حالت ریسک: حد ضرر ATR-محور — max(کف ثابت ‎-3٪، 1.5×ATR٪) با سقف
@@ -1284,6 +1309,17 @@ class TradingEngine:
                 self.events.publish("SYSTEM_ERROR", "engine", cycle_id,
                                     {"where": "regime_gate",
                                      "error": str(ex)[:200]})
+            # 4.6 ---- تحلیل حرفه‌ای چند‌تایم‌فریمی (analysis.py):
+            # کندل‌های بسته‌شدهٔ همان بازار در ۵ تایم‌فریم، تحلیل
+            # ساختار/کندل/حجم/مومنتوم و امتیاز پتانسیل رشد. در حالت
+            # ریسک، رتبه‌بندی هم با همین امتیاز بازنویسی می‌شود.
+            try:
+                candidates = self._attach_mtf_analysis(
+                    candidates, market_by_symbol)
+            except Exception as ex:
+                self.events.publish("SYSTEM_ERROR", "engine", cycle_id,
+                                    {"where": "mtf_analysis",
+                                     "error": str(ex)[:200]})
             if not candidates:
                 # گیت رژیم در حالت ریسک همهٔ کاندیدها را در بازار نزولی
                 # بلاک می‌کند؛ همان لحظه دقیقاً وقتی است که حد ضرر باید
@@ -2198,6 +2234,207 @@ class TradingEngine:
         self._sync_exit_plans()
         return executed
 
+    # --------------------------------------------------- analysis engine
+    def _analysis_cfg(self):
+        return getattr(self.cfg, "analysis", None)
+
+    def _frames_for(self, symbol: str) -> dict:
+        """CLOSED candles per timeframe, cached per bar.
+
+        One request per timeframe per market; the cache TTL defaults to the
+        bar length, so a 60s cycle does not re-download the same 4h candles
+        twenty times. The forming candle is always dropped — a signal you
+        cannot reproduce at the close is not a signal.
+        """
+        cfg = self._analysis_cfg()
+        if cfg is None or not bool(getattr(cfg, "enabled", False)):
+            return {}
+        frames = {}
+        now = datetime.now(timezone.utc).timestamp()
+        cache = getattr(self, "_mtf_cache", None)
+        if cache is None:
+            cache = self._mtf_cache = {}
+        exchange = getattr(self, "exchange", None) or getattr(
+            self.collector, "exchange", None)
+        for tf in list(getattr(cfg, "frames", None) or []):
+            key = (symbol, tf)
+            ttl = float(getattr(cfg, "cache_ttl_s", 0) or 0)
+            if ttl <= 0:
+                ttl = analysis_engine._tf_seconds(tf)
+            hit = cache.get(key)
+            if hit and now - hit[0] < ttl:
+                frames[tf] = hit[1]
+                continue
+            raw = []
+            try:
+                raw = exchange.candles(symbol, tf, 500) if exchange else []
+            except Exception:
+                raw = []
+            closed = analysis_engine.closed_candles(raw, tf, now)
+            cache[key] = (now, closed)
+            frames[tf] = closed
+        return frames
+
+    def _analysis_context(self, market_by_symbol=None) -> dict:
+        """Whole-market context: BTC direction, breadth, median 24h move."""
+        if market_by_symbol:
+            btc = (market_by_symbol.get("BTCIRT")
+                   or market_by_symbol.get("BTCUSDT")) or {}
+            btc_trend = "NEUTRAL"
+            try:
+                bframes = self._frames_for(btc.get("symbol") or "BTCIRT")
+                vals = []
+                for tf in ("4h", "1d"):
+                    f = analysis_engine.analyze_frame(
+                        bframes.get(tf) or [], tf)
+                    s = (f.get("trend") or {}).get("strength")
+                    if s is not None:
+                        vals.append(float(s))
+                if vals:
+                    avg = sum(vals) / len(vals)
+                    btc_trend = ("UP" if avg >= 0.6 else
+                                 "DOWN" if avg <= 0.4 else "NEUTRAL")
+            except Exception:
+                pass
+            changes = []
+            for m in market_by_symbol.values():
+                try:
+                    if m.get("change_24h") is not None:
+                        changes.append(float(m.get("change_24h")))
+                except (TypeError, ValueError):
+                    continue
+            self._analysis_ctx = {
+                "btc_trend": btc_trend,
+                "btc_change_24h": float(btc.get("change_24h") or 0),
+                "breadth": (sum(1 for c in changes if c > 0) / len(changes))
+                if changes else None,
+                "market_median_change_24h":
+                    sorted(changes)[len(changes) // 2] if changes else 0.0,
+            }
+        return dict(getattr(self, "_analysis_ctx", {}) or {})
+
+    def _analysis_thresholds(self, mode: str) -> dict:
+        cfg = self._analysis_cfg()
+        if not cfg:
+            return {}
+        if mode == analysis_engine.RISK:
+            return {
+                "min_growth": float(getattr(cfg, "min_growth_risk", 55.0)),
+                "min_confirmations": int(getattr(
+                    cfg, "min_confirmations_risk", 2)),
+                "min_entry": float(getattr(cfg, "min_entry_risk", 40.0)),
+                "max_correction": float(getattr(
+                    cfg, "max_correction_risk_risk", 0.62)),
+                "min_rr": float(getattr(cfg, "min_rr_risk", 1.0)),
+            }
+        return {
+            "min_growth": float(getattr(cfg, "min_growth_safe", 62.0)),
+            "min_confirmations": int(getattr(
+                cfg, "min_confirmations_safe", 3)),
+            "min_entry": float(getattr(cfg, "min_entry_safe", 55.0)),
+            "max_correction": float(getattr(
+                cfg, "max_correction_risk_safe", 0.45)),
+            "min_rr": float(getattr(cfg, "min_rr_safe", 1.3)),
+        }
+
+    def _attach_mtf_analysis(self, candidates: list,
+                             market_by_symbol: dict) -> list:
+        """Attach the professional verdict to the top-N candidates.
+
+        In RISK mode the ranking is REPLACED by the growth-potential score:
+        the question stops being «what rose the most today» and becomes
+        «what has the most evidence of rising FROM HERE».
+        """
+        cfg = self._analysis_cfg()
+        if cfg is None or not bool(getattr(cfg, "enabled", False)) \
+                or not candidates:
+            return candidates
+        mode = analysis_engine.RISK if self.risk_mode \
+            else analysis_engine.SAFE
+        context = self._analysis_context(market_by_symbol)
+        weights = dict((getattr(cfg, "weights_risk", {}) or {})
+                       if mode == analysis_engine.RISK else
+                       (getattr(cfg, "weights_safe", {}) or {}))
+        slip = float(getattr(self.cfg.risk, "max_slippage", 0.001) or 0)
+        cost_pct = (2.0 * float(getattr(self.cfg.fee, "taker_rate", 0.0025))
+                    + slip) * 100.0
+        thresholds = self._analysis_thresholds(mode)
+        limit = max(1, int(getattr(cfg, "max_markets", 4) or 4))
+        analyzed = []
+        for cand in candidates[:limit]:
+            sym = cand.get("symbol")
+            market = market_by_symbol.get(sym) or {}
+            try:
+                raw = self._frames_for(sym)
+                frames = {tf: analysis_engine.analyze_frame(cs, tf)
+                          for tf, cs in raw.items()}
+                verdict = analysis_engine.decide(
+                    sym, frames, market, context, mode=mode,
+                    weights=weights, thresholds=thresholds,
+                    cost_pct=cost_pct)
+            except Exception as ex:
+                verdict = {"symbol": sym, "mode": mode, "allow_buy": False,
+                           "action": "AVOID", "vetoes": ["ANALYSIS_ERROR"],
+                           "growth_score": 0.0,
+                           "reasons_against": [str(ex)[:80]]}
+            cand["analysis"] = verdict
+            analyzed.append({"symbol": sym,
+                             "growth_score": verdict.get("growth_score"),
+                             "setup": verdict.get("setup"),
+                             "allow_buy": verdict.get("allow_buy")})
+        self.latest_analysis = analyzed
+        if mode == analysis_engine.RISK:
+            candidates.sort(key=lambda c: -float(
+                ((c.get("analysis") or {}).get("growth_score") or 0.0)))
+            for i, c in enumerate(candidates, 1):
+                c["rank"] = i
+        self.events.publish("AI_ANALYSIS_COMPLETED", "engine", "",
+                            {"mode": mode, "analyzed": len(analyzed),
+                             "allowed": sum(1 for a in analyzed
+                                            if a.get("allow_buy"))})
+        return candidates
+
+    def _analysis_exit_reason(self, market: str, plan: dict, price) -> bool:
+        """Analysis-based exit for RISK-mode positions (no fixed TP/SL)."""
+        cfg = self._analysis_cfg()
+        if cfg is None or not bool(getattr(cfg, "enabled", False)):
+            return False
+        analysis_exit = bool(plan.get("analysis_exit")) or (
+            self.risk_mode and bool(getattr(
+                self.cfg.risk, "risk_mode_analysis_exit", False)))
+        if not analysis_exit:
+            return False
+        try:
+            pos = self.storage.position(market)
+            if not pos or d(pos.get("amount") or 0) <= 0:
+                return False
+            raw = self._frames_for(market)
+            if not raw:
+                return False
+            frames = {tf: analysis_engine.analyze_frame(cs, tf)
+                      for tf, cs in raw.items()}
+            snap = next((m for m in (self.latest_snapshot or {}).get(
+                "markets", []) if m.get("symbol") == market), {}) or {}
+            market_snap = dict(snap)
+            market_snap["last_price"] = float(price) if price else snap.get(
+                "last_price")
+            market_snap.setdefault("liquidity", {"score": 0.5,
+                                                 "status": "GOOD"})
+            market_snap.setdefault("data_quality", {"score": 0.8})
+            res = analysis_engine.exit_analysis(
+                {}, frames, market_snap, self._analysis_context(),
+                mode=analysis_engine.RISK,
+                entry_price=float(pos.get("avg_entry") or 0))
+            if res.get("exit"):
+                self.events.publish(
+                    "ANALYSIS_EXIT_TRIGGERED", "engine", "",
+                    {"symbol": market, "reasons": res.get("reasons"),
+                     "pnl_pct": res.get("pnl_pct")})
+                return True
+            return False
+        except Exception:
+            return False
+
     def _manage_exits(self, prices: dict, cycle_id: str) -> list:
         """Monitor open positions against their stop/TP plan (SS36/37).
 
@@ -2232,6 +2469,8 @@ class TradingEngine:
             # a position worth less than the exchange minimum can never be
             # sold — retry no sooner than 30 min instead of spamming the
             # adapter with REJECTEDs every cycle
+            analysis_exit = self._analysis_exit_reason(
+                market, plan, price)
             bmu = plan.get("below_min_until_ts")
             if bmu:
                 try:
@@ -2254,6 +2493,11 @@ class TradingEngine:
                 triggered_pct += int(tps[tps_i].get("close_percent", 0))
                 tps_i += 1
             stop = d(str(plan.get("stop", 0)))
+            if analysis_exit:
+                # خروج تحلیلی از همان مسیر امن خروج می‌رود (موجودی
+                # آزاد، حداقل سفارش، تبدیل زیر حداقل) — فقط دلیلش
+                # تحلیلی است
+                stop = price_d
             stop_hit = stop > 0 and price_d <= stop
             # حد سود دستی دیگر «فروش» نیست: رسیدن قیمت به آن پله را یک
             # بالا می‌برد (ratchet پیش از همین تابع اجرا می‌شود) و حد سود/
@@ -2293,7 +2537,8 @@ class TradingEngine:
             sell_pct = 100 if (stop_hit or tp_hit or drop_hit) \
                 else min(100, triggered_pct)
             sell_amount = amount * Decimal(sell_pct) / Decimal(100)
-            reason = ("EXIT_STOP" if stop_hit else
+            reason = ("EXIT_ANALYSIS" if analysis_exit else
+                      "EXIT_STOP" if stop_hit else
                       "EXIT_DROP" if drop_hit else
                       "EXIT_TAKE_PROFIT" if triggered_pct else
                       "EXIT_PROFIT_TARGET")
