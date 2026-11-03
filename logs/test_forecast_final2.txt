@@ -1,0 +1,20 @@
+test_band_widens_with_the_horizon (__main__.ForecastTests.test_band_widens_with_the_horizon) ... ok
+test_cost_is_subtracted_from_the_net_path (__main__.ForecastTests.test_cost_is_subtracted_from_the_net_path) ... ok
+test_decide_always_carries_the_projection (__main__.ForecastTests.test_decide_always_carries_the_projection) ... ok
+test_downtrend_projects_down_and_vetoes (__main__.ForecastTests.test_downtrend_projects_down_and_vetoes) ... ok
+test_empty_frames_are_neutral (__main__.ForecastTests.test_empty_frames_are_neutral) ... ok
+test_gainer_without_forecast_edge_is_blocked (__main__.ForecastTests.test_gainer_without_forecast_edge_is_blocked) ... ok
+test_uptrend_gainer_passes_the_forecast_gate (__main__.ForecastTests.test_uptrend_gainer_passes_the_forecast_gate) ... ok
+test_uptrend_projects_up (__main__.ForecastTests.test_uptrend_projects_up) ... ok
+test_average_cost_realized_pnl (__main__.ReconcileTests.test_average_cost_realized_pnl) ... ok
+test_last_sell_pnl_is_the_closing_event (__main__.ReconcileTests.test_last_sell_pnl_is_the_closing_event) ... ok
+test_missing_fee_is_charged (__main__.ReconcileTests.test_missing_fee_is_charged) ... ok
+test_no_sell_has_no_closing_event (__main__.ReconcileTests.test_no_sell_has_no_closing_event) ... ok
+test_replay_is_idempotent (__main__.ReconcileTests.test_replay_is_idempotent) ... ok
+test_replay_reports_remaining_quantity (__main__.ReconcileTests.test_replay_reports_remaining_quantity) ... ok
+test_uncovered_sell_is_skipped (__main__.ReconcileTests.test_uncovered_sell_is_skipped) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 2.956s
+
+OK

@@ -495,7 +495,8 @@ class Storage:
                 (perf["decision_id"], perf["symbol"], perf["action"],
                  perf.get("expected_return"),
                  perf.get("actual_return"),
-                 str(perf.get("actual_pnl", "0")),
+                 (None if perf.get("actual_pnl") is None
+                  else str(perf["actual_pnl"])),
                  1 if perf.get("direction_correct") else 0,
                  1 if perf.get("profitable") else 0,
                  perf.get("created_at", utc_now())))

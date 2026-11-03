@@ -67,6 +67,84 @@ from .validation import (ValidationResult, validate_ai_decision,
 NET_DEPOSIT_CACHE_VERSION = 2
 
 
+def realized_pnl_from_fills(fills: list, fee_rate) -> tuple:
+    """Average-cost replay of the LIVE fills of ONE market.
+
+    Returns (realized_pnl, balanced, remaining_qty). `balanced` is False
+    when a SELL is not covered by prior BUYs (manually bought coins,
+    airdrops, a renamed market): the caller must NOT persist a number it
+    cannot justify. `remaining_qty` lets the caller compare the replay with
+    the wallet — a mismatch means the fill history is incomplete.
+    Fills recorded without a fee are charged the taker rate, because a
+    zero fee overstated every result in the historical ledger.
+    """
+    qty = ZERO
+    cost = ZERO
+    realized = ZERO
+    rate = d(str(fee_rate or 0))
+    for f in sorted(fills or [],
+                    key=lambda r: str(r.get("timestamp") or "")):
+        price = d(str(f.get("price") or 0))
+        amount = d(str(f.get("amount") or 0))
+        if price <= 0 or amount <= 0:
+            continue
+        fee = d(str(f.get("fee_amount") or 0))
+        if fee <= 0 and rate > 0:
+            fee = (price * amount * rate).quantize(Decimal("0.00000001"))
+        if str(f.get("side") or "").upper() == "BUY":
+            qty += amount
+            cost += price * amount + fee
+            continue
+        if amount > qty:
+            return None, False, qty
+        avg = (cost / qty) if qty > 0 else ZERO
+        realized += (price * amount - fee) - avg * amount
+        qty -= amount
+        cost -= avg * amount
+        if qty <= 0:
+            qty = ZERO
+            cost = ZERO
+    return realized, True, qty
+
+
+def realized_on_last_sell(fills: list, fee_rate) -> tuple:
+    """PnL of the LAST sell in an average-cost replay of one market.
+
+    Returns (realized, cost_basis) or (None, None) when there is no sell or
+    the history is unbalanced. This is the number a performance row needs:
+    the closing sale is an event, even when a dust remainder stays open.
+    """
+    qty = ZERO
+    cost = ZERO
+    last = None
+    basis = None
+    rate = d(str(fee_rate or 0))
+    for f in sorted(fills or [],
+                    key=lambda r: str(r.get("timestamp") or "")):
+        price = d(str(f.get("price") or 0))
+        amount = d(str(f.get("amount") or 0))
+        if price <= 0 or amount <= 0:
+            continue
+        fee = d(str(f.get("fee_amount") or 0))
+        if fee <= 0 and rate > 0:
+            fee = (price * amount * rate).quantize(Decimal("0.00000001"))
+        if str(f.get("side") or "").upper() == "BUY":
+            qty += amount
+            cost += price * amount + fee
+            continue
+        if amount > qty:
+            return None, None
+        avg = (cost / qty) if qty > 0 else ZERO
+        basis = avg * amount
+        last = (price * amount - fee) - basis
+        qty -= amount
+        cost -= basis
+        if qty <= 0:
+            qty = ZERO
+            cost = ZERO
+    return last, basis
+
+
 class TradingEngine:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -2326,6 +2404,11 @@ class TradingEngine:
                 "max_correction": float(getattr(
                     cfg, "max_correction_risk_risk", 0.62)),
                 "min_rr": float(getattr(cfg, "min_rr_risk", 1.0)),
+                "forecast_bars": int(getattr(cfg, "forecast_bars", 200)),
+                "top_gainers_require_forecast": bool(getattr(
+                    cfg, "top_gainers_require_forecast", True)),
+                "top_gainers_min_confirmations": int(getattr(
+                    cfg, "top_gainers_min_confirmations", 1)),
             }
         return {
             "min_growth": float(getattr(cfg, "min_growth_safe", 62.0)),
@@ -2335,16 +2418,22 @@ class TradingEngine:
             "max_correction": float(getattr(
                 cfg, "max_correction_risk_safe", 0.45)),
             "min_rr": float(getattr(cfg, "min_rr_safe", 1.3)),
+            "forecast_bars": int(getattr(cfg, "forecast_bars", 200)),
+            "top_gainers_require_forecast": bool(getattr(
+                cfg, "top_gainers_require_forecast", True)),
+            "top_gainers_min_confirmations": int(getattr(
+                cfg, "top_gainers_min_confirmations", 1)),
         }
 
     def _attach_mtf_analysis(self, candidates: list,
                              market_by_symbol: dict) -> list:
         """Attach the professional verdict to the top-N candidates.
 
-        In RISK mode the ranking is REPLACED by the growth-potential score:
-        the question stops being «what rose the most today» and becomes
-        «what has the most evidence of rising FROM HERE».
+        In RISK mode the 24h leaderboard sets the ORDER (see
+        `_prioritize_gainers`); the analysis still decides whether each
+        leader is actually buyable FROM HERE.
         """
+        self._prioritize_gainers(candidates, market_by_symbol)
         cfg = self._analysis_cfg()
         if cfg is None or not bool(getattr(cfg, "enabled", False)) \
                 or not candidates:
@@ -2360,6 +2449,13 @@ class TradingEngine:
                     + slip) * 100.0
         thresholds = self._analysis_thresholds(mode)
         limit = max(1, int(getattr(cfg, "max_markets", 4) or 4))
+        # حالت ریسک: صدر جدول رشد ۲۴ساعته، پیش از هر رتبه‌بندی دیگری.
+        # کاندیدها اول با رشد ۲۴ساعته مرتب می‌شوند تا تحلیل فقط روی
+        # همان‌ها اجرا شود و رتبهٔ نهایی هم همان ترتیب باشد.
+        gainers = {s: i + 1 for i, s in enumerate(self._top_gainers)}
+        # the deep pass must cover as many leaders as we pick, otherwise
+        # the tail of the gainer list has no verdict
+        limit = max(limit, len(gainers))
         analyzed = []
         for cand in candidates[:limit]:
             sym = cand.get("symbol")
@@ -2371,7 +2467,7 @@ class TradingEngine:
                 verdict = analysis_engine.decide(
                     sym, frames, market, context, mode=mode,
                     weights=weights, thresholds=thresholds,
-                    cost_pct=cost_pct)
+                    cost_pct=cost_pct, top_gainer=sym in gainers)
             except Exception as ex:
                 verdict = {"symbol": sym, "mode": mode, "allow_buy": False,
                            "action": "AVOID", "vetoes": ["ANALYSIS_ERROR"],
@@ -2383,7 +2479,7 @@ class TradingEngine:
                              "setup": verdict.get("setup"),
                              "allow_buy": verdict.get("allow_buy")})
         self.latest_analysis = analyzed
-        if mode == analysis_engine.RISK:
+        if mode == analysis_engine.RISK and not gainers:
             candidates.sort(key=lambda c: -float(
                 ((c.get("analysis") or {}).get("growth_score") or 0.0)))
             for i, c in enumerate(candidates, 1):
@@ -2392,6 +2488,37 @@ class TradingEngine:
                             {"mode": mode, "analyzed": len(analyzed),
                              "allowed": sum(1 for a in analyzed
                                             if a.get("allow_buy"))})
+        return candidates
+
+    def _prioritize_gainers(self, candidates: list,
+                            market_by_symbol: dict) -> list:
+        """RISK: the 24h leaderboard, not the growth score, sets the order.
+
+        Runs even when the analysis engine is disabled, so a degraded engine
+        cannot silently fall back to buying the highest growth score.
+        """
+        self._top_gainers = []
+        if not candidates:
+            return candidates
+        cfg = self._analysis_cfg()
+        if cfg is None or not self.risk_mode or not bool(
+                getattr(cfg, "top_gainers_risk", True)):
+            return candidates
+        min_chg = float(getattr(cfg, "top_gainers_min_change_pct", 2.0))
+        count = max(1, int(getattr(cfg, "top_gainers_count", 5)))
+
+        def _chg(c):
+            return float((market_by_symbol.get(c.get("symbol")) or {})
+                         .get("change_24h") or 0.0)
+
+        candidates.sort(key=lambda c: -_chg(c))
+        for i, c in enumerate(candidates, 1):
+            c["rank"] = i
+        picked = [c.get("symbol") for c in candidates
+                  if _chg(c) >= min_chg][:count]
+        self._top_gainers = picked
+        for c in candidates:
+            c["top_gainer"] = c.get("symbol") in picked
         return candidates
 
     def _analysis_exit_reason(self, market: str, plan: dict, price) -> bool:
@@ -2809,8 +2936,68 @@ class TradingEngine:
         return armed
 
     # ------------------------------------------------------ performance
+    def _reconcile_live_realized(self) -> int:
+        """Rebuild positions.realized_pnl from the recorded LIVE fills.
+
+        A live fill enters the ledger through two paths: the execution
+        engine (which applies it to the portfolio) and the exchange
+        reconciliation loop (which only records it). The second path left
+        realized_pnl at zero forever, so every closed trade looked like a
+        loss. Replaying the fills is idempotent and path-independent; the
+        wallet stays authoritative for amount/average entry — only the
+        realized PnL is written. Markets whose SELLs are not covered by
+        prior BUYs are skipped, never guessed.
+        """
+        self._realized_ok = set()
+        if not self._real_attached:
+            return 0
+        try:
+            positions = {p["market"]: p for p in self.storage.positions()}
+            fills = [f for f in self.storage.fills(limit=5000)
+                     if str(f.get("trade_id") or "").startswith("live_")]
+        except Exception:
+            return 0
+        by_market = {}
+        for f in fills:
+            by_market.setdefault(f.get("market") or "", []).append(f)
+        rate = d(str(getattr(self.cfg.fee, "taker_rate", 0.0025)))
+        updated = 0
+        for market, rows in by_market.items():
+            pos = positions.get(market)
+            if not market or not pos:
+                continue
+            realized, balanced, qty = realized_pnl_from_fills(rows, rate)
+            if not balanced:
+                continue
+            # the replay must end at the wallet's quantity; otherwise the
+            # fill history is incomplete (renamed market, manual coins) and
+            # any PnL derived from it is fiction
+            wallet_amt = d(str(pos.get("amount") or 0))
+            tol = max(Decimal("0.00000001"), abs(wallet_amt) * Decimal("0.01"))
+            if abs(qty - wallet_amt) > tol:
+                continue
+            prior = d(str(pos.get("realized_pnl") or 0))
+            self._realized_ok.add(market)
+            if realized.quantize(Decimal("0.00000001")) == \
+                    prior.quantize(Decimal("0.00000001")):
+                continue
+            self.storage.upsert_position(
+                market, pos.get("amount") or ZERO,
+                pos.get("avg_entry") or ZERO, realized,
+                side=pos.get("side") or "LONG")
+            updated += 1
+        if updated:
+            self.events.publish("POSITIONS_RECONCILED", "engine", "",
+                                {"updated": updated})
+        return updated
+
     def _measure_performance(self, prices: dict) -> None:
         """SS46: when a position closes, attribute return to its decisions."""
+        if self._real_attached:
+            try:
+                self._reconcile_live_realized()
+            except Exception:
+                pass
         rows = self.storage.kv_get("perf_pending", {})
         if not isinstance(rows, dict):
             rows = {}
@@ -2821,9 +3008,38 @@ class TradingEngine:
                 info = rows.pop(market)
                 changed = True
                 entry = d(info["entry_price"])
-                exit_p = d(str(prices.get(market) or info.get("last_price") or 0))
+                exit_p = ZERO
+                try:
+                    for f in self.storage.fills(market, 50):
+                        if str(f.get("side") or "").upper() == "SELL":
+                            exit_p = d(str(f.get("price") or 0))
+                            break
+                except Exception:
+                    exit_p = ZERO
+                if exit_p <= 0:
+                    exit_p = d(str(prices.get(market)
+                                   or info.get("last_price") or 0))
                 actual = float((exit_p - entry) / entry) if entry else 0
-                pnl = info.get("realized_pnl", 0)
+                baseline = info.get("realized_at_entry")
+                pnl = None
+                # The closing sale is the event this row measures. Its PnL
+                # is path-independent: replay the market's fills up to it.
+                # This works even when positions.realized_pnl could not be
+                # reconciled (dust, a renamed market, a manual coin).
+                try:
+                    fill_rows = [f for f in self.storage.fills(market, 200)
+                                 if (not self._real_attached
+                                     or str(f.get("trade_id") or "")
+                                     .startswith("live_"))]
+                    pnl, _basis = realized_on_last_sell(
+                        list(reversed(fill_rows)),
+                        getattr(self.cfg.fee, "taker_rate", 0.0025))
+                except Exception:
+                    pnl = None
+                if pnl is None and baseline is not None and market in getattr(
+                        self, "_realized_ok", set()):
+                    pnl = (d(str(pos.get("realized_pnl") or 0))
+                           - d(str(baseline)))
                 self.storage.save_performance({
                     "decision_id": info["decision_id"],
                     "symbol": market,
@@ -2833,7 +3049,8 @@ class TradingEngine:
                     "actual_pnl": pnl,
                     "direction_correct": (actual > 0) ==
                                          (info.get("action") == "BUY"),
-                    "profitable": float(pnl) > 0,
+                    "profitable": bool((pnl is not None and pnl > 0)
+                                       or (pnl is None and actual > 0)),
                 })
         for market in rows:
             if d(str(prices.get(market, 0))) > 0 and rows[market].get("entry_price"):
@@ -2858,6 +3075,7 @@ class TradingEngine:
                         "expected_return": (dec.get("payload", {}).get(
                             "cost", {}) or {}).get("expected_net_return"),
                         "realized_pnl": 0,
+                        "realized_at_entry": float(d(pos["realized_pnl"])),
                     }
                     changed = True
         if changed or rows:
@@ -3785,6 +4003,7 @@ class TradingEngine:
         div = float(ex.rls_to_irt_divisor or 10)
         floor = float(ex.min_quote_volume_usdt or 0)
         keep = []
+        all_rows = []
         for pair, st in stats.items():
             src, _, dst = pair.partition("-")
             dst_u = dst.upper()
@@ -3805,10 +4024,30 @@ class TradingEngine:
             if vol_usdt < floor:
                 continue
             keep.append((sym, vol_usdt))
+            all_rows.append((sym, vol_usdt,
+                             float(st.get("dayChange") or 0)))
         if not keep:
             return  # discovery update alone (fail-safe: keep registry state)
         keep.sort(key=lambda x: -x[1])
         keep = keep[: max(1, self.cfg.engine.max_markets)]
+        # پرسودترین‌های ۲۴ساعته حتی با رتبهٔ حجم پایین در سبد معاملاتی
+        # می‌مانند: در حالت ریسک همان‌ها هدف خرید هستند (با همان کف
+        # نقدینگی؛ پامپ روی حجم ناچیز همچنان کنار گذاشته می‌شود).
+        try:
+            if self.risk_mode and bool(getattr(
+                    self.cfg.analysis, "top_gainers_risk", True)):
+                _min = float(getattr(self.cfg.analysis,
+                                     "top_gainers_min_change_pct", 2.0))
+                _n = max(1, int(getattr(self.cfg.analysis,
+                                        "top_gainers_count", 5))) * 2
+                _g = sorted([r for r in all_rows if r[2] >= _min],
+                            key=lambda r: -r[2])[:_n]
+                _have = {s for s, _v in keep}
+                for _sym, _vol, _chg in _g:
+                    if _sym not in _have:
+                        keep.append((_sym, _vol))
+        except Exception:
+            pass
         keep_syms = {s for s, _ in keep}
         now = utc_now_iso()
         for sym, entry in registry.doc["markets"].items():
@@ -6658,23 +6897,6 @@ class TradingEngine:
             return -1.0
 
     # ---------------------------------------------------- SS101 dust convert
-    @staticmethod
-    def _extract_min_amount(exc=None, default: int = 250000) -> int:
-        """Parse the convert-market minimum-notional floor (in RIALS) from
-        Nobitex's error text ('Amount should be more than 2.50000E+6')
-        — used only as a guard; the real value comes from the API when a
-        quote is actually requested. Falls back to 250,000 rial (the
-        smallest observed floor across coins)."""
-        import re as _re
-        txt = str(exc or "")
-        m = _re.search(r"more than ([0-9.]+E\+[0-9]+)", txt)
-        if m:
-            try:
-                return int(float(m.group(1)))
-            except Exception:
-                pass
-        return default
-
     def _dust_exclude_set(self) -> set:
         """Coins never to auto-convert (from config, always incl. quote
         assets USDT/IRT)."""
@@ -6688,20 +6910,6 @@ class TradingEngine:
         return excl
 
     # ---------------------------------------------------- SS101 dust convert
-    def _toman_per_usdt(self, prices: dict):
-        """تومانِ یک تتر از نرخ‌های حساب — واحد único محاسبهٔ ارزش.
-
-        _usdt_rates["IRT"]، «تترِ یک تومان» است (1/T)؛ پس تومانِ یک تتر
-        معکوسِ آن است. هر جا قیمتِ سکه در بازار *USTT خودش را با پولِ
-        تومانی می‌سنجم، ضریب باید همین باشد — ضرب مستقیمِ نرخِ تتری
-        (باگ قدیمی) ارزش را در واحدهای ترکیبی می‌کاشت.
-        """
-        try:
-            rate = float((self._usdt_rates(prices) or {}).get("IRT") or 0)
-        except Exception:
-            rate = 0.0
-        return (1.0 / rate) if rate > 0 else None
-
     def _dust_market_prices(self) -> tuple:
         """(prices, toman_per_usdt) برای سه مسیر خرد — یک منبع واحد."""
         snap = self.latest_snapshot or {}

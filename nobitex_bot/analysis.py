@@ -40,6 +40,8 @@ from __future__ import annotations
 import math
 from typing import Iterable, Optional
 
+from . import forecast as forecast_mod
+
 ENGINE_VERSION = "analysis/1.0"
 
 # timeframe -> seconds per bar (used to detect the still-forming candle)
@@ -1086,7 +1088,7 @@ def decide(symbol: str, frames: dict, market: dict,
            context: dict, mode: str = SAFE,
            weights: Optional[dict] = None,
            thresholds: Optional[dict] = None,
-           cost_pct: float = 0.5) -> dict:
+           cost_pct: float = 0.5, top_gainer: bool = False) -> dict:
     """The single entry decision used by BOTH modes and by the backtest.
 
     cost_pct: round-trip cost (fees + expected slippage) in PERCENT — the
@@ -1111,6 +1113,18 @@ def decide(symbol: str, frames: dict, market: dict,
     confs = count_confirmations(mtf, frames, comps, corr)
     setup = classify_setup(mtf, frames, comps)
     vetoes = _vetoes(mtf, frames, market, corr, mode)
+
+    # projection: where the SAME evidence says the market is heading over
+    # the next 100/200/500 trade-frame bars. Probabilistic, not a promise.
+    horizon = int(th.get("forecast_bars", 200) or 200)
+    try:
+        fc = forecast_mod.project(frames, horizon_bars=horizon,
+                                  cost_pct=cost_pct,
+                                  trade_frame=TRADE_FRAME)
+    except Exception:
+        fc = {"direction": "SIDEWAYS", "probability_up": 0.5,
+              "expected_net_pct": 0.0, "drivers": ["FORECAST_ERROR"],
+              "horizons": {}}
 
     # economics: expected move vs the distance to the nearest real obstacle
     trade = frames.get(TRADE_FRAME) or {}
@@ -1164,6 +1178,15 @@ def decide(symbol: str, frames: dict, market: dict,
         blocked.append("SETUP_" + setup)
     if mode == RISK and setup == "DOWNTREND":
         blocked.append("SETUP_DOWNTREND")
+    # projection veto: a chart the forward model calls DOWN is not a buy
+    # even when another ranking says otherwise. The 24h leaders are judged
+    # by the stricter positive gate below instead (FORECAST_NO_EDGE), so
+    # this does not double-punish them.
+    min_prob = 0.45 if mode == SAFE else 0.40
+    if (not (top_gainer and mode == RISK)
+            and fc.get("direction") == "DOWN"
+            and _f(fc.get("probability_up"), 0.5) <= min_prob):
+        blocked.append("FORECAST_DOWNTREND")
 
     # entry/exit coherence: never buy a chart that the exit policy would
     # already be selling out of on the next bar — such a trade just pays
@@ -1171,6 +1194,29 @@ def decide(symbol: str, frames: dict, market: dict,
     pre = exit_analysis({}, frames, market, context, mode=mode)
     if pre.get("exit"):
         blocked.append("EXIT_CONDITIONS_ALREADY_TRUE")
+
+    # «پرسودترین‌های ۲۴ ساعت»: در حالت ریسک، صدر جدول رشد روز خودِ
+    # استراتژی است؛ پس وتوی «خیلی رشد کرده» اینجا معنا ندارد و دور
+    # ریخته می‌شود. وتوهای سخت (شکست ساختار، دام، دادهٔ ناقص، فشار
+    # فروش، همخوانی ورود/خروج) دست‌نخورده می‌مانند.
+    if top_gainer and mode == RISK:
+        # The 24h leaderboard replaces the growth RANKING, not the risk
+        # controls. Only thresholds that exist because the score was a
+        # ranking are dropped; extension/overextension vetoes stay, because
+        # chasing a coin 3+ ATR above EMA20 is how this strategy loses
+        # (measured: avg MFE +0.34% vs a 0.7% round trip).
+        _ignored = ("GROWTH_SCORE_BELOW_MIN", "CORRECTION_RISK_ABOVE_MAX",
+                    "ENTRY_QUALITY_LOW", "NOT_ENOUGH_CONFIRMATIONS",
+                    "RISK_REWARD_TOO_LOW")
+        blocked = [b for b in blocked if b not in _ignored]
+        need = int(th.get("top_gainers_min_confirmations", 1) or 0)
+        if need > 0 and len(confs) < need:
+            blocked.append("NOT_ENOUGH_CONFIRMATIONS")
+        if bool(th.get("top_gainers_require_forecast", True)) and not (
+                fc.get("direction") == "UP"
+                and _f(fc.get("probability_up")) >= 0.55
+                and _f(fc.get("expected_net_pct")) > 0):
+            blocked.append("FORECAST_NO_EDGE")
 
     allow = not blocked
     confidence = _clamp(0.5 * (growth / 100.0)
@@ -1183,6 +1229,7 @@ def decide(symbol: str, frames: dict, market: dict,
         "engine": ENGINE_VERSION,
         "symbol": symbol,
         "mode": mode,
+        "top_gainer": bool(top_gainer and mode == RISK),
         "action": "BUY" if allow else "AVOID",
         "allow_buy": allow,
         "setup": setup,
@@ -1216,6 +1263,7 @@ def decide(symbol: str, frames: dict, market: dict,
         },
         "last_closed_candle": (trade.get("last_candle_time")),
         "data_valid": bool(mtf.get("valid") and not vetoes),
+        "forecast": fc,
         "thresholds": th,
     }
 
@@ -1289,17 +1337,3 @@ def exit_analysis(position: dict, frames: dict, market: dict,
     }
 
 
-# --------------------------------------------------------------- ranking
-def rank(scored: list, top_n: int = 5) -> list:
-    """Cross-sectional ranking: absolute scores are not comparable across
-    markets, percentiles are. This is what stops «+30% today» from
-    automatically winning over «+5% and breaking out now»."""
-    scored = [s for s in scored or [] if s.get("growth_score") is not None]
-    if not scored:
-        return []
-    ordered = sorted(scored, key=lambda s: -_f(s.get("growth_score")))
-    n = len(ordered)
-    for i, s in enumerate(ordered, 1):
-        s["rank"] = i
-        s["percentile"] = _r(1.0 - (i - 1) / n, 3)
-    return ordered[:max(1, top_n)]

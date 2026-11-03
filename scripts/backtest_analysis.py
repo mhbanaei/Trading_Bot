@@ -87,10 +87,6 @@ def fetch(symbol: str, tf: str, bars: int = 500, offline: bool = False):
 
 
 # ------------------------------------------------------------- simulation
-def btc_context(btc_frames_by_time):
-    return btc_frames_by_time
-
-
 def simulate(symbol: str, data: dict, mode: str, cfg: dict,
              btc_series: list | None = None) -> dict:
     """One market, one mode, strictly sequential."""
@@ -104,6 +100,9 @@ def simulate(symbol: str, data: dict, mode: str, cfg: dict,
     trades, equity_curve = [], []
     pos = None
     start = 0
+    thresholds = dict(cfg.get("thresholds") or {})
+    if TOP_GAINERS and mode == analysis.RISK:
+        thresholds.update(GAINER_LIMITS)
 
     # warmup: the 1d frame alone needs ~80 bars, so skip the early timeline
     timeline = [c["time"] + SECONDS["15m"] for c in t15]
@@ -129,8 +128,11 @@ def simulate(symbol: str, data: dict, mode: str, cfg: dict,
 
         if pos is None:
             verdict = analysis.decide(symbol, frames, market, ctx, mode=mode,
-                                      thresholds=cfg.get("thresholds"),
-                                      cost_pct=cost_pct)
+                                      thresholds=thresholds,
+                                      cost_pct=cost_pct,
+                                      top_gainer=bool(
+                                          TOP_GAINERS
+                                          and mode == analysis.RISK))
             if not verdict.get("allow_buy"):
                 continue
             pos = {"entry": next_open * (1 + slip), "bar": i,
@@ -262,6 +264,15 @@ def walk_forward(trades: list) -> dict:
             "out_of_sample": metrics(trades[mid:])}
 
 
+# ------------------------------------------------- top-gainer risk mode
+# --top-gainers: RISK entries are allowed on the day's 24h leaders. The
+# leader flag no longer removes every risk control; these two switches let
+# the report isolate the forecast gate from the confirmation floor.
+TOP_GAINERS = False
+GAINER_LIMITS = {"top_gainers_require_forecast": True,
+                 "top_gainers_min_confirmations": 1}
+
+
 # ------------------------------------------------------------------- main
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -269,9 +280,23 @@ def main() -> int:
     ap.add_argument("--markets", default=",".join(DEFAULT_MARKETS))
     ap.add_argument("--bars", type=int, default=500)
     ap.add_argument("--offline", action="store_true")
+    ap.add_argument("--top-gainers", action="store_true")
+    ap.add_argument("--no-forecast-gate", action="store_true",
+                    help="leader buys ignore the forward-projection edge")
+    ap.add_argument("--min-gainers-confirmations", type=int, default=1,
+                    help="independent confirmations required of a leader")
+    ap.add_argument("--variant", default="",
+                    help="label written into the JSON report")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
 
+    global TOP_GAINERS, GAINER_LIMITS
+    TOP_GAINERS = bool(args.top_gainers)
+    GAINER_LIMITS = {
+        "top_gainers_require_forecast": not bool(args.no_forecast_gate),
+        "top_gainers_min_confirmations": max(
+            0, int(args.min_gainers_confirmations)),
+    }
     markets = [m.strip().upper() for m in args.markets.split(",") if m.strip()]
     modes = [analysis.SAFE, analysis.RISK] if args.mode == "both" \
         else [args.mode]
@@ -281,6 +306,7 @@ def main() -> int:
                                             time.gmtime()),
               "costs": {"fee_per_side": 0.0025, "slippage": 0.001,
                         "round_trip_pct": 0.7},
+              "variant": args.variant or "default",
               "markets": markets, "modes": {}}
 
     for mode in modes:

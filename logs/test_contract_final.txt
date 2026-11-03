@@ -1,0 +1,67 @@
+.................C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:65: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22EC50>
+  return Decimal(repr(x))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+F..E.C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22E890>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22EE30>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22F5B0>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22EC50>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:30: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22FC40>
+  return dt.strftime("%Y-%m-%dT%H:%M:%S.") + ("%03dZ" % (dt.microsecond // 1000))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+E.C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\utils.py:65: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000001D05A22FC40>
+  return Decimal(repr(x))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.........
+======================================================================
+ERROR: test_performance_measured_after_close (__main__.TestPipeline.test_performance_measured_after_close)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\tests\test_contract.py", line 387, in test_performance_measured_after_close
+    e.run_cycle()
+    ~~~~~~~~~~~^^
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\engine.py", line 1586, in run_cycle
+    self._measure_performance(prices)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\engine.py", line 3056, in _measure_performance
+    if d(str(prices.get(market, 0))) > 0 and rows[market].get("entry_price"):
+             ~~~~~~~~~~^^^^^^^^^^^
+TypeError: cannot use 'dict' as a dict key (unhashable type: 'dict')
+
+======================================================================
+ERROR: test_sell_exits_eventually (__main__.TestPipeline.test_sell_exits_eventually)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\tests\test_contract.py", line 380, in test_sell_exits_eventually
+    e.run_cycle()
+    ~~~~~~~~~~~^^
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\engine.py", line 1586, in run_cycle
+    self._measure_performance(prices)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\nobitex_bot\engine.py", line 3056, in _measure_performance
+    if d(str(prices.get(market, 0))) > 0 and rows[market].get("entry_price"):
+             ~~~~~~~~~~^^^^^^^^^^^
+TypeError: cannot use 'dict' as a dict key (unhashable type: 'dict')
+
+======================================================================
+FAIL: test_buy_flow_executes (__main__.TestPipeline.test_buy_flow_executes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\MAIN\Nobitex Ai\tests\test_contract.py", line 262, in test_buy_flow_executes
+    self.assertGreaterEqual(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        len([f for f in e.storage.fills(limit=50)]), 1)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 not greater than or equal to 1
+
+----------------------------------------------------------------------
+Ran 33 tests in 59.859s
+
+FAILED (failures=1, errors=2)

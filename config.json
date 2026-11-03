@@ -55,14 +55,14 @@
     "wallet_sync": true,
     "prefer_usdt_markets": true,
     "include_irt_markets": true,
-    "trade_quote_markets": "usdt",
+    "trade_quote_markets": "both",
     "min_quote_volume_usdt": 50000,
     "min_order_usdt": 0.5,
     "rls_to_irt_divisor": 10,
     "rest_timeout": 12,
     "orderbook_depth": 20,
     "book_levels": 12,
-    "trade_market_interaction": "independent"
+    "trade_market_interaction": "linked"
   },
   "fee": {
     "maker_rate": 0.0025,
@@ -120,7 +120,8 @@
     "risk_mode_atr_stop_mult": 1.5,
     "risk_mode_atr_stop_cap_pct": -8,
     "ladder_enabled": true,
-    "ladder_topup_enabled": true
+    "ladder_topup_enabled": true,
+    "risk_mode_analysis_exit": false
   },
   "ai": {
     "engine": "heuristic",
@@ -160,5 +161,31 @@
     "session_hours": 12,
     "failure_delay_s": 0.8,
     "allow_remote_without_password": false
+  },
+  "analysis": {
+    "enabled": false,
+    "frames": [
+      "5m",
+      "15m",
+      "1h",
+      "4h",
+      "1d"
+    ],
+    "max_markets": 4,
+    "min_candles": 60,
+    "min_growth_safe": 62,
+    "min_growth_risk": 55,
+    "min_confirmations_safe": 3,
+    "min_confirmations_risk": 2,
+    "min_entry_safe": 55,
+    "min_entry_risk": 40,
+    "max_correction_risk_safe": 0.45,
+    "max_correction_risk_risk": 0.62,
+    "min_rr_safe": 1.25,
+    "min_rr_risk": 1,
+    "weights_safe": {},
+    "weights_risk": {},
+    "cache_ttl_s": 0,
+    "exit_cooldown_s": 300
   }
 }

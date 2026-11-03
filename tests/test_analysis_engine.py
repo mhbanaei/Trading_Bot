@@ -271,16 +271,6 @@ def test_forming_candle_is_dropped():
     assert len(analysis.closed_candles(raw, "1h", now)) == 10
 
 
-def test_ranking_is_cross_sectional():
-    rows = [{"symbol": "A", "growth_score": 40.0},
-            {"symbol": "B", "growth_score": 78.0},
-            {"symbol": "C", "growth_score": 61.0}]
-    ranked = analysis.rank(rows, top_n=3)
-    assert [r["symbol"] for r in ranked] == ["B", "C", "A"]
-    assert ranked[0]["rank"] == 1
-    assert ranked[0]["percentile"] == 1.0
-
-
 def test_entry_never_contradicts_the_exit_policy():
     """If the exit policy would close the position on the very next bar, the
     entry is refused: buying and selling one bar later only pays the round

@@ -1,0 +1,9 @@
+  [risk] BTCUSDT -> 2 trades (bars=300)
+  [risk] ETHUSDT -> 1 trades (bars=300)
+  [risk] ADAUSDT -> 6 trades (bars=300)
+
+== RISK ==
+  trades=9 net=-14.16% win=0.0 pf=0.0 maxDD=14.16% expectancy=-1.679%
+    NEUTRAL                n=9   avg=-1.68% win=0.0
+
+saved data/backtest/top_gainers.json

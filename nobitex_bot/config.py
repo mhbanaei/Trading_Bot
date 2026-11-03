@@ -150,7 +150,22 @@ class AnalysisCfg:
     frames: list = field(default_factory=lambda: ["5m", "15m", "1h",
                                                   "4h", "1d"])
     max_markets: int = 4
+    # forward projection: every decision stores a probabilistic path for
+    # 100/200/500 bars. `forecast_bars` is the horizon the veto reads.
+    forecast_bars: int = 200
+    # RISK leaders stay ranked by 24h growth, but they are bought only when
+    # the projection sees upside and at least one independent confirmation
+    # exists. Both knobs are reversible.
+    top_gainers_require_forecast: bool = True
+    top_gainers_min_confirmations: int = 1
     min_candles: int = 60
+    # حالت ریسک: خرید «پرسودترین‌های ۲۴ ساعت اخیر» نوبیتکس — همان چیزی
+    # که این حالت برایش ساخته شده. انتخاب کاندید با رشد ۲۴ساعته است، نه
+    # با امتیاز رشدِ تحلیل؛ تحلیل همچنان مدل ریسک/خروج و وتوهای سخت را
+    # می‌دهد. خاموش کردنش رتبه‌بندی قبلی (growth score) را برمی‌گرداند.
+    top_gainers_risk: bool = True
+    top_gainers_count: int = 5
+    top_gainers_min_change_pct: float = 2.0
     min_growth_safe: float = 62.0
     min_growth_risk: float = 55.0
     min_confirmations_safe: int = 3
