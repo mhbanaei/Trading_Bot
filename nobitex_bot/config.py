@@ -419,8 +419,13 @@ class WebCfg:
       file directly) is the recovery path after a lockout: a changed value
       clears the lock and drops every open session — no restart needed.
     max_attempts: wrong passwords before the lock (3 by default).
-    lockout_seconds: 0 = stay locked until the password above changes;
-      > 0 = auto-unlock after that many seconds as well.
+    lock_panel: 1 = the lockout is armed (default). Set it to 0 in config.json
+      to UNLOCK a dashboard that locked itself after ``max_attempts`` wrong
+      passwords — the password is still required, but it can no longer lock
+      the panel. Put it back to 1 to arm the lockout again. Read live, no
+      restart needed.
+    lockout_seconds: 0 = stay locked until the password above changes or
+      lock_panel is 0; > 0 = auto-unlock after that many seconds as well.
     session_hours: how long one successful login stays valid.
     failure_delay_s: delay on every wrong password (anti brute-force).
     allow_remote_without_password: keep False. Only flip it when the gate is
@@ -428,6 +433,7 @@ class WebCfg:
     """
     password: str = ""
     max_attempts: int = 3
+    lock_panel: int = 1
     lockout_seconds: int = 0
     session_hours: float = 12.0
     failure_delay_s: float = 0.8
@@ -465,6 +471,7 @@ class Config:
         # mask (an untouched mask keeps the stored value on save)
         wb = d.setdefault("web", {})
         wb.setdefault("max_attempts", self.web.max_attempts)
+        wb.setdefault("lock_panel", self.web.lock_panel)
         wb.setdefault("lockout_seconds", self.web.lockout_seconds)
         wb.setdefault("session_hours", self.web.session_hours)
         wb.setdefault("failure_delay_s", self.web.failure_delay_s)
@@ -647,6 +654,8 @@ def validate_config(cfg: Config) -> list[str]:
             "(set web.password or bind 127.0.0.1)" % host)
     if int(cfg.web.max_attempts) < 1:
         bad("web.max_attempts must be >= 1")
+    if int(getattr(cfg.web, "lock_panel", 1)) not in (0, 1):
+        bad("web.lock_panel must be 0 (unlocked) or 1 (lockout armed)")
     if float(cfg.web.session_hours) <= 0:
         bad("web.session_hours must be > 0")
     if float(cfg.web.failure_delay_s) < 0:

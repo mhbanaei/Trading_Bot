@@ -198,6 +198,35 @@ class TestLockout(TempCase):
         self.assertNotIn("right-pass", raw)
 
 
+class TestLockPanel(TempCase):
+    """web.lock_panel: 1 = lockout armed, 0 = the locked panel opens again."""
+
+    def test_lock_then_unlock_by_setting_lock_panel_zero(self):
+        a = self.auth("right-pass", failure_delay_s=0)
+        for _ in range(3):
+            a.attempt("wrong")
+        self.assertTrue(a.locked())
+        # the documented unlock: web.lock_panel 1 -> 0, password untouched
+        self.write_config("right-pass", lock_panel=0)
+        self.assertFalse(a.locked())
+        self.assertTrue(a.attempt("right-pass").ok)
+        # back to 1 re-arms the lockout
+        self.write_config("right-pass", lock_panel=1)
+        for _ in range(3):
+            a.attempt("wrong")
+        self.assertTrue(a.locked())
+
+    def test_panel_off_never_locks_but_still_needs_the_password(self):
+        a = self.auth("right-pass", lock_panel=0, failure_delay_s=0)
+        for _ in range(6):
+            res = a.attempt("wrong")
+            self.assertFalse(res.locked)
+            self.assertEqual(res.status, "BAD_PASSWORD")
+            self.assertEqual(res.attempts_left, 3)
+        self.assertFalse(a.locked())
+        self.assertFalse(a.attempt("still-wrong").ok)
+        self.assertTrue(a.attempt("right-pass").ok)
+
 class TestSessions(TempCase):
     def test_session_lifecycle(self):
         a = self.auth("pw")

@@ -1,7 +1,0 @@
-[warn] exchange.mode=nobitex but no credentials/api_key configured — running DEMO simulator instead (login from the dashboard to attach the real account).
-==============================================================
- Nobitex Smart Trading Bot v1.0.0
- mode: nobitex | data: data
-==============================================================
-[web] dashboard on http://127.0.0.1:8787
-[web] password gate: OFF (loopback only) — set web.password in config.json before exposing this port

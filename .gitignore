@@ -1,0 +1,37 @@
+# --- real config and secrets (config.example.json is the committed one) ---
+config.json
+.env
+.env.*
+!.env.example
+credentials*.json
+web_auth.json
+htpasswd
+*.htpasswd
+*.key
+*.pem
+*.p12
+
+# --- runtime data: databases, logs, caches, dashboard screenshots ---
+data/
+logs/
+screenshots/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+events*.jsonl
+
+# --- tooling ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.freebuff/
+node_modules/
+.DS_Store
+Thumbs.db

@@ -836,6 +836,8 @@ def serve(engine: TradingEngine, host: str, port: int,
         print("[web] locked out or forgot the password? change web.password "
               "in config.json — it applies instantly, no restart "
               "(helper: python -m nobitex_bot.webauth --hash)")
+        print("[web] locked out after wrong passwords? set web.lock_panel to 0 "
+              "in config.json to unlock the panel (1 = lockout armed again)")
     else:
         print("[web] password gate: OFF (loopback only) — set web.password "
               "in config.json before exposing this port")

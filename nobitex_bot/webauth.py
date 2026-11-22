@@ -14,6 +14,10 @@ it listens on a public address it needs a lock. This module implements:
   is persisted in ``data/web_auth.json`` so restarting the bot cannot bypass
   it, and it clears only when the configured password changes (or after
   ``web.lockout_seconds`` when that is > 0).
+* ``web.lock_panel``: 1 = the lockout is armed (default). Setting it to 0 in
+  config.json UNLOCKS the panel at once — the password is still required, it
+  just can never lock the panel — and back to 1 arms it again. Both are read
+  live, so neither needs a restart.
 * Constant-time comparisons (``hmac.compare_digest``), a per-failure delay and
   no distinction between "wrong password" and "unknown" responses that could
   leak hints.
@@ -215,6 +219,29 @@ class DashboardAuth:
         """True when a password is configured (gate active)."""
         return bool(self._cfg_password().strip())
 
+    def _lock_panel(self) -> int:
+        """``web.lock_panel``: 1 = lock after N wrong passwords, 0 = unlocked.
+
+        Read LIVE from config.json (like the password) so setting the value to
+        0 opens a panel that locked itself — no password change, no restart.
+        Missing/unreadable means 1, the safe default.
+        """
+        raw = None
+        try:
+            if self.config_path.exists():
+                doc = json.loads(self.config_path.read_text(encoding="utf-8"))
+                web = doc.get("web") or {}
+                if isinstance(web, dict):
+                    raw = web.get("lock_panel")
+        except Exception:
+            raw = None
+        if raw is None:
+            raw = getattr(self.cfg.web, "lock_panel", 1)
+        try:
+            return 0 if int(raw) == 0 else 1
+        except (TypeError, ValueError):
+            return 1
+
     # ------------------------------------------------------- state file
     def _load_state(self) -> dict:
         try:
@@ -274,6 +301,13 @@ class DashboardAuth:
             self._state["locked_at"] = None
             self._sessions.clear()
             self._save_state()
+        if self._lock_panel() == 0 and (self._state.get("locked_at") or
+                                        self._state.get("fail_count")):
+            # web.lock_panel = 0 is the other documented unlock: drop the
+            # lock (and its counter) the moment the value is read as 0
+            self._state["fail_count"] = 0
+            self._state["locked_at"] = None
+            self._save_state()
 
     def locked(self) -> bool:
         with self._lock:
@@ -281,6 +315,8 @@ class DashboardAuth:
             return self._locked_locked()
 
     def _locked_locked(self) -> bool:
+        if self._lock_panel() == 0:
+            return False                 # panel unlock switch is off
         if not self._state.get("locked_at"):
             return False
         secs = self._lockout_seconds()
@@ -318,6 +354,7 @@ class DashboardAuth:
                 return Attempt(status="LOCKED", locked=True,
                                lock_seconds_left=left, attempts_left=0,
                                message=self._lock_message(left))
+            panel_off = self._lock_panel() == 0
             ok = verify_password(self._cfg_password(), password)
             self._note(ok, ip)
             if ok:
@@ -328,27 +365,42 @@ class DashboardAuth:
                 return Attempt(ok=True, status="OK",
                                attempts_left=max_attempts,
                                message="ورود موفق")
-            self._state["fail_count"] = int(self._state.get("fail_count") or 0) + 1
-            fails = self._state["fail_count"]
-            left = max(0, max_attempts - fails)
-            first = fails == 1
-            if left <= 0:
-                self._state["locked_at"] = now_iso()
-            self._save_state()
-            locked = self._locked_locked()
-            self._publish("LOCKED" if locked else "BAD_PASSWORD", ip, left)
+            if panel_off:
+                # web.lock_panel = 0: the password is STILL required, but a
+                # wrong one never advances the counter — the panel cannot
+                # lock itself while the switch is off.
+                self._state["fail_count"] = 0
+                self._state["locked_at"] = None
+                self._save_state()
+                self._publish("BAD_PASSWORD", ip, max_attempts)
+                left, first, locked = max_attempts, False, False
+                message = "پسورد اشتباه است"
+            else:
+                self._state["fail_count"] = int(
+                    self._state.get("fail_count") or 0) + 1
+                fails = self._state["fail_count"]
+                left = max(0, max_attempts - fails)
+                first = fails == 1
+                if left <= 0:
+                    self._state["locked_at"] = now_iso()
+                self._save_state()
+                locked = self._locked_locked()
+                self._publish("LOCKED" if locked else "BAD_PASSWORD", ip,
+                              left)
+                message = (self._lock_message(
+                    self._lock_seconds_left_locked()) if locked else
+                    "پسورد اشتباه است — %d تلاش باقی مانده" % left)
         # slowdown OUTSIDE the lock: brute force must not be fast, and a
         # failed login must not block the engine's threads meanwhile
         if not locked:
             delay = self._failure_delay()
             if delay > 0:
                 time.sleep(min(delay, 3.0))
-        msg = (self._lock_message(self._lock_seconds_left_locked()) if locked
-               else "پسورد اشتباه است — %d تلاش باقی مانده" % left)
         return Attempt(status="LOCKED" if locked else "BAD_PASSWORD",
                        locked=locked, lock_seconds_left=(
                            self._lock_seconds_left_locked() if locked else 0),
-                       attempts_left=left, message=msg, first_failure=first)
+                       attempts_left=left, message=message,
+                       first_failure=first)
 
     def _lock_message(self, seconds_left: int = 0) -> str:
         """Public lock text — deliberately free of ANY recovery hint.
