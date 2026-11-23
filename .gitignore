@@ -24,6 +24,15 @@ screenshots/
 *.log
 events*.jsonl
 
+# --- runtime diagnostics databases (mirrored locally, never committed) ---
+# error.db / failed_trade.db are copied here by the running bot with the
+# SQLite backup API; they are read-only snapshots and stay out of git.
+error.db
+error.db-*
+failed_trade.db
+failed_trade.db-*
+*.db.sync-tmp
+
 # --- tooling ---
 __pycache__/
 *.py[cod]

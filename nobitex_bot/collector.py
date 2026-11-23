@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import Config
+from .diagnostics import record_error
 from .enums import SnapshotStatus
 from .events import EventBus
 from .storage import Storage
@@ -148,6 +149,11 @@ class SnapshotCollector:
         except Exception as exc:
             self.events.error("DATA_COLLECTOR", "MARKET_DISCOVERY_FAILED",
                               "HIGH", str(exc), retryable=True)
+            record_error("MARKET_DATA", "HIGH",
+                         "market discovery failed: %s" % exc,
+                         module="collector.discover_markets", exc=exc,
+                         recovered=True,
+                         recovery_action="kept the previous market registry")
             return {"new": [], "disabled": []}
         result = self.registry.update(discovered)
         for sym in result["new"]:
@@ -188,6 +194,12 @@ class SnapshotCollector:
                 self.events.error("DATA_COLLECTOR", "MARKET_COLLECTION_FAILED",
                                   "WARNING", "%s: %s" % (sym, exc),
                                   retryable=True, cycle_id=cycle_id)
+                record_error("MARKET_DATA", "WARNING",
+                             "market collection failed for %s: %s"
+                             % (sym, exc), module="collector.collect",
+                             symbol=sym, cycle_id=cycle_id, exc=exc,
+                             recovered=True,
+                             recovery_action="market skipped for this cycle")
 
         valid = [m for m in markets
                  if m["data_quality"]["status"] in ("GOOD", "WARNING")]
@@ -244,6 +256,11 @@ class SnapshotCollector:
             self.storage.upsert_candles(
                 symbol, "30m", aligned_candles(candles_30m, 1800))
         except Exception as exc:
+            record_error("DATABASE", "WARNING",
+                         "candle store failed: %s" % exc,
+                         module="collector.store_candles", exc=exc,
+                         recovered=True,
+                         recovery_action="candles will be re-fetched next cycle")
             self.events.error("DATA_COLLECTOR", "CANDLE_STORE_FAILED",
                               "WARNING", "%s: %s" % (symbol, exc),
                               retryable=True)

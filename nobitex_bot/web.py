@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .diagnostics import record_error
 from .engine import TradingEngine
 from .nobitex_api import NobitexAPI
 from .webauth import (COOKIE_NAME, DashboardAuth, host_header_allowed,
@@ -244,6 +245,50 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(eng.history(
                     q.get("kind", ["decisions"])[0],
                     int(q.get("limit", ["100"])[0])))
+            if path == "/api/diagnostics":
+                # error monitoring + failed-trade intelligence. One round
+                # trip: counts for the cards, filtered rows for the tables.
+                q = parse_qs(parsed.query)
+                try:
+                    limit = max(1, min(500, int(q.get("limit", ["100"])[0])))
+                except (TypeError, ValueError):
+                    limit = 100
+
+                def pick(name: str) -> str:
+                    return str((q.get(name) or [""])[0] or "")
+
+                return self._json({
+                    "summary": eng.diagnostics_summary(),
+                    "errors": eng.diagnostics_errors(
+                        limit, category=pick("category"),
+                        severity=pick("severity"), symbol=pick("symbol"),
+                        resolution=pick("resolution"), since=pick("since"),
+                        search=pick("search")),
+                    "failed_trades": eng.diagnostics_failed_trades(
+                        limit, category=pick("failure_category"),
+                        symbol=pick("symbol"), section=pick("section"),
+                        strategy=pick("strategy"), since=pick("since")),
+                    "lessons": eng.learning_lessons(
+                        100, status=pick("lesson_status")),
+                    "filters": {"category": pick("category"),
+                                "severity": pick("severity"),
+                                "symbol": pick("symbol"),
+                                "section": pick("section")},
+                })
+            if path == "/api/diagnostics/error":
+                # full record incl. stack trace: authenticated dashboard only
+                eid = str((q.get("id") or [""])[0] or "")
+                record = eng.diagnostics_error_detail(eid) if eid else None
+                if not record:
+                    return self._json({"error": "not found"}, 404)
+                return self._json(record)
+            if path == "/api/learning":
+                q = parse_qs(parsed.query)
+                return self._json({
+                    "lessons": eng.learning_lessons(
+                        int(q.get("limit", ["100"])[0] or 100)),
+                    "reports": eng.learning_reports(5),
+                })
             if path == "/api/config":
                 return self._json(eng.cfg.to_public_dict())
             if path == "/api/login_status":
@@ -323,6 +368,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "unknown endpoint"}, 404)
             return self._static(path.lstrip("/") or "index.html")
         except Exception as exc:
+            record_error("DASHBOARD", "ERROR",
+                         "GET %s failed: %s" % (path, exc),
+                         module="web.do_GET", exc=exc,
+                         recovered=True,
+                         recovery_action="500 returned to the dashboard")
             return self._json({"error": str(exc)}, 500)
 
     def do_POST(self):  # noqa: N802
@@ -397,6 +447,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True, "starting_balance": bal})
             if path == "/api/control/config":
                 return self._json(save_config(eng, body))
+            if path == "/api/learning/analyze":
+                # deterministic pattern analysis; AI explanation is opt-in and
+                # can only WRITE a report — it never changes code or settings
+                return self._json(eng.run_learning(
+                    use_ai=bool(body.get("use_ai", False))))
+            if path == "/api/diagnostics/sync_rtc":
+                return self._json(eng.sync_diagnostics_rtc(force=True))
+            if path == "/api/diagnostics/resolve":
+                diag = getattr(eng, "diagnostics", None)
+                eid = str(body.get("error_id") or "")
+                status = str(body.get("resolution") or "resolved")
+                ok = bool(diag and eid and diag.resolve_error(eid, status))
+                return self._json({"ok": ok, "error_id": eid,
+                                   "resolution": status})
             if path == "/api/control/login":
                 return self._json(eng.account_login(
                     body.get("username", ""), body.get("password", ""),
@@ -573,6 +637,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "unknown endpoint"}, 404)
             return self._json({"error": "not found"}, 404)
         except Exception as exc:
+            record_error("DASHBOARD", "ERROR",
+                         "POST %s failed: %s" % (path, exc),
+                         module="web.do_POST", exc=exc, recovered=True,
+                         recovery_action="500 returned to the dashboard")
             return self._json({"error": str(exc)}, 500)
 
 

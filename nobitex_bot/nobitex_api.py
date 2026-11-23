@@ -39,6 +39,25 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from decimal import Decimal
+
+
+def _record_api_error(exc: BaseException, method: str, path: str) -> None:
+    """Persist one exchange-API failure (never credentials or payloads)."""
+    try:
+        from .diagnostics import record_error
+        code = str(getattr(exc, "code", "") or type(exc).__name__)
+        retryable = bool(getattr(exc, "retryable", False))
+        clean_path = (path or "").split("?")[0]
+        record_error(
+            "EXCHANGE_API", "WARNING" if retryable else "ERROR",
+            "%s %s failed: %s" % (method, clean_path, code),
+            module="nobitex_api", exc=exc,
+            context={"method": method, "path": clean_path},
+            recovered=retryable,
+            recovery_action=("retryable; caller keeps its previous state"
+                             if retryable else ""))
+    except Exception:
+        pass
 from pathlib import Path
 
 from . import tls
@@ -207,6 +226,21 @@ class NobitexSession:
     # ------------------------------------------------------------ http
     def _raw_request(self, method: str, path: str, body: dict | None,
                      token: str = "", extra_headers: dict | None = None) -> dict:
+        """All authenticated traffic funnels through here.
+
+        Every failure is recorded once in error.db (path and error code
+        only — never the token, the body or the Authorization header).
+        """
+        try:
+            return self._raw_request_impl(method, path, body, token,
+                                          extra_headers)
+        except Exception as exc:
+            _record_api_error(exc, method, path)
+            raise
+
+    def _raw_request_impl(self, method: str, path: str, body: dict | None,
+                          token: str = "",
+                          extra_headers: dict | None = None) -> dict:
         url = API_BASE + path
         data = json.dumps(body).encode("utf-8") if body is not None else None
         headers = {"Accept": "application/json",
@@ -530,9 +564,15 @@ class NobitexAPI(ExchangeAdapter):
         return self.session.authed_request("POST", path, body)
 
     def _public_get(self, path: str, params: dict | None = None) -> dict:
-        """Public market-data call (no token needed).
+        """Public market-data call (no token needed) with error capture."""
+        try:
+            return self._public_get_impl(path, params)
+        except Exception as exc:
+            _record_api_error(exc, "GET", path)
+            raise
 
-        gzip accepted on every call: /market/stats (the whole-catalog tick
+    def _public_get_impl(self, path: str, params: dict | None = None) -> dict:
+        """gzip accepted on every call: /market/stats (the whole-catalog tick
         feeding the universe) is a LARGE JSON and Nobitex compresses it —
         without `Accept-Encoding: gzip` the same download is several times
         bigger on a metered connection.

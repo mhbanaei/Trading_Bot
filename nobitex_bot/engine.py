@@ -151,6 +151,52 @@ class TradingEngine:
         self.data_dir = cfg.engine.data_dir
         self.events = EventBus(self.data_dir)
         self.storage = Storage(self.data_dir)
+        # ---- error monitoring + failed-trade intelligence
+        # Two SQLite files (error.db, failed_trade.db) at the data dir, plus
+        # transaction-safe mirrors in RTC/. Failure to open them must never
+        # stop trading: the engine keeps running without them.
+        self.diagnostics = None
+        try:
+            from . import diagnostics as diagnostics_mod
+            dcfg = getattr(cfg, "diagnostics", None)
+            if dcfg is None or getattr(dcfg, "enabled", True):
+                # Location contract: the running bot keeps error.db and
+                # failed_trade.db in the PROJECT ROOT (next to run.py), and
+                # mirrors them into RTC/. An absolute data_dir means an
+                # isolated/secondary install (tests, a sandbox): its
+                # diagnostics stay there and no live RTC mirror is touched.
+                project_root = Path(__file__).resolve().parent.parent
+                data_path = Path(self.data_dir)
+                isolated = data_path.is_absolute()
+                diag_dir = data_path if isolated else project_root
+                rtc_dir = project_root / "RTC"
+                secrets = [
+                    getattr(cfg.exchange, "nobitex_api_key", ""),
+                    getattr(cfg.exchange, "nobitex_password", ""),
+                    getattr(cfg.exchange, "nobitex_totp_secret", ""),
+                    getattr(cfg.ai, "llm_api_key", ""),
+                    getattr(cfg.web, "password", ""),
+                    getattr(cfg.exchange, "nobitex_username", ""),
+                ]
+                self.diagnostics = diagnostics_mod.configure(
+                    diag_dir,
+                    rtc_dir=(rtc_dir if (not isolated and rtc_dir.is_dir()
+                                         and getattr(dcfg, "rtc_sync", True))
+                             else None),
+                    retention_days=getattr(dcfg, "retention_days", 30.0),
+                    max_errors=getattr(dcfg, "max_errors", 20000),
+                    max_failed_trades=getattr(dcfg, "max_failed_trades",
+                                              20000),
+                    rtc_sync=bool(getattr(dcfg, "rtc_sync", True)),
+                    rtc_sync_min_interval_s=getattr(
+                        dcfg, "rtc_sync_min_interval_s", 300.0),
+                    background=bool(getattr(dcfg, "background_writes", True)),
+                    secrets=[s for s in secrets if isinstance(s, str)],
+                    log_dir=Path(diag_dir) / "logs")
+                diagnostics_mod.install_exception_hooks(self.diagnostics)
+                diagnostics_mod.attach_logging(self.diagnostics)
+        except Exception as exc:  # diagnostics must never block the engine
+            print("[diagnostics] disabled: %s" % exc)
         from .exchange_factory import make_exchange
         self.exchange = make_exchange(cfg)
         # real-account session: ALWAYS available so the dashboard can log in
@@ -1027,6 +1073,11 @@ class TradingEngine:
                 self.events.error("ENGINE", "CYCLE_FAILED", "HIGH",
                                   "%s\\n%s" % (exc, traceback.format_exc()[-500:]),
                                   retryable=True)
+                self._note_error("WORKER", "CRITICAL",
+                                 "trading cycle failed: %s" % exc,
+                                 module="engine._run_loop", exc=exc,
+                                 recovered=False,
+                                 recovery_action="next cycle continues")
             elapsed = time.time() - t0
             self._stop.wait(max(1.0, interval - elapsed))
             if self.cfg.engine.max_cycles and \
@@ -1149,6 +1200,101 @@ class TradingEngine:
             self.events._prune_events()
         except Exception:
             pass
+        try:
+            self._diagnostics_housekeeping()
+        except Exception:
+            pass
+
+    def _diagnostics_housekeeping(self) -> None:
+        """Bounded storage, periodic learning pass and RTC mirror.
+
+        Runs on the same slow cadence as the other disk upkeep so it never
+        touches a trading-critical path.
+        """
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return
+        dcfg = getattr(self.cfg, "diagnostics", None)
+        diag.prune()
+        every = max(0, int(getattr(dcfg, "learning_every_cycles", 12) or 0))
+        if every and self._cycles_run and self._cycles_run % every == 0:
+            from .learning import analyze
+            analyze(diag, int(getattr(dcfg, "learning_min_evidence", 3) or 3))
+            diag.sync_to_rtc()
+
+    def _note_error(self, category: str, severity: str, message: str,
+                    **kwargs) -> str:
+        """Best-effort structured error record (never raises)."""
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return ""
+        try:
+            return diag.record_error(category, severity, message, **kwargs)
+        except Exception:
+            return ""
+
+    def _portfolio_state(self) -> dict:
+        try:
+            return {"balances": {k: str(v) for k, v in
+                                  dict(getattr(self.portfolio, "balances",
+                                               {}) or {}).items()}}
+        except Exception:
+            return {}
+
+    _REJECT_CATEGORY = {
+        "INSUFFICIENT_CASH": "INSUFFICIENT_BALANCE",
+        "BELOW_MIN_NOTIONAL": "MIN_ORDER",
+        "MIN_NOTIONAL": "MIN_ORDER",
+        "POSITION_SIZE_TOO_SMALL": "MIN_ORDER",
+        "PRICE_UNAVAILABLE": "DATA_QUALITY",
+        "NO_POSITION_TO_SELL": "INVALID_ORDER",
+        "DECISION_EXPIRED": "STRATEGY",
+    }
+
+    def _record_failed_attempt(self, *, symbol: str, action: str,
+                               category: str = "", reason: str = "",
+                               decision: dict | None = None,
+                               risk: dict | None = None,
+                               execution: dict | None = None,
+                               outcome: str = "rejected",
+                               status: str = "") -> None:
+        """Record ONE unsuccessful execution attempt (never a normal loss)."""
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return
+        try:
+            dec = decision or {}
+            ex = execution or {}
+            codes = (risk or {}).get("rejection_reasons") or []
+            if not category:
+                category = next((self._REJECT_CATEGORY.get(c)
+                                 for c in codes
+                                 if self._REJECT_CATEGORY.get(c)),
+                                "STRATEGY" if codes else "UNKNOWN")
+            entry = dec.get("entry")
+            expected = (entry.get("price") if isinstance(entry, dict)
+                        else dec.get("expected_price"))
+            diag.record_failed_trade(
+                symbol=symbol, intended_action=action, market=symbol,
+                failure_category=category, failure_reason=reason,
+                execution_mode=("live" if (self._real_attached and bool(
+                    getattr(self.cfg.exchange, "live_trading", False)))
+                    else "paper"),
+                strategy=",".join(map(str, dec.get("reason_codes") or []))[:200],
+                ai_recommendation=dec.get("action"),
+                decision_id=dec.get("decision_id", ""),
+                risk_decision_id=(risk or {}).get("risk_decision_id", ""),
+                order_id=ex.get("order_id", ""),
+                order_status=status or ex.get("status", ""),
+                exchange_response=ex.get("error", ""),
+                expected_price=expected, actual_price=ex.get("fill_price"),
+                intended_amount=ex.get("amount"),
+                executed_amount=ex.get("matched_amount"),
+                fees=ex.get("fee"),
+                portfolio_before=self._portfolio_state(),
+                outcome=outcome)
+        except Exception:
+            pass
 
     def run_cycle(self) -> dict:
         """One full SS100 pipeline pass. Returns a cycle summary."""
@@ -1164,6 +1310,14 @@ class TradingEngine:
                 sync = self.sync_real_wallet()
                 if not sync.get("ok") and sync.get("error"):
                     summary["wallet_sync"] = sync["error"]
+                    self._note_error(
+                        "SYNC", "WARNING",
+                        "wallet sync failed: %s" % sync["error"],
+                        module="engine.run_cycle",
+                        context={"cycle_id": cycle_id},
+                        recovered=True,
+                        recovery_action="cycle continued with the previous "
+                                        "wallet snapshot")
             # 0 ---- یک سکه = یک ردیف (دمو و واقعی): موجودی همین دفتر
             # (حالت واقعی: آینهٔ کیف پول صرافی؛ دمو: کیف پول کاغذی) منبع
             # حقیقت است. یک دارایی هرگز نباید همزمان در بخش تتری و تومانی
@@ -6438,6 +6592,9 @@ class TradingEngine:
                    "rejected": codes,
                    "error": "امکان ثبت سفارش نیست: " +
                             self._manual_reason_fa(codes)}
+            self._record_failed_attempt(
+                symbol=symbol, action="BUY", decision=dec, risk=rd,
+                reason=out["error"], outcome="rejected")
             if note:
                 out["note"] = note
             return out
@@ -6454,6 +6611,11 @@ class TradingEngine:
                                  "status": ex.get("status")})
         out = {"ok": bool(ok), "symbol": symbol, "market": symbol,
                "execution": ex, "overridden": rd.get("overridden") or []}
+        if not ok:
+            self._record_failed_attempt(
+                symbol=symbol, action="BUY", decision=dec, risk=rd,
+                execution=ex, reason=ex.get("error") or ex.get("reason")
+                or "execution did not complete", outcome="failed")
         if note:
             out["note"] = note
         if click_symbol != symbol:
@@ -8280,6 +8442,12 @@ class TradingEngine:
             notes.append("از %s سکه، %s فروخته شد و بقیه در صف فروش است"
                          % (("%.8f" % amount).rstrip("0").rstrip("."),
                             ("%.8f" % float(sold)).rstrip("0").rstrip(".")))
+        if not out["ok"]:
+            self._record_failed_attempt(
+                symbol=symbol, action="SELL", decision=dec, risk=rd,
+                execution=ex, reason=out.get("error") or "",
+                category="" if failed else "LIQUIDITY",
+                outcome="rejected" if failed else "unfilled", status=st)
         if notes:
             out["note"] = " | ".join(notes)
         return out
@@ -8699,6 +8867,76 @@ class TradingEngine:
 
     def recent_events(self, limit: int = 100) -> list:
         return self.events.recent(limit)
+
+    # --------------------------------------------- diagnostics / learning
+    def diagnostics_summary(self) -> dict:
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return {"enabled": False, "errors_total": 0,
+                    "failed_trades_total": 0, "lessons_total": 0}
+        out = diag.summary()
+        out["enabled"] = True
+        return out
+
+    def diagnostics_errors(self, limit: int = 100, **filters) -> list:
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return []
+        allowed = {k: v for k, v in filters.items()
+                   if k in ("category", "severity", "symbol", "resolution",
+                            "since", "search")}
+        return diag.errors(limit=limit, **allowed)
+
+    def diagnostics_error_detail(self, error_id: str) -> dict | None:
+        """Full error incl. stack trace — authenticated dashboard only."""
+        diag = getattr(self, "diagnostics", None)
+        return diag.error(error_id) if diag else None
+
+    def diagnostics_failed_trades(self, limit: int = 100,
+                                  **filters) -> list:
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return []
+        allowed = {k: v for k, v in filters.items()
+                   if k in ("category", "symbol", "section", "strategy",
+                            "since")}
+        return diag.failed_trades(limit=limit, **allowed)
+
+    def learning_lessons(self, limit: int = 100,
+                         status: str = "") -> list:
+        diag = getattr(self, "diagnostics", None)
+        return diag.lessons(limit=limit, status=status) if diag else []
+
+    def learning_reports(self, limit: int = 5) -> list:
+        diag = getattr(self, "diagnostics", None)
+        return diag.learning_reports(limit=limit) if diag else []
+
+    def run_learning(self, use_ai: bool = True) -> dict:
+        """Deterministic pattern analysis + optional AI explanation.
+
+        Writes lessons as PROPOSALS only. Nothing here changes strategy
+        parameters, config or risk limits.
+        """
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return {"ok": False, "error": "diagnostics disabled"}
+        from . import learning
+        dcfg = getattr(self.cfg, "diagnostics", None)
+        min_evidence = int(getattr(dcfg, "learning_min_evidence", 3) or 3)
+        out = learning.analyze(diag, min_evidence)
+        if use_ai and bool(getattr(dcfg, "learning_ai_enabled", False)):
+            out["ai"] = learning.ai_report(diag, self.cfg.ai, min_evidence)
+        try:
+            diag.sync_to_rtc()
+        except Exception:
+            pass
+        return out
+
+    def sync_diagnostics_rtc(self, force: bool = True) -> dict:
+        diag = getattr(self, "diagnostics", None)
+        if diag is None:
+            return {"ok": False, "error": "diagnostics disabled"}
+        return diag.sync_to_rtc(force=force)
 
     def history(self, kind: str, limit: int = 100) -> list:
         if kind == "decisions":

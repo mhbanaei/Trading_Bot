@@ -24,6 +24,24 @@ Never copied into `RTC/`: the real `config.json`, `data/` (trading databases,
 `.env*`, private keys. `sync_rtc.py` scans the result for the actual secret
 values and exits non-zero instead of letting a leak through.
 
+### Runtime diagnostics databases (never copy, never prune)
+
+`error.db` and `failed_trade.db` live in the PROJECT ROOT and are mirrored to
+`RTC/error.db` / `RTC/failed_trade.db` by the running bot
+(`nobitex_bot/diagnostics.py` → `Diagnostics.sync_to_rtc()`) using the SQLite
+backup API. They are read-only snapshots in `RTC/`; only the main process
+writes.
+
+- `sync_rtc.py` skips every `*.db`, `*.sqlite*` and sidecar in `RTC/` when it
+  prunes — a source refresh must never delete or overwrite them.
+- `RTC/.gitignore` excludes them, and the root `.gitignore` does too. Their
+  contents (real errors, real failed orders) are private and never committed.
+- Do not delete either database to "reset" something: retention
+  (`diagnostics.*` in `config.json`) is the only supported cleanup, and it
+  never touches the trading ledger.
+- A second/isolated install with an ABSOLUTE `engine.data_dir` keeps its own
+  diagnostics under that directory and does not touch the live RTC mirror.
+
 ## Ground rules for this project
 
 - Talking to a real exchange account: never assume a request succeeded —

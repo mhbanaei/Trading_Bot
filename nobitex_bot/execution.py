@@ -10,6 +10,8 @@ import threading
 from decimal import Decimal
 
 from .config import Config
+from .diagnostics import (classify_failure, record_error,
+                          record_failed_trade)
 from .enums import ExecutionStatus, OrderStatus
 from .events import EventBus
 from .nobitex_api import NobitexAPI, NobitexError
@@ -27,6 +29,46 @@ class ExecutionEngine:
         self.portfolio = portfolio
         self.exchange = exchange
         self._lock = threading.Lock()
+
+    def _portfolio_state(self) -> dict:
+        try:
+            return {"balances": {k: str(v) for k, v in
+                                  dict(getattr(self.portfolio, "balances",
+                                               {}) or {}).items()}}
+        except Exception:
+            return {}
+
+    def _note_failed_attempt(self, decision: dict, risk_decision: dict,
+                             side: str, *, reason: str, category: str = "",
+                             price=None, amount=None, execution=None,
+                             status: str = "", outcome: str = "rejected",
+                             exchange_response=None, executed_amount=None,
+                             fees=None) -> None:
+        """Record one unsuccessful execution attempt (never a normal loss)."""
+        try:
+            record_failed_trade(
+                symbol=decision.get("symbol", ""),
+                intended_action=side,
+                failure_category=category or classify_failure(reason),
+                failure_reason=reason,
+                execution_mode="live" if self._live() else "paper",
+                strategy=",".join(map(str, decision.get("reason_codes")
+                                      or []))[:200],
+                ai_recommendation=decision.get("action"),
+                decision_id=decision.get("decision_id", ""),
+                risk_decision_id=risk_decision.get("risk_decision_id", ""),
+                order_id=(execution or {}).get("order_id", ""),
+                order_status=status or (execution or {}).get("status", ""),
+                exchange_response=exchange_response,
+                expected_price=price,
+                actual_price=(execution or {}).get("fill_price"),
+                intended_amount=amount,
+                executed_amount=executed_amount,
+                fees=fees,
+                portfolio_before=self._portfolio_state(),
+                outcome=outcome)
+        except Exception:
+            pass
 
     def _live(self) -> bool:
         """Real orders only when the real adapter is attached AND the user
@@ -173,15 +215,29 @@ class ExecutionEngine:
             return {"status": "SKIPPED", "reason": "NO_ACTION_REQUIRED"}
 
         sym = decision["symbol"]
+        side = decision["action"]
         price = d(str(fresh_prices.get(sym) or 0))
         if price <= 0:
+            # data-quality failure: the decision exists but has no live price
+            self._note_failed_attempt(
+                decision, risk_decision, side, reason="PRICE_UNAVAILABLE",
+                category="DATA_QUALITY",
+                amount=risk_decision.get("approved_position_size"))
+            record_error(
+                "EXECUTION", "WARNING",
+                "cannot execute %s %s: no fresh price" % (side, sym),
+                module="execution.execute", symbol=sym,
+                context={"decision_id": decision.get("decision_id")},
+                recovered=True,
+                recovery_action="attempt skipped before any order was sent")
             return {"status": "SKIPPED", "reason": "PRICE_UNAVAILABLE"}
 
         amount = d(str(risk_decision.get("approved_position_size") or 0))
         if amount <= 0:
+            self._note_failed_attempt(
+                decision, risk_decision, side, reason="NO_APPROVED_SIZE",
+                category="STRATEGY", price=price)
             return {"status": "SKIPPED", "reason": "NO_APPROVED_SIZE"}
-
-        side = decision["action"]
 
         # LIVE SELLS MUST CROSS THE BOOK. Sending a SELL limit at the last
         # traded price leaves it resting above the best bid whenever the
@@ -213,6 +269,10 @@ class ExecutionEngine:
                 if usdtirt:
                     min_notional = min_notional * d(str(usdtirt))
             if amount * price < min_notional:
+                self._note_failed_attempt(
+                    decision, risk_decision, side, reason="INSUFFICIENT_CASH",
+                    category="INSUFFICIENT_BALANCE", price=price, amount=amount,
+                    outcome="rejected")
                 return {"status": "SKIPPED", "reason": "INSUFFICIENT_CASH"}
 
         now = utc_now_iso()
@@ -306,8 +366,19 @@ class ExecutionEngine:
                     execution_id, ExecutionStatus.FAILED.value)
                 self.events.error("EXECUTION_ENGINE", "FILL_APPLY_FAILED",
                                   "HIGH", str(exc), cycle_id=cycle_id)
+                err_id = record_error(
+                    "EXECUTION", "HIGH",
+                    "fill could not be applied (order %s): %s" % (order_id, exc),
+                    module="execution.execute", symbol=sym, order_id=order_id,
+                    cycle_id=cycle_id, exc=exc, recovered=False)
+                self._note_failed_attempt(
+                    decision, risk_decision, side,
+                    reason="FILL_APPLY_FAILED: %s" % exc,
+                    category="EXCHANGE_BEHAVIOR", price=price, amount=amount,
+                    status="REJECTED", outcome="failed")
                 execution["status"] = ExecutionStatus.FAILED.value
                 execution["error"] = str(exc)
+                execution["error_id"] = err_id
                 self.storage.save_execution(execution)
                 return execution
 
@@ -401,6 +472,32 @@ class ExecutionEngine:
             order["status"] = applied.get("status") or order["status"]
         self.storage.save_order(order)
 
+        # a PARTIAL fill is an unsuccessful execution outcome worth studying
+        # (the exchange matched only part of the size). Missing data stays
+        # NULL — nothing here is inferred from a submission reply.
+        try:
+            _matched = d(str(order.get("matched_amount") or 0))
+            _want = d(str(execution.get("amount") or 0))
+            if _matched > 0 and _want > 0 and _matched < _want:
+                record_failed_trade(
+                    symbol=sym, intended_action=execution.get("side", ""),
+                    failure_category="PARTIAL_FILL",
+                    failure_reason="order matched %s of %s" % (_matched, _want),
+                    execution_mode="live",
+                    decision_id=execution.get("decision_id", ""),
+                    risk_decision_id=execution.get("risk_decision_id", ""),
+                    order_id=order.get("order_id", ""),
+                    order_status=order.get("status", ""),
+                    exchange_response=result,
+                    expected_price=order.get("price"),
+                    actual_price=execution.get("fill_price"),
+                    intended_amount=_want, executed_amount=_matched,
+                    fees=execution.get("fee"),
+                    portfolio_before=self._portfolio_state(),
+                    outcome="partially_filled")
+        except Exception:
+            pass
+
         execution["status"] = (ExecutionStatus.FILLED.value
                                if order["status"] == OrderStatus.FILLED.value
                                else ExecutionStatus.SUBMITTED.value)
@@ -491,9 +588,21 @@ class ExecutionEngine:
         except ValueError as exc:
             self.events.error("EXECUTION_ENGINE", "LIVE_FILL_APPLY_FAILED",
                               "HIGH", str(exc), cycle_id=cycle_id)
+            record_error("EXECUTION", "HIGH",
+                         "live fill could not be applied: %s" % exc,
+                         module="execution._live_fill_from_order",
+                         symbol=order.get("market", ""),
+                         order_id=order.get("order_id", ""),
+                         cycle_id=cycle_id, exc=exc, recovered=False)
         except Exception as exc:
             self.events.error("EXECUTION_ENGINE", "LIVE_FILL_RECORD_FAILED",
                               "HIGH", str(exc), cycle_id=cycle_id)
+            record_error("EXECUTION", "HIGH",
+                         "live fill could not be recorded: %s" % exc,
+                         module="execution._live_fill_from_order",
+                         symbol=order.get("market", ""),
+                         order_id=order.get("order_id", ""),
+                         cycle_id=cycle_id, exc=exc, recovered=False)
         return None
 
     def _fail_real(self, execution: dict, order: dict, error: str,
@@ -508,4 +617,37 @@ class ExecutionEngine:
         self.storage.save_execution(execution)
         self.events.error("EXECUTION_ENGINE", "REAL_ORDER_FAILED", "HIGH",
                           error, cycle_id=cycle_id, retryable=False)
+        category = classify_failure(error)
+        err_id = record_error(
+            "EXECUTION", "HIGH",
+            "real %s order rejected for %s: %s"
+            % (execution.get("side"), execution.get("market"), error),
+            module="execution._fail_real",
+            symbol=execution.get("market", ""),
+            order_id=order.get("order_id", ""),
+            trade_id="", cycle_id=cycle_id, exc=None,
+            context={"client_order_id": order.get("client_order_id"),
+                     "category": category},
+            recovered=False)
+        execution["error_id"] = err_id
+        try:
+            record_failed_trade(
+                symbol=execution.get("market", ""),
+                intended_action=execution.get("side", ""),
+                failure_category=category, failure_reason=error,
+                execution_mode="live",
+                strategy=",".join(map(str, (execution.get("reason_codes")
+                                            or []))),
+                decision_id=execution.get("decision_id", ""),
+                risk_decision_id=execution.get("risk_decision_id", ""),
+                order_id=order.get("order_id", ""),
+                order_status=OrderStatus.REJECTED.value,
+                exchange_response=error, error_id=err_id,
+                expected_price=order.get("price"),
+                intended_amount=order.get("amount"),
+                executed_amount="0",
+                portfolio_before=self._portfolio_state(),
+                outcome="rejected")
+        except Exception:
+            pass
         return execution

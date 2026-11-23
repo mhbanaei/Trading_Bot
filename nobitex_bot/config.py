@@ -441,6 +441,36 @@ class WebCfg:
 
 
 @dataclass
+class DiagnosticsCfg:
+    """error.db / failed_trade.db behaviour (nobitex_bot/diagnostics.py).
+
+    enabled: master switch. Turning it off only stops NEW records; files on
+      disk are never deleted.
+    retention_days / max_errors / max_failed_trades: bounded storage. Only
+      diagnostic rows are pruned — the trading ledger is untouched.
+    background_writes: write through a bounded queue so a slow disk can
+      never stall a trading cycle.
+    rtc_sync: mirror both databases into RTC/ with the SQLite backup API.
+      The mirror is a read-only snapshot; the main process is the only
+      writer.
+    learning_every_cycles: how often the deterministic failure-pattern
+      analysis runs (0 disables the periodic run).
+    learning_ai_enabled: allow the optional FreeLLMAPI explanation. It only
+      writes a report; it can never change code, config or risk limits.
+    """
+    enabled: bool = True
+    retention_days: float = 30.0
+    max_errors: int = 20000
+    max_failed_trades: int = 20000
+    background_writes: bool = True
+    rtc_sync: bool = True
+    rtc_sync_min_interval_s: float = 300.0
+    learning_every_cycles: int = 12
+    learning_min_evidence: int = 3
+    learning_ai_enabled: bool = False
+
+
+@dataclass
 class Config:
     engine: EngineCfg = field(default_factory=EngineCfg)
     exchange: ExchangeCfg = field(default_factory=ExchangeCfg)
@@ -451,6 +481,7 @@ class Config:
     ai: AICfg = field(default_factory=AICfg)
     paper: PaperCfg = field(default_factory=PaperCfg)
     web: WebCfg = field(default_factory=WebCfg)
+    diagnostics: DiagnosticsCfg = field(default_factory=DiagnosticsCfg)
     schema_version: str = "1.0"
 
     def to_public_dict(self) -> dict:
@@ -525,6 +556,12 @@ class Config:
                       self.risk.risk_mode_atr_stop_cap_pct)
         rk.setdefault("risk_mode_analysis_exit",
                       self.risk.risk_mode_analysis_exit)
+        dg = d.setdefault("diagnostics", {})
+        for f in ("enabled", "retention_days", "max_errors",
+                  "max_failed_trades", "background_writes", "rtc_sync",
+                  "rtc_sync_min_interval_s", "learning_every_cycles",
+                  "learning_min_evidence", "learning_ai_enabled"):
+            dg.setdefault(f, getattr(self.diagnostics, f))
         an = d.setdefault("analysis", {})
         for f in ("enabled", "frames", "max_markets", "min_candles",
                   "min_growth_safe", "min_growth_risk",
@@ -747,6 +784,18 @@ def validate_config(cfg: Config) -> list[str]:
         v = float(getattr(cfg.ai, name))
         if not (0 <= v <= 1):
             bad("ai.%s must be 0..1 (got %r)" % (name, v))
+
+    # ---- diagnostics (error.db / failed_trade.db)
+    dg = getattr(cfg, "diagnostics", None)
+    if dg is not None:
+        if float(dg.retention_days) < 0:
+            bad("diagnostics.retention_days must be >= 0 (0 = keep forever)")
+        for name in ("max_errors", "max_failed_trades",
+                     "learning_every_cycles", "learning_min_evidence"):
+            if int(getattr(dg, name)) < 0:
+                bad("diagnostics.%s must be >= 0" % name)
+        if float(dg.rtc_sync_min_interval_s) < 0:
+            bad("diagnostics.rtc_sync_min_interval_s must be >= 0")
     return p
 
 

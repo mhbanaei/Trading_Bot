@@ -672,6 +672,7 @@ html[data-theme="dark"] .strike-badge .num{color:var(--orange)}
   <button data-tab="portfolio">پرتفوی</button>
   <button data-tab="exchange" id="tabExchangeBtn" style="display:none">حساب نوبیتکس</button>
   <button data-tab="events">رویدادها</button>
+  <button data-tab="errors">خطاها و یادگیری</button>
   <button data-tab="settings">تنظیمات</button>
 </nav>
 <main>
@@ -779,6 +780,67 @@ html[data-theme="dark"] .strike-badge .num{color:var(--orange)}
 
   <section id="tab-events" class="tabs">
     <div class="card"><h3>جریان رویدادها</h3><div id="evBox"></div></div>
+  </section>
+
+  <section id="tab-errors" class="tabs">
+    <div class="grid g4" id="diagCards"></div>
+    <div class="card" style="margin-top:12px">
+      <h3>خطاهای ثبت‌شده (error.db)</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <select id="diagCat">
+          <option value="">همهٔ دسته‌ها</option>
+          <option>EXCHANGE_API</option><option>EXECUTION</option>
+          <option>MARKET_DATA</option><option>AI</option><option>ANALYSIS</option>
+          <option>RISK</option><option>DATABASE</option><option>WORKER</option>
+          <option>DASHBOARD</option><option>CONFIG</option><option>SYNC</option>
+          <option>RTC</option><option>UNKNOWN</option>
+        </select>
+        <select id="diagSev">
+          <option value="">همهٔ شدت‌ها</option>
+          <option>CRITICAL</option><option>ERROR</option>
+          <option>WARNING</option><option>INFO</option>
+        </select>
+        <select id="diagRes">
+          <option value="">همهٔ وضعیت‌ها</option>
+          <option>open</option><option>investigating</option>
+          <option>resolved</option><option>regressed</option>
+        </select>
+        <input id="diagSym" placeholder="نماد (BTCIRT)" dir="ltr" style="max-width:130px">
+        <input id="diagSince" type="date" title="از تاریخ (UTC)">
+        <select id="diagSec">
+          <option value="">هر دو بازار</option>
+          <option value="IRT">تومانی (IRT)</option>
+          <option value="USDT">تتری (USDT)</option>
+        </select>
+        <button id="diagRefresh">به‌روزرسانی</button>
+        <button id="diagAnalyze">تحلیل الگوها</button>
+        <button id="diagRtcSync">همگام‌سازی RTC</button>
+      </div>
+      <div id="diagErrBox"></div>
+      <div id="diagDetail"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>معاملات ناموفق (failed_trade.db)</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <select id="diagFtCat">
+          <option value="">همهٔ دلایل</option>
+          <option>API_NETWORK</option><option>INVALID_ORDER</option>
+          <option>INSUFFICIENT_BALANCE</option><option>MIN_ORDER</option>
+          <option>LIQUIDITY</option><option>SLIPPAGE</option>
+          <option>PARTIAL_FILL</option><option>STRATEGY</option>
+          <option>MARKET_SELECTION</option><option>AI_DECISION</option>
+          <option>DATA_QUALITY</option><option>EXCHANGE_BEHAVIOR</option>
+          <option>UNKNOWN</option>
+        </select>
+        <input id="diagStrategy" placeholder="استراتژی" style="max-width:150px">
+        <button id="diagFtRefresh">به‌روزرسانی</button>
+      </div>
+      <div id="diagFtBox"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>درس‌های آموخته‌شده — پیشنهاد، تا تأیید تستی اعمال نمی‌شوند</h3>
+      <div id="diagLessonBox"></div>
+    </div>
   </section>
 
   <section id="tab-exchange" class="tabs">
@@ -3299,8 +3361,130 @@ async function refreshSlow(){
        (the server's own TTL decides whether the exchange is re-asked), so
        the table keeps working even when no cycle/snapshot has run yet */
     if(activeTab==="markets"){ await loadUniverse(false); }
+    if(activeTab==="errors"){ await loadDiagnostics(); }
   }catch(e){}
 }
+
+/* ---------------- errors & learning ---------------- */
+const diagState={cat:"",sev:"",res:"",since:"",sec:"",ftCat:"",strategy:""};
+async function loadDiagnostics(){
+  const p=new URLSearchParams({limit:"120"});
+  if(diagState.cat)p.set("category",diagState.cat);
+  if(diagState.sev)p.set("severity",diagState.sev);
+  if(diagState.res)p.set("resolution",diagState.res);
+  const symEl=$("#diagSym"); const sym=symEl?(symEl.value||"").trim():"";
+  if(sym)p.set("symbol",sym);
+  if(diagState.since)p.set("since",diagState.since);
+  if(diagState.sec)p.set("section",diagState.sec);
+  if(diagState.ftCat)p.set("failure_category",diagState.ftCat);
+  if(diagState.strategy)p.set("strategy",diagState.strategy);
+  let d;
+  try{ d=await jget("/api/diagnostics?"+p.toString()); }
+  catch(e){ const b=$("#diagErrBox"); if(b)b.innerHTML='<div class="empty">خطا در دریافت اطلاعات: '+esc(e.message||e)+'</div>'; return; }
+  renderDiag(d);
+}
+function renderDiag(d){
+  const s=d.summary||{};
+  const cards=$("#diagCards");
+  if(cards)cards.innerHTML=[
+    ["کل خطاها",s.errors_total],["تعداد رخداد",s.error_occurrences],
+    ["بحرانی",s.critical_errors],["حل‌نشده",s.unresolved_errors],
+    ["خطاهای تکراری",s.repeated_errors],["معاملات ناموفق",s.failed_trades_total],
+    ["درس‌ها",s.lessons_total],["تأییدشده",s.lessons_verified]
+  ].map(([k,v])=>`<div class="card"><div class="mut" style="font-size:11.5px">${k}</div>
+     <div style="font-size:20px;font-weight:700">${fmt(v||0,0)}</div></div>`).join("");
+
+  const eb=$("#diagErrBox");
+  if(eb){
+    const rows=d.errors||[];
+    eb.innerHTML=!rows.length?'<div class="empty">خطایی با این فیلترها ثبت نشده است</div>':
+      '<div class="clist">'+rows.map(e=>`<div class="ctile">
+        <div class="ct-top"><span class="ct-name">${esc(e.severity)} · ${esc(e.category)}</span>
+          <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${tehran(e.last_seen)}</span></div>
+        <div class="ct-grid">
+          <div><span class="k">تکرار</span><span class="v">${e.occurrences}</span></div>
+          <div><span class="k">ماژول</span><span class="v">${esc(e.module||"—")}</span></div>
+          <div><span class="k">وضعیت</span><span class="v">${esc(e.resolution||"open")}</span></div>
+        </div>
+        <div class="ev-payload" style="margin:6px 0">${esc((e.message||"").slice(0,200))}</div>
+        <button class="primary" data-eid="${esc(e.error_id)}" style="font-size:11px;padding:3px 9px">جزئیات و ردپای خطا</button>
+      </div>`).join("")+"</div>";
+  }
+
+  const fb=$("#diagFtBox");
+  if(fb){
+    const rows=d.failed_trades||[];
+    fb.innerHTML=!rows.length?'<div class="empty">معاملهٔ ناموفقی ثبت نشده است</div>':
+      '<div class="clist">'+rows.map(f=>`<div class="ctile">
+        <div class="ct-top"><span class="ct-name">${esc(f.symbol||"—")} · ${esc(f.intended_action||"")}</span>
+          <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${tehran(f.timestamp)}</span></div>
+        <div class="ct-grid">
+          <div><span class="k">دسته</span><span class="v">${esc(f.failure_category)}</span></div>
+          <div><span class="k">نتیجه</span><span class="v">${esc(f.outcome)}</span></div>
+          <div><span class="k">وضعیت سفارش</span><span class="v">${esc(f.order_status||"—")}</span></div>
+        </div>
+        <div class="ev-payload" style="margin-top:6px">${esc((f.failure_reason||"").slice(0,200))}</div>
+      </div>`).join("")+"</div>";
+  }
+
+  const lb=$("#diagLessonBox");
+  if(lb){
+    const rows=d.lessons||[];
+    lb.innerHTML=!rows.length?'<div class="empty">الگوی تکرارشونده‌ای بالاتر از آستانهٔ شواهد پیدا نشده است</div>':
+      '<div class="clist">'+rows.map(l=>`<div class="ctile">
+        <div class="ct-top"><span class="ct-name">${esc(l.pattern_key)}</span>
+          <span class="ct-chg mut" style="font-weight:400;font-size:10.5px">${esc(l.verification_status)}</span></div>
+        <div class="ev-payload" style="margin:6px 0">${esc((l.pattern||"").slice(0,220))}</div>
+        <div class="ct-grid">
+          <div><span class="k">رخداد</span><span class="v">${l.occurrences}</span></div>
+          <div><span class="k">اطمینان</span><span class="v">${fmt(l.confidence,2)}</span></div>
+        </div>
+        <div class="mut" style="font-size:11.5px;margin-top:6px">اصلاح پیشنهادی: ${esc(l.recommended_correction||"—")}</div>
+      </div>`).join("")+"</div>";
+  }
+}
+async function showDiagError(id){
+  try{
+    const r=await jget("/api/diagnostics/error?id="+encodeURIComponent(id));
+    const box=$("#diagDetail");
+    if(box)box.innerHTML=`<div class="card" style="margin-top:10px">
+      <h3>${esc(r.severity)} — ${esc(r.category)} — ${esc(r.module||"")}</h3>
+      <div class="mut" style="font-size:11.5px">${esc(r.error_id)} | تکرار ${r.occurrences} | ${tehran(r.last_seen)}</div>
+      <div style="margin:8px 0">${esc(r.message||"")}</div>
+      <pre style="white-space:pre-wrap;direction:ltr;text-align:left;max-height:320px;overflow:auto;font-size:11px">${esc(r.stack_trace||"—")}</pre>
+      <button class="primary" data-resolve="${esc(r.error_id)}" style="font-size:11.5px">علامت‌گذاری به‌عنوان حل‌شده</button>
+    </div>`;
+  }catch(e){ const box=$("#diagDetail"); if(box)box.innerHTML='<div class="empty">جزئیات در دسترس نیست</div>'; }
+}
+document.addEventListener("click",e=>{
+  const d=e.target.closest("[data-eid]");
+  if(d){e.preventDefault();showDiagError(d.dataset.eid);return;}
+  const r=e.target.closest("[data-resolve]");
+  if(r){jpost("/api/diagnostics/resolve",{error_id:r.dataset.resolve,resolution:"resolved"}).then(()=>loadDiagnostics()).catch(()=>{})}
+});
+["diagCat","diagSev","diagRes","diagSec","diagFtCat"].forEach((id,i)=>{
+  const el=document.getElementById(id);
+  const key=['cat','sev','res','sec','ftCat'][i];
+  if(el)el.onchange=()=>{diagState[key]=el.value;loadDiagnostics()};
+});
+(()=>{
+  const d=document.getElementById("diagSince");
+  if(d)d.onchange=()=>{diagState.since=d.value;loadDiagnostics()};
+  const s=document.getElementById("diagStrategy");
+  if(s)s.onchange=()=>{diagState.strategy=(s.value||"").trim();loadDiagnostics()};
+  const b=document.getElementById("diagFtRefresh");
+  if(b)b.onclick=()=>loadDiagnostics();
+})();
+(()=>{
+  const b=$("#diagRefresh"); if(b)b.onclick=()=>loadDiagnostics();
+  const a=$("#diagAnalyze");
+  if(a)a.onclick=async()=>{toast("در حال تحلیل الگوهای خطا…");
+    try{const r=await jpost("/api/learning/analyze",{use_ai:false});
+      toast(r.ok?("تحلیل انجام شد — "+(r.lesson_count||0)+" درس"):("تحلیل انجام نشد: "+(r.error||"?")));loadDiagnostics()}catch(e){toast("تحلیل انجام نشد")}};
+  const s=$("#diagRtcSync");
+  if(s)s.onclick=async()=>{try{const r=await jpost("/api/diagnostics/sync_rtc",{});
+    toast(r.ok?"پایگاه‌های خطا در RTC همگام شد":"همگام‌سازی نشد: "+(r.error||""))}catch(e){toast("همگام‌سازی نشد")}};
+})();
 setInterval(poll,2500);
 setInterval(refreshSlow,8000);
 jget("/api/config").then(c=>{cfg=c;renderCfg(c)}).catch(()=>{});
