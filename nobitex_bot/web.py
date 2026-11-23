@@ -9,7 +9,6 @@ from __future__ import annotations
 import gzip
 import json
 import sys
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -565,7 +564,9 @@ class Handler(BaseHTTPRequestHandler):
                                    **res})
             if path == "/api/dust_preview":
                 # list of dust holdings in the TARGET unit — NO side effects
-                q = parse_qs(parsed.query)
+                # (do_POST has no `parsed` local: the URL was reduced to
+                # `path` above, so parse the raw request line here)
+                q = parse_qs(urlparse(self.path).query)
                 target = str((q.get("target") or ["IRT"])[0] or "IRT").upper()
                 return self._json(eng.dust_preview(target=target))
             if path.startswith("/api/"):

@@ -2845,11 +2845,9 @@ function holdingsBox(s){
     const profPct=rowPct(h);
     const profCls=profPct==null?"mut":profPct>0?"pos":profPct<0?"neg":"mut";
     const profTxt=pctTxt(profPct);
-    /* درصد ۲۴ساعتِ بازارِ همین سکه — چیپ کوچک سبز/قرمز کنار قیمت؛
-       مبلغش در تولتیپ */
-    const ch24Pct=(h.ch24_pct!=null&&!isNaN(h.ch24_pct))?Number(h.ch24_pct):null;
-    const ch24Cls=ch24Pct==null?"":(ch24Pct>0?"pos":ch24Pct<0?"neg":"");
-    const ch24Txt=ch24Pct==null?"—":((ch24Pct>0?"+":ch24Pct<0?"-":"")+Math.abs(ch24Pct).toFixed(1)+"٪");
+    /* باکس دارایی‌ها فقط «سود از خرید» را نشان می‌دهد: ستون/چیپ «سود
+       ۲۴ساعت» حذف شده است (کارت ۲۴ساعتِ بازار در تب «پرتفوی نوبیتکس»
+       می‌ماند). */
     (_u?rowsUsdt:rowsIrt).push(`<div class="hold-card hold-strip">
       <div class="hc-id">
         <b class="hc-coin">${esc(h.coin)}</b>
@@ -2858,11 +2856,7 @@ function holdingsBox(s){
       <div class="hc-cell"><span class="hc-k">مبلغ خرید</span><span class="hc-v">${moneyCell(rowCost(h),sym)}</span></div>
       <div class="hc-cell"><span class="hc-k">ارزش</span><span class="hc-v">${moneyCell(rowVal(h),sym)}</span></div>
       <div class="hc-cell"><span class="hc-k">مقدار</span><span class="hc-v">${fmt(h.amount,6)}</span></div>
-      <div class="hc-cell" title="تغییر قیمت این سکه در ۲۴ ساعتِ گذشته${h.ch24_money!=null?(" | مبلغ: "+moneyCell(h.ch24_money,sym)):""}">
-        <span class="hc-k">۲۴ساعت</span>
-        <span class="hc-chip ${ch24Cls}">${ch24Txt}</span>
-      </div>
-      <div class="hc-cell" title="قیمت لحظه‌ای همین سکه در بازار خودش — مرجع درصد حد ضرر/حد سود">
+            <div class="hc-cell" title="قیمت لحظه‌ای همین سکه در بازار خودش — مرجع درصد حد ضرر/حد سود">
         <span class="hc-k">قیمت</span>
         <span class="hc-v">${haddShown?mfmt(haddShown,h.symbol):"—"}${haddBadge}</span>
       </div>

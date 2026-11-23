@@ -126,7 +126,7 @@
   "ai": {
     "engine": "llm",
     "top_n_markets": 5,
-    "llm_base_url": "http://127.0.0.1:31415/v1",
+    "llm_base_url": "http://127.0.0.1:31415",
     "llm_api_key": "",
     "llm_model": "auto",
     "max_context_tokens": 6000,

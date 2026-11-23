@@ -8,7 +8,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 from .config import Config
-from .enums import ExecutionStatus
 from .events import EventBus
 from .storage import Storage
 from .utils import d, new_id, parse_iso, utc_now_iso
@@ -433,6 +432,17 @@ class RiskEngine:
                         checks["duplicate_order_check"] = False
                         fail("BUY_COOLDOWN_ACTIVE")
                         break
+            # A real order already resting for this market must also block
+            # another automatic BUY. The check above only sees EXECUTION
+            # rows; an order adopted from the exchange after a submit whose
+            # response was lost (timeout / dropped connection) never got
+            # one, yet its money is already committed — sending a second
+            # BUY there is exactly the duplicate-order failure.
+            if (rd["status"] == "APPROVED" and not manual
+                    and self.storage.active_orders(
+                        decision.get("symbol"), "BUY")):
+                checks["duplicate_order_check"] = False
+                fail("BUY_ORDER_ALREADY_ACTIVE")
             # stop-exit lock-out: a market just exited by its حد ضرر must
             # NOT be instantly re-bought — re-entering the same loser
             # doubles the loss. Blocked until the price reaches the NEXT

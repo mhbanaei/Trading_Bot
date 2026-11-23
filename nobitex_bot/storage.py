@@ -10,6 +10,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Orders that still commit money. A second automatic BUY for the same
+# market must wait until none of these is resting for it.
+ACTIVE_ORDER_STATUSES = ("NEW", "PENDING", "QUEUED", "OPEN", "ACTIVE",
+                         "SUBMITTED", "PARTIAL", "PARTIALLY_FILLED")
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS candles (
     symbol TEXT NOT NULL,
@@ -221,12 +226,30 @@ class Storage:
     def upsert_candle(self, symbol: str, timeframe: str, ts: str,
                       o, h, l, c, volume, source: str = "nobitex") -> bool:
         """Returns False if the candle already existed (duplicate prevented)."""
+        return self.upsert_candles(symbol, timeframe, [{
+            "timestamp": ts, "open": o, "high": h, "low": l,
+            "close": c, "volume": volume}], source=source) > 0
+
+    def upsert_candles(self, symbol: str, timeframe: str, rows: list,
+                       source: str = "nobitex") -> int:
+        """Bulk-store OHLCV bars; returns how many rows were new.
+
+        The (symbol, timeframe, timestamp) primary key makes re-fetching the
+        same window idempotent, so a collector cycle can store what it just
+        downloaded without growing the table.
+        """
+        payload = [(symbol, timeframe, str(r["timestamp"]), str(r["open"]),
+                    str(r["high"]), str(r["low"]), str(r["close"]),
+                    str(r["volume"]), source) for r in (rows or [])]
+        if not payload:
+            return 0
         with self._lock:
-            cur = self._conn.execute(
+            before = self._conn.total_changes
+            self._conn.executemany(
                 "INSERT OR IGNORE INTO candles VALUES (?,?,?,?,?,?,?,?,?)",
-                (symbol, timeframe, ts, str(o), str(h), str(l), str(c), str(volume), source))
+                payload)
             self._conn.commit()
-            return cur.rowcount > 0
+            return self._conn.total_changes - before
 
     def candles(self, symbol: str, timeframe: str, limit: int = 200) -> list:
         with self._lock:
@@ -292,6 +315,32 @@ class Storage:
                 "order_type", "price", "amount", "matched_amount",
                 "unmatched_amount", "status", "fee_asset", "created_at",
                 "updated_at", "exchange_order_id"]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def active_orders(self, market: str | None = None,
+                      side: str | None = None) -> list:
+        """Orders that still commit money, newest first.
+
+        The duplicate-buy guard needs this directly: the old code scanned the
+        newest 200 rows of ALL orders, so a resting BUY older than that scan
+        was invisible.
+        """
+        marks = ",".join("?" * len(ACTIVE_ORDER_STATUSES))
+        sql = ("SELECT order_id, market, side, status, amount, "
+               "matched_amount, created_at FROM orders "
+               "WHERE status IN (%s)" % marks)
+        params: list = list(ACTIVE_ORDER_STATUSES)
+        if market:
+            sql += " AND market=?"
+            params.append(market)
+        if side:
+            sql += " AND side=?"
+            params.append(side.upper())
+        with self._lock:
+            rows = self._conn.execute(sql + " ORDER BY created_at DESC",
+                                      params).fetchall()
+        cols = ["order_id", "market", "side", "status", "amount",
+                "matched_amount", "created_at"]
         return [dict(zip(cols, r)) for r in rows]
 
     # --------------------------------------------------------------- fills

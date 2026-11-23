@@ -17,13 +17,40 @@ from .config import Config
 from .enums import SnapshotStatus
 from .events import EventBus
 from .storage import Storage
-from .utils import new_id, sha256_bytes, split_symbol, utc_now_iso
+from .utils import sha256_bytes, split_symbol, utc_now_iso
 from .validation import (
     ValidationResult, data_quality_from_issues, validate_iso_timestamp,
-    validate_market, validate_orderbook, validate_positive,
+    validate_orderbook, validate_positive,
 )
 
 SNAPSHOT_FORMAT = "snapshot_%06d.json"
+
+
+def aligned_candles(rows: list, step_seconds: int) -> list:
+    """One bar per timeframe bucket, first seen wins.
+
+    Exchange candles already sit on the timeframe boundary. The demo fixture
+    regenerates its walk from `now` on every call, so storing its rows as-is
+    would add ~60 near-duplicate rows per market per cycle; flooring to the
+    bucket keeps the table at one row per real period.
+    """
+    seen, out = set(), []
+    for row in rows or []:
+        try:
+            ts = datetime.fromisoformat(
+                str(row["timestamp"]).replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        bucket = (int(ts.replace(tzinfo=timezone.utc).timestamp())
+                  // step_seconds * step_seconds)
+        if bucket in seen:
+            continue
+        seen.add(bucket)
+        item = dict(row)
+        item["timestamp"] = datetime.fromtimestamp(
+            bucket, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        out.append(item)
+    return out
 
 
 class MarketRegistry:
@@ -210,6 +237,16 @@ class SnapshotCollector:
             candle_limit = 60
         candles_30m = self.exchange.candles(symbol, "30m",
                                             limit=candle_limit)
+        # Persist what was just fetched: this table is what
+        # `python -m nobitex_bot.backtest --db ...` replays. The primary key
+        # makes each cycle's overlap a no-op instead of growth.
+        try:
+            self.storage.upsert_candles(
+                symbol, "30m", aligned_candles(candles_30m, 1800))
+        except Exception as exc:
+            self.events.error("DATA_COLLECTOR", "CANDLE_STORE_FAILED",
+                              "WARNING", "%s: %s" % (symbol, exc),
+                              retryable=True)
 
         validate_positive(ticker.get("last_price"), issues, "last_price")
         validate_orderbook(book, issues)

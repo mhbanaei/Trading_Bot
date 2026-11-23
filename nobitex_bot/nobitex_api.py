@@ -1235,6 +1235,15 @@ class NobitexAPI(ExchangeAdapter):
         data = self._post("/market/orders/add", body)
         order = data.get("order") or {}
         oid = str(order.get("id") or "")
+        if not oid:
+            # HTTP 200 without an order object is NOT a placement. Treating
+            # it as "OPEN" left a phantom order row with no exchange id that
+            # could never be reconciled — and the bot free to send the same
+            # order again. Fail loudly instead of guessing.
+            raise NobitexError(
+                "ORDER_UNCONFIRMED",
+                _api_error_text(data) or "order id missing in the reply",
+                False)
         status = map_status(order.get("status", "Active"))
         matched = str(order.get("matchedAmount") or "0")
         return {

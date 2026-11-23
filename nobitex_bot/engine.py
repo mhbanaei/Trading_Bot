@@ -3212,7 +3212,6 @@ class TradingEngine:
             "regime_blocked": getattr(self, "latest_regime_blocked", []),
             "decisions": [self._decision_brief(x) for x in self.latest_decisions],
             "risk": self.latest_risk,
-            "executions": self.latest_executions,
             "performance": self.storage.performance_summary(),
             "positions": self.storage.positions(),
             "equity_history": hist_24h,
@@ -7028,23 +7027,39 @@ class TradingEngine:
         candidates = []
         blocked = []
         for coin, amt in balances.items():
+            section = self._coin_section(coin)
+            # «بازار معاملات»: with the coin's OWN section switched OFF the
+            # AUTOMATIC pass leaves it alone — converting a Toman-side coin
+            # is still the bot trading that section, whatever the cash
+            # destination would be. The manual «تبدیل کن» button (force=True)
+            # is the user's own order and keeps converting what they picked.
+            if (not force and section
+                    and not self._quote_market_enabled(coin + section)):
+                blocked.append({
+                    "coin": coin,
+                    "reason": "بخش %s در «بازار معاملات» خاموش است" % (
+                        "تومانی" if section == "IRT" else "تتری")})
+                continue
             dest, reason = self._dust_target_for(coin, target)
             if not dest:
                 blocked.append({"coin": coin, "reason": reason})
                 continue
-            # «بازار معاملات»: with the coin's section switched OFF the
-            # AUTOMATIC pass leaves it alone — converting a Toman-side coin
-            # into Toman is still the bot trading that section. The manual
-            # «تبدیل کن» button (force=True) is the user's own order and
-            # keeps converting exactly the list they confirmed.
-            if not force:
-                section = self._coin_section(coin)
-                if section and dest == section and \
-                        not self._quote_market_enabled(coin + section):
+            # A coin bought on one side may only pay out on THAT side unless
+            # the two markets are explicitly linked: converting an IRT-side
+            # coin into Tether (the single-market selector's destination) is
+            # a cross-market transfer, not a dust clean-up. The automatic
+            # pass refuses it; a manual click converts the coin into its own
+            # section's cash instead of silently moving money across.
+            if (section and dest != section
+                    and not self._cross_market_allowed()):
+                if force:
+                    dest = section
+                else:
                     blocked.append({
                         "coin": coin,
-                        "reason": "بخش %s در «بازار معاملات» خاموش است" % (
-                            "تومانی" if section == "IRT" else "تتری")})
+                        "reason": "تبدیل به %s یک انتقال بین دو بازار است — "
+                                  "«بازار معاملات» روی تعامل مستقل است" % (
+                                      "تتر" if dest == "USDT" else "تومان")})
                     continue
             px = self._dust_coin_value(coin, prices, tpu)
             if px is None:

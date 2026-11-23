@@ -239,6 +239,7 @@ class HeuristicAI:
         # allow a buy the gates refused and refuse a buy the gates
         # allowed — a lone upward spike is exactly what it exists to
         # reject. Missing analysis = no buy (fail closed).
+        gate_notes = []
         ana = candidate.get("analysis") or {}
         ana_cfg = getattr(self.cfg, "analysis", None)
         if ana and bool(getattr(ana_cfg, "enabled", False)):
@@ -258,7 +259,8 @@ class HeuristicAI:
         # HOLD while the price stack looks BUY-ish but data/volatility
         # fails is THE case users could never see before — now the card
         # says WHY (e.g. «کیفیت داده ۰٫۳۸ از ۰٫۴۵ لازم»).
-        gate_notes = []
+        # (`gate_notes` was created above the analysis block on purpose: the
+        # analysis veto loop appends into it.)
         if trend_ok and mom_ok and not data_ok:
             gate_notes.append("DATA_QUALITY_LOW")
         if trend_ok and mom_ok and not liq_ok:
