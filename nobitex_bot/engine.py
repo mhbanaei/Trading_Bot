@@ -160,16 +160,26 @@ class TradingEngine:
             from . import diagnostics as diagnostics_mod
             dcfg = getattr(cfg, "diagnostics", None)
             if dcfg is None or getattr(dcfg, "enabled", True):
-                # Location contract: the running bot keeps error.db and
-                # failed_trade.db in the PROJECT ROOT (next to run.py), and
-                # mirrors them into RTC/. An absolute data_dir means an
-                # isolated/secondary install (tests, a sandbox): its
-                # diagnostics stay there and no live RTC mirror is touched.
+                # Location contract — explicit, never inferred from another
+                # path. diagnostics.directory names the two databases:
+                #   ""        -> project root, next to run.py (default)
+                #   relative  -> resolved against the project root
+                #   absolute  -> used as-is (isolated install / test sandbox)
                 project_root = Path(__file__).resolve().parent.parent
-                data_path = Path(self.data_dir)
-                isolated = data_path.is_absolute()
-                diag_dir = data_path if isolated else project_root
-                rtc_dir = project_root / "RTC"
+                raw_dir = str(getattr(dcfg, "directory", "") or "").strip()
+                diag_dir = Path(raw_dir) if raw_dir else project_root
+                if not diag_dir.is_absolute():
+                    diag_dir = project_root / diag_dir
+                # The RTC snapshot target is explicit too: diagnostics.
+                # rtc_mirror "" disables the mirror even when rtc_sync is on.
+                rtc_dir = None
+                raw_rtc = str(getattr(dcfg, "rtc_mirror", "") or "").strip()
+                if raw_rtc and getattr(dcfg, "rtc_sync", True):
+                    candidate = Path(raw_rtc)
+                    if not candidate.is_absolute():
+                        candidate = project_root / candidate
+                    if candidate.is_dir():
+                        rtc_dir = candidate
                 secrets = [
                     getattr(cfg.exchange, "nobitex_api_key", ""),
                     getattr(cfg.exchange, "nobitex_password", ""),
@@ -180,9 +190,7 @@ class TradingEngine:
                 ]
                 self.diagnostics = diagnostics_mod.configure(
                     diag_dir,
-                    rtc_dir=(rtc_dir if (not isolated and rtc_dir.is_dir()
-                                         and getattr(dcfg, "rtc_sync", True))
-                             else None),
+                    rtc_dir=rtc_dir,
                     retention_days=getattr(dcfg, "retention_days", 30.0),
                     max_errors=getattr(dcfg, "max_errors", 20000),
                     max_failed_trades=getattr(dcfg, "max_failed_trades",

@@ -5,9 +5,14 @@ or simulated anywhere in this file.
 """
 from __future__ import annotations
 
+import http.client
 import json
+import shutil
 import sqlite3
+import tempfile
 import threading
+import unittest
+from pathlib import Path
 
 from nobitex_bot import diagnostics as diag_mod
 from nobitex_bot import learning
@@ -398,12 +403,20 @@ def test_config_exposes_and_validates_diagnostics():
     cfg = Config()
     assert isinstance(cfg.diagnostics, DiagnosticsCfg)
     assert cfg.diagnostics.enabled is True
+    # the two locations are explicit settings, not inferred paths
+    assert cfg.diagnostics.directory == ""          # "" = project root
+    assert cfg.diagnostics.rtc_mirror == "RTC"
     public = cfg.to_public_dict()
-    assert "learning_every_cycles" in public["diagnostics"]
+    for key in ("directory", "rtc_mirror", "learning_every_cycles"):
+        assert key in public["diagnostics"], key
     assert validate_config(cfg) == []
     bad = Config()
     bad.diagnostics.retention_days = -1
     assert any("retention_days" in p for p in validate_config(bad))
+    padded = Config()
+    padded.diagnostics.directory = " data/diag "
+    assert any("diagnostics.directory" in p
+               for p in validate_config(padded))
 
 
 def test_summary_shape(tmp_path):
@@ -419,3 +432,199 @@ def test_summary_shape(tmp_path):
         assert key in summary
     assert summary["critical_errors"] == 1
     diag.close()
+
+
+# ------------------------------------------------ explicit engine location
+def test_engine_uses_the_explicit_diagnostics_directory(tmp_path):
+    from nobitex_bot.engine import TradingEngine
+
+    cfg = Config()
+    cfg.engine.data_dir = str(tmp_path / "data")
+    cfg.diagnostics.directory = str(tmp_path / "diag")
+    cfg.diagnostics.rtc_mirror = ""
+    cfg.diagnostics.background_writes = False
+    try:
+        engine = TradingEngine(cfg)
+        assert engine.diagnostics is not None
+        assert Path(engine.diagnostics.data_dir).resolve() == \
+            (tmp_path / "diag").resolve()
+        assert engine.diagnostics.rtc_dir is None
+        assert (tmp_path / "diag" / "error.db").exists()
+        assert (tmp_path / "diag" / "failed_trade.db").exists()
+        assert not (tmp_path / "data" / "error.db").exists()
+    finally:
+        diag_mod.reset_default()
+
+
+def test_engine_resolves_a_relative_directory_against_the_project_root(
+        tmp_path, monkeypatch):
+    import nobitex_bot.engine as engine_mod
+
+    fake_root = tmp_path / "project"
+    (fake_root / "RTC").mkdir(parents=True)
+    monkeypatch.setattr(engine_mod, "__file__",
+                        str(fake_root / "nobitex_bot" / "engine.py"))
+    cfg = Config()
+    cfg.engine.data_dir = str(tmp_path / "data")
+    cfg.diagnostics.directory = "state"
+    cfg.diagnostics.background_writes = False
+    try:
+        engine = engine_mod.TradingEngine(cfg)
+        assert Path(engine.diagnostics.data_dir).resolve() == \
+            (fake_root / "state").resolve()
+        # the RTC mirror is resolved the same way and only used when it exists
+        assert engine.diagnostics.rtc_dir == (fake_root / "RTC")
+    finally:
+        diag_mod.reset_default()
+
+
+# ----------------------------------------------- dashboard HTTP handlers
+class TestDiagnosticsHandlers(unittest.TestCase):
+    """Handler-level tests: /api/diagnostics and /api/diagnostics/error.
+
+    A real TradingEngine backs the real HTTP handler, so the signed-out 401,
+    the filter plumbing and the stack-trace endpoint are exercised end to
+    end without touching a live database or placing any order.
+    """
+
+    PW = "diag-pass"
+
+    def setUp(self):
+        from nobitex_bot.engine import TradingEngine
+        from nobitex_bot.webauth import DashboardAuth
+        from nobitex_bot.web import BotHTTPServer
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="nobot_diaghttp_"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        cfg = Config()
+        cfg.engine.data_dir = str(self.tmp / "data")
+        cfg.diagnostics.directory = str(self.tmp / "diagnostics")
+        cfg.diagnostics.rtc_mirror = ""
+        cfg.diagnostics.background_writes = False
+        cfg.web.password = self.PW
+        cfg.web.failure_delay_s = 0
+        cfg_path = self.tmp / "config.json"
+        cfg_path.write_text(json.dumps({
+            "web": {"password": self.PW, "failure_delay_s": 0}}),
+            encoding="utf-8")
+        self.engine = TradingEngine(cfg)
+        self.eid = self.engine.diagnostics.record_error(
+            "EXECUTION", "ERROR", "order rejected for the handler test",
+            module="execution._fail_real", symbol="BTCIRT")
+        self.engine.diagnostics.record_failed_trade(
+            symbol="BTCIRT", intended_action="BUY",
+            failure_reason="insufficient balance",
+            failure_category="INSUFFICIENT_BALANCE")
+        self.server = BotHTTPServer(("127.0.0.1", 0), self.engine,
+                                    DashboardAuth(cfg,
+                                                  config_path=cfg_path))
+        self.thread = threading.Thread(target=self.server.serve_forever,
+                                       daemon=True)
+        self.thread.start()
+        self.addCleanup(self._shutdown)
+        self.addCleanup(self.engine.diagnostics.close)
+        self.addCleanup(diag_mod.reset_default)
+
+    def _shutdown(self):
+        self.server.shutdown()
+        self.thread.join(timeout=5)
+        self.server.server_close()
+
+    def _conn(self):
+        return http.client.HTTPConnection("127.0.0.1",
+                                          self.server.server_address[1],
+                                          timeout=10)
+
+    def _get(self, path: str, cookie: str = ""):
+        conn = self._conn()
+        try:
+            conn.request("GET", path, headers={"Cookie": cookie} if cookie
+                         else {})
+            res = conn.getresponse()
+            return res.status, res.read().decode("utf-8", "replace")
+        finally:
+            conn.close()
+
+    def _login(self) -> str:
+        from nobitex_bot.webauth import COOKIE_NAME
+
+        payload = json.dumps({"password": self.PW}).encode("utf-8")
+        conn = self._conn()
+        try:
+            conn.request("POST", "/api/auth/login", body=payload,
+                         headers={"Content-Type": "application/json",
+                                  "Content-Length": str(len(payload))})
+            res = conn.getresponse()
+            res.read()
+            self.assertEqual(res.status, 200)
+            cookie = res.getheader("Set-Cookie", "")
+        finally:
+            conn.close()
+        self.assertIn(COOKIE_NAME + "=", cookie)
+        token = cookie.split(COOKIE_NAME + "=", 1)[1].split(";", 1)[0]
+        return "%s=%s" % (COOKIE_NAME, token)
+
+    def test_both_endpoints_are_401_when_signed_out(self):
+        for path in ("/api/diagnostics",
+                     "/api/diagnostics/error?id=" + self.eid):
+            status, body = self._get(path)
+            self.assertEqual(status, 401, path)
+            doc = json.loads(body)
+            self.assertTrue(doc["auth_required"], path)
+            # nothing about the stored error leaks before authentication
+            self.assertNotIn("order rejected for the handler test", body)
+            self.assertNotIn(self.eid, body)
+
+    def test_summary_rows_and_filters(self):
+        cookie = self._login()
+        status, body = self._get("/api/diagnostics", cookie)
+        self.assertEqual(status, 200)
+        doc = json.loads(body)
+        self.assertEqual(doc["summary"]["errors_total"], 1)
+        self.assertEqual([r["error_id"] for r in doc["errors"]], [self.eid])
+        self.assertEqual(doc["failed_trades"][0]["failure_category"],
+                         "INSUFFICIENT_BALANCE")
+        self.assertIn("lessons", doc)
+        self.assertEqual(doc["filters"]["category"], "")
+
+        # filters apply to the tables but never to the summary cards
+        status, body = self._get(
+            "/api/diagnostics?category=AI&failure_category=MIN_ORDER",
+            cookie)
+        self.assertEqual(status, 200)
+        doc = json.loads(body)
+        self.assertEqual(doc["errors"], [])
+        self.assertEqual(doc["failed_trades"], [])
+        self.assertEqual(doc["summary"]["errors_total"], 1)
+
+        status, body = self._get(
+            "/api/diagnostics?category=EXECUTION"
+            "&failure_category=INSUFFICIENT_BALANCE&symbol=BTC", cookie)
+        doc = json.loads(body)
+        self.assertEqual([r["error_id"] for r in doc["errors"]], [self.eid])
+        self.assertEqual(len(doc["failed_trades"]), 1)
+
+    def test_error_detail_needs_a_session_and_carries_the_stack_trace(self):
+        status, _body = self._get("/api/diagnostics/error?id=" + self.eid)
+        self.assertEqual(status, 401)
+        cookie = self._login()
+        status, body = self._get("/api/diagnostics/error?id=" + self.eid,
+                                 cookie)
+        self.assertEqual(status, 200)
+        doc = json.loads(body)
+        self.assertEqual(doc["error_id"], self.eid)
+        self.assertEqual(doc["message"],
+                         "order rejected for the handler test")
+        self.assertTrue(str(doc["stack_trace"] or "").strip())
+
+    def test_unknown_or_missing_error_id_is_404(self):
+        cookie = self._login()
+        for path in ("/api/diagnostics/error?id=err_does_not_exist",
+                     "/api/diagnostics/error"):
+            status, body = self._get(path, cookie)
+            self.assertEqual(status, 404, path)
+            self.assertEqual(json.loads(body)["error"], "not found")
+
+
+if __name__ == "__main__":
+    unittest.main()

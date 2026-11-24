@@ -446,24 +446,33 @@ class DiagnosticsCfg:
 
     enabled: master switch. Turning it off only stops NEW records; files on
       disk are never deleted.
+    directory: WHERE error.db and failed_trade.db live — an explicit
+      setting, never inferred from other paths. Empty (default) = the
+      project root, next to run.py. A relative path is resolved against
+      the project root; an absolute path is used as-is (an isolated
+      install, a test sandbox). The directory is created if missing.
     retention_days / max_errors / max_failed_trades: bounded storage. Only
       diagnostic rows are pruned — the trading ledger is untouched.
     background_writes: write through a bounded queue so a slow disk can
       never stall a trading cycle.
-    rtc_sync: mirror both databases into RTC/ with the SQLite backup API.
-      The mirror is a read-only snapshot; the main process is the only
-      writer.
+    rtc_sync: mirror both databases with the SQLite backup API. The mirror
+      is a read-only snapshot; the main process is the only writer.
+    rtc_mirror: destination directory for that snapshot. Empty = no mirror
+      at all (even with rtc_sync on). A relative path is resolved against
+      the project root and is only used when the directory already exists.
     learning_every_cycles: how often the deterministic failure-pattern
       analysis runs (0 disables the periodic run).
     learning_ai_enabled: allow the optional FreeLLMAPI explanation. It only
       writes a report; it can never change code, config or risk limits.
     """
     enabled: bool = True
+    directory: str = ""                # "" = project root
     retention_days: float = 30.0
     max_errors: int = 20000
     max_failed_trades: int = 20000
     background_writes: bool = True
     rtc_sync: bool = True
+    rtc_mirror: str = "RTC"
     rtc_sync_min_interval_s: float = 300.0
     learning_every_cycles: int = 12
     learning_min_evidence: int = 3
@@ -557,10 +566,11 @@ class Config:
         rk.setdefault("risk_mode_analysis_exit",
                       self.risk.risk_mode_analysis_exit)
         dg = d.setdefault("diagnostics", {})
-        for f in ("enabled", "retention_days", "max_errors",
+        for f in ("enabled", "directory", "retention_days", "max_errors",
                   "max_failed_trades", "background_writes", "rtc_sync",
-                  "rtc_sync_min_interval_s", "learning_every_cycles",
-                  "learning_min_evidence", "learning_ai_enabled"):
+                  "rtc_mirror", "rtc_sync_min_interval_s",
+                  "learning_every_cycles", "learning_min_evidence",
+                  "learning_ai_enabled"):
             dg.setdefault(f, getattr(self.diagnostics, f))
         an = d.setdefault("analysis", {})
         for f in ("enabled", "frames", "max_markets", "min_candles",
@@ -796,6 +806,11 @@ def validate_config(cfg: Config) -> list[str]:
                 bad("diagnostics.%s must be >= 0" % name)
         if float(dg.rtc_sync_min_interval_s) < 0:
             bad("diagnostics.rtc_sync_min_interval_s must be >= 0")
+        for name in ("directory", "rtc_mirror"):
+            value = str(getattr(dg, name, "") or "")
+            if value != value.strip():
+                bad("diagnostics.%s must not have leading/trailing "
+                    "whitespace" % name)
     return p
 
 

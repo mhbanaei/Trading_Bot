@@ -6,13 +6,34 @@ human must still validate before any strategy parameter changes.
 
 | File | Contents | Written by |
 | --- | --- | --- |
-| `error.db` (project root) | every captured error, deduplicated, with occurrence counters, stack traces, context and resolution status | the bot |
-| `failed_trade.db` (project root) | unsuccessful **executions** (rejected / invalid / under-funded / below minimum / illiquid / partial), plus lessons and AI reports | the bot |
-| `RTC/error.db`, `RTC/failed_trade.db` | read-only snapshots of the same two databases | `Diagnostics.sync_to_rtc()` |
+| `error.db` (project root by default) | every captured error, deduplicated, with occurrence counters, stack traces, context and resolution status | the bot |
+| `failed_trade.db` (project root by default) | unsuccessful **executions** (rejected / invalid / under-funded / below minimum / illiquid / partial), plus lessons and AI reports | the bot |
+| `RTC/error.db`, `RTC/failed_trade.db` (default mirror) | read-only snapshots of the same two databases | `Diagnostics.sync_to_rtc()` |
 
 Both files are created automatically on first use, and their parent directory
 is created if missing. Neither is ever committed to Git (see `.gitignore` and
 `RTC/.gitignore`).
+
+### Where they live
+
+The location is an **explicit setting**, never inferred from `engine.data_dir`
+or any other path:
+
+| Setting | Meaning |
+| --- | --- |
+| `diagnostics.directory` | `""` (default) = project root, next to `run.py`. A relative path resolves against the project root; an absolute path is used as-is (an isolated install or a test sandbox). |
+| `diagnostics.rtc_mirror` | `"RTC"` (default) = mirror into `<project root>/RTC` when that directory exists. A relative path resolves against the project root; `""` disables the mirror even with `diagnostics.rtc_sync` on. |
+
+So a test or a second install sets `diagnostics.directory` to its own temp
+directory (and usually `diagnostics.rtc_mirror` to `""`) instead of relying on
+an absolute `engine.data_dir` to opt out:
+
+```json
+{"diagnostics": {"directory": "C:/bot-state/diagnostics", "rtc_mirror": ""}}
+```
+
+Changing `directory` starts a fresh pair of databases there; the previous files
+are left untouched (nothing is moved or deleted).
 
 ## What belongs in each database
 
@@ -158,4 +179,9 @@ error↔trade links, repeated-pattern detection, lesson creation/status,
 AI-unavailable fallback, concurrent writes, RTC sync (including a held-open
 reader), backup usability after the source closes, runtime-database
 preservation during a source refresh, bounded retention, logging capture and
-safe no-ops after close. No real exchange order is created or simulated.
+safe no-ops after close. It also pins the explicit location settings
+(`diagnostics.directory` / `rtc_mirror`: absolute, relative and disabled mirror)
+and drives the real HTTP handler for `/api/diagnostics` and
+`/api/diagnostics/error`, including the signed-out 401, server-side filters,
+the stack-trace payload and the 404 for an unknown id. No real exchange order
+is created or simulated.

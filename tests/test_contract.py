@@ -30,6 +30,10 @@ def make_cfg(tmp: Path) -> Config:
     cfg = Config()
     cfg.engine.data_dir = str(tmp / "data")
     cfg.engine.cycle_seconds = 5
+    # diagnostics are an explicit location: keep them inside the temp dir and
+    # never mirror test noise into the repository's RTC/ snapshot.
+    cfg.diagnostics.directory = str(tmp / "diagnostics")
+    cfg.diagnostics.rtc_mirror = ""
     cfg.exchange.demo_seed = 7
     cfg.paper = PaperCfg(starting_usdt=10000.0, starting_irt=0.0)
     return cfg

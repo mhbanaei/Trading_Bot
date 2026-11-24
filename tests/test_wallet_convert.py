@@ -37,6 +37,8 @@ from nobitex_bot.webauth import DashboardAuth     # noqa: E402
 def _demo_engine(tmp: Path) -> TradingEngine:
     cfg = Config()
     cfg.engine.data_dir = str(tmp / "data")
+    cfg.diagnostics.directory = str(tmp / "diagnostics")
+    cfg.diagnostics.rtc_mirror = ""
     return TradingEngine(cfg)
 
 

@@ -26,11 +26,17 @@ values and exits non-zero instead of letting a leak through.
 
 ### Runtime diagnostics databases (never copy, never prune)
 
-`error.db` and `failed_trade.db` live in the PROJECT ROOT and are mirrored to
-`RTC/error.db` / `RTC/failed_trade.db` by the running bot
-(`nobitex_bot/diagnostics.py` → `Diagnostics.sync_to_rtc()`) using the SQLite
-backup API. They are read-only snapshots in `RTC/`; only the main process
-writes.
+`error.db` and `failed_trade.db` live where `diagnostics.directory` says — an
+explicit setting in `config.json` (empty = the PROJECT ROOT; relative paths
+resolve against the project root; absolute paths are used as-is). They are
+mirrored to `diagnostics.rtc_mirror` (default `RTC`, empty = no mirror) by the
+running bot (`nobitex_bot/diagnostics.py` → `Diagnostics.sync_to_rtc()`) using
+the SQLite backup API. They are read-only snapshots in `RTC/`; only the main
+process writes.
+
+Tests and sandboxes must set `diagnostics.directory` to their own temp dir and
+`diagnostics.rtc_mirror` to `""` so they never write into the real databases
+or the repository's `RTC/` snapshot.
 
 - `sync_rtc.py` skips every `*.db`, `*.sqlite*` and sidecar in `RTC/` when it
   prunes — a source refresh must never delete or overwrite them.
