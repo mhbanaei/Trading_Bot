@@ -448,9 +448,8 @@ class DiagnosticsCfg:
       disk are never deleted.
     directory: WHERE error.db and failed_trade.db live — an explicit
       setting, never inferred from other paths. Empty (default) = the
-      project root, next to run.py. A relative path is resolved against
-      the project root; an absolute path is used as-is (an isolated
-      install, a test sandbox). The directory is created if missing.
+      project root, next to run.py; a relative path resolves against the
+      project root; an absolute path is used as-is. Created if missing.
     retention_days / max_errors / max_failed_trades: bounded storage. Only
       diagnostic rows are pruned — the trading ledger is untouched.
     background_writes: write through a bounded queue so a slow disk can
@@ -458,8 +457,8 @@ class DiagnosticsCfg:
     rtc_sync: mirror both databases with the SQLite backup API. The mirror
       is a read-only snapshot; the main process is the only writer.
     rtc_mirror: destination directory for that snapshot. Empty = no mirror
-      at all (even with rtc_sync on). A relative path is resolved against
-      the project root and is only used when the directory already exists.
+      at all (even with rtc_sync on). Relative paths resolve against the
+      project root and are only used when the directory already exists.
     learning_every_cycles: how often the deterministic failure-pattern
       analysis runs (0 disables the periodic run).
     learning_ai_enabled: allow the optional FreeLLMAPI explanation. It only
@@ -806,11 +805,6 @@ def validate_config(cfg: Config) -> list[str]:
                 bad("diagnostics.%s must be >= 0" % name)
         if float(dg.rtc_sync_min_interval_s) < 0:
             bad("diagnostics.rtc_sync_min_interval_s must be >= 0")
-        for name in ("directory", "rtc_mirror"):
-            value = str(getattr(dg, name, "") or "")
-            if value != value.strip():
-                bad("diagnostics.%s must not have leading/trailing "
-                    "whitespace" % name)
     return p
 
 

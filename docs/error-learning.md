@@ -24,6 +24,9 @@ or any other path:
 | `diagnostics.directory` | `""` (default) = project root, next to `run.py`. A relative path resolves against the project root; an absolute path is used as-is (an isolated install or a test sandbox). |
 | `diagnostics.rtc_mirror` | `"RTC"` (default) = mirror into `<project root>/RTC` when that directory exists. A relative path resolves against the project root; `""` disables the mirror even with `diagnostics.rtc_sync` on. |
 
+Both keys ship in the generated `config.example.json` (with these defaults),
+even when the live `config.json` predates them.
+
 So a test or a second install sets `diagnostics.directory` to its own temp
 directory (and usually `diagnostics.rtc_mirror` to `""`) instead of relying on
 an absolute `engine.data_dir` to opt out:

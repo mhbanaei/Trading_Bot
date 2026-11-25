@@ -194,5 +194,9 @@
     "top_gainers_risk": true,
     "top_gainers_count": 5,
     "top_gainers_min_change_pct": 2
+  },
+  "diagnostics": {
+    "directory": "",
+    "rtc_mirror": "RTC"
   }
 }

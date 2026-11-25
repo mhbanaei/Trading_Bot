@@ -145,6 +145,18 @@ def realized_on_last_sell(fills: list, fee_rate) -> tuple:
     return last, basis
 
 
+def _project_path(root: Path, value):
+    """Resolve a configured location: relative paths are under ``root``.
+
+    An empty value means "no location" and returns None.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    return path if path.is_absolute() else root / path
+
+
 class TradingEngine:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -152,34 +164,28 @@ class TradingEngine:
         self.events = EventBus(self.data_dir)
         self.storage = Storage(self.data_dir)
         # ---- error monitoring + failed-trade intelligence
-        # Two SQLite files (error.db, failed_trade.db) at the data dir, plus
-        # transaction-safe mirrors in RTC/. Failure to open them must never
-        # stop trading: the engine keeps running without them.
+        # Two SQLite files (error.db, failed_trade.db) where
+        # diagnostics.directory says, plus transaction-safe mirrors in RTC/.
+        # Failure to open them must never stop trading.
         self.diagnostics = None
         try:
             from . import diagnostics as diagnostics_mod
             dcfg = getattr(cfg, "diagnostics", None)
             if dcfg is None or getattr(dcfg, "enabled", True):
-                # Location contract — explicit, never inferred from another
-                # path. diagnostics.directory names the two databases:
-                #   ""        -> project root, next to run.py (default)
-                #   relative  -> resolved against the project root
-                #   absolute  -> used as-is (isolated install / test sandbox)
+                # Both locations are explicit settings, never inferred from
+                # another path: "" = project root (next to run.py), relative =
+                # under the project root, absolute = used as-is.
                 project_root = Path(__file__).resolve().parent.parent
-                raw_dir = str(getattr(dcfg, "directory", "") or "").strip()
-                diag_dir = Path(raw_dir) if raw_dir else project_root
-                if not diag_dir.is_absolute():
-                    diag_dir = project_root / diag_dir
-                # The RTC snapshot target is explicit too: diagnostics.
-                # rtc_mirror "" disables the mirror even when rtc_sync is on.
-                rtc_dir = None
-                raw_rtc = str(getattr(dcfg, "rtc_mirror", "") or "").strip()
-                if raw_rtc and getattr(dcfg, "rtc_sync", True):
-                    candidate = Path(raw_rtc)
-                    if not candidate.is_absolute():
-                        candidate = project_root / candidate
-                    if candidate.is_dir():
-                        rtc_dir = candidate
+                diag_dir = _project_path(project_root,
+                                         getattr(dcfg, "directory", ""))
+                if diag_dir is None:
+                    diag_dir = project_root
+                # rtc_mirror "" (or a missing directory) disables the mirror,
+                # even when rtc_sync is on.
+                rtc_dir = _project_path(project_root,
+                                        getattr(dcfg, "rtc_mirror", ""))
+                if rtc_dir is not None and not rtc_dir.is_dir():
+                    rtc_dir = None
                 secrets = [
                     getattr(cfg.exchange, "nobitex_api_key", ""),
                     getattr(cfg.exchange, "nobitex_password", ""),
@@ -200,7 +206,7 @@ class TradingEngine:
                         dcfg, "rtc_sync_min_interval_s", 300.0),
                     background=bool(getattr(dcfg, "background_writes", True)),
                     secrets=[s for s in secrets if isinstance(s, str)],
-                    log_dir=Path(diag_dir) / "logs")
+                    log_dir=diag_dir / "logs")
                 diagnostics_mod.install_exception_hooks(self.diagnostics)
                 diagnostics_mod.attach_logging(self.diagnostics)
         except Exception as exc:  # diagnostics must never block the engine
