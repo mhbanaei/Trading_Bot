@@ -218,7 +218,6 @@ class TestEntryReconstructionUnits(unittest.TestCase):
         cfg = Config()
         cfg.engine.data_dir = str(self.tmp / "data")
         cfg.diagnostics.directory = str(self.tmp / "diagnostics")
-        cfg.diagnostics.rtc_mirror = ""
         self.e = TradingEngine(cfg)
 
     def _fill(self, market, side, price, amount, ts):

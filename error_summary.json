@@ -1,0 +1,6184 @@
+{
+  "schema_version": 1,
+  "dataset": "error_summary",
+  "generated_at": "2026-11-25T11:43:37.016Z",
+  "synthetic": false,
+  "note": "Aggregated error monitor. Messages are sanitized; source locations are file/line/function only. No credentials, no account data.",
+  "totals": {
+    "distinct_errors": 55,
+    "occurrences": 5119,
+    "critical": 0,
+    "open": 55,
+    "repeated": 5,
+    "recovered": 32
+  },
+  "by_category": [
+    {
+      "value": "MARKET_DATA",
+      "count": 31
+    },
+    {
+      "value": "EXCHANGE_API",
+      "count": 24
+    }
+  ],
+  "by_severity": [
+    {
+      "value": "WARNING",
+      "count": 32
+    },
+    {
+      "value": "ERROR",
+      "count": 23
+    }
+  ],
+  "by_module": [
+    {
+      "value": "collector.collect",
+      "count": 31
+    },
+    {
+      "value": "nobitex_api",
+      "count": 24
+    }
+  ],
+  "by_market_section": [
+    {
+      "value": "<unknown>",
+      "count": 55
+    }
+  ],
+  "by_resolution": [
+    {
+      "value": "open",
+      "count": 55
+    }
+  ],
+  "recurring": [
+    {
+      "error_ref": "id_34c305087074",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "http_error_default",
+      "line": 611,
+      "exception_type": "HTTPError",
+      "message": "GET /v3/orderbook/USDTIRT failed: 403",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 493,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 602,
+          "function": "http_response"
+        },
+        {
+          "file": "request.py",
+          "line": 531,
+          "function": "error"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 611,
+          "function": "http_error_default"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 2511,
+      "first_seen": "2026-11-23T20:00:22.584Z",
+      "last_seen": "2026-11-25T07:59:56.235Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_533d959ee7d6",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "http_error_default",
+      "line": 611,
+      "exception_type": "HTTPError",
+      "message": "market collection failed for USDTIRT: HTTP Error 403: Forbidden",
+      "frames": [
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 493,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 602,
+          "function": "http_response"
+        },
+        {
+          "file": "request.py",
+          "line": 531,
+          "function": "error"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 611,
+          "function": "http_error_default"
+        }
+      ],
+      "symbol": "USDTIRT",
+      "market_section": "",
+      "occurrences": 2511,
+      "first_seen": "2026-11-23T20:00:22.616Z",
+      "last_seen": "2026-11-25T07:59:56.248Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_d60f8116b127",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "http_error_default",
+      "line": 611,
+      "exception_type": "HTTPError",
+      "message": "GET /market/stats failed: 400",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 493,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 602,
+          "function": "http_response"
+        },
+        {
+          "file": "request.py",
+          "line": 531,
+          "function": "error"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 611,
+          "function": "http_error_default"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 30,
+      "first_seen": "2026-11-24T01:21:04.196Z",
+      "last_seen": "2026-11-24T12:09:08.599Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a63c2b336983",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /market/udf/history failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 12,
+      "first_seen": "2026-11-23T21:00:45.020Z",
+      "last_seen": "2026-11-25T02:11:27.412Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a7e05be00a7c",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "nobitex_api.py",
+      "function": "_raw_request_impl",
+      "line": 278,
+      "exception_type": "NobitexError",
+      "message": "POST /market/orders/status failed: No Order matches the given query.",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 260,
+          "function": "_raw_request_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 493,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 602,
+          "function": "http_response"
+        },
+        {
+          "file": "request.py",
+          "line": 531,
+          "function": "error"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 611,
+          "function": "http_error_default"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 235,
+          "function": "_raw_request"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 278,
+          "function": "_raw_request_impl"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 5,
+      "first_seen": "2026-11-24T03:31:24.941Z",
+      "last_seen": "2026-11-24T03:32:09.470Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_426b10db9f05",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/SLVONIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-23T20:15:19.581Z",
+      "last_seen": "2026-11-23T20:15:19.581Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_74b7b4c1073e",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for SLVONIRT: <urlopen error _ssl.c:1064: The handshake operation timed out>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "SLVONIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-23T20:15:19.592Z",
+      "last_seen": "2026-11-23T20:15:19.592Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_bfe89a176a46",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /market/stats failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-23T20:15:31.647Z",
+      "last_seen": "2026-11-23T20:15:31.647Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_67ad86d6911c",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for GRASSIRT: <urlopen error _ssl.c:1064: The handshake operation timed out>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 237,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 716,
+          "function": "ticker"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 650,
+          "function": "_stats_all"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "GRASSIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-23T20:15:31.669Z",
+      "last_seen": "2026-11-23T20:15:31.669Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_295d36b6a8c8",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for RSRIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "RSRIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-23T21:00:45.035Z",
+      "last_seen": "2026-11-23T21:00:45.035Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_f9f6e04ab71e",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "ssl.py",
+      "function": "read",
+      "line": 1138,
+      "exception_type": "ConnectionResetError",
+      "message": "GET /v3/orderbook/XRPIRT failed: ConnectionResetError",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1325,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1459,
+          "function": "getresponse"
+        },
+        {
+          "file": "client.py",
+          "line": 336,
+          "function": "begin"
+        },
+        {
+          "file": "client.py",
+          "line": 297,
+          "function": "_read_status"
+        },
+        {
+          "file": "socket.py",
+          "line": 729,
+          "function": "readinto"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1304,
+          "function": "recv_into"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1138,
+          "function": "read"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:37:41.966Z",
+      "last_seen": "2026-11-24T01:37:41.966Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_7f2792810d38",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "ssl.py",
+      "function": "read",
+      "line": 1138,
+      "exception_type": "ConnectionResetError",
+      "message": "market collection failed for XRPIRT: [WinError 10054] An existing connection was forcibly closed by the remote host",
+      "frames": [
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1325,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1459,
+          "function": "getresponse"
+        },
+        {
+          "file": "client.py",
+          "line": 336,
+          "function": "begin"
+        },
+        {
+          "file": "client.py",
+          "line": 297,
+          "function": "_read_status"
+        },
+        {
+          "file": "socket.py",
+          "line": 729,
+          "function": "readinto"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1304,
+          "function": "recv_into"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1138,
+          "function": "read"
+        }
+      ],
+      "symbol": "XRPIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:37:41.986Z",
+      "last_seen": "2026-11-24T01:37:41.986Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_cef3d1ad74e0",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/ATIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:40:56.096Z",
+      "last_seen": "2026-11-24T01:40:56.096Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a2cedcad39f6",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for ATIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "ATIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:40:56.108Z",
+      "last_seen": "2026-11-24T01:40:56.108Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_4b2b126e50a8",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/XAUTIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:42:33.843Z",
+      "last_seen": "2026-11-24T01:42:33.843Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_7ddea9ec1f11",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for XAUTIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "XAUTIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:42:33.860Z",
+      "last_seen": "2026-11-24T01:42:33.860Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_e62eb14e3b08",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/AEVOIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:43:38.873Z",
+      "last_seen": "2026-11-24T01:43:38.873Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_0cedafcc9289",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for AEVOIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "AEVOIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:43:38.884Z",
+      "last_seen": "2026-11-24T01:43:38.884Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a14b3a81a030",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/CGPTIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:44:45.782Z",
+      "last_seen": "2026-11-24T01:44:45.782Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b4d36ad2e306",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for CGPTIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "CGPTIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:44:45.806Z",
+      "last_seen": "2026-11-24T01:44:45.806Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_6f0d0a590bb4",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/COOKIEIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:45:18.305Z",
+      "last_seen": "2026-11-24T01:45:18.305Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_207f26d3ae99",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for COOKIEIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "COOKIEIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:45:18.328Z",
+      "last_seen": "2026-11-24T01:45:18.328Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_bdb2a01cc7c4",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/FORMIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:45:50.892Z",
+      "last_seen": "2026-11-24T01:45:50.892Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_0f67ef4edc04",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for FORMIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "FORMIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:45:50.903Z",
+      "last_seen": "2026-11-24T01:45:50.903Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_6d8056f14172",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for ENAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "ENAIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:48:33.461Z",
+      "last_seen": "2026-11-24T01:48:33.461Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a5cfd1314d36",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for 100K_FLOKIIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "100K_FLOKIIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:52:21.719Z",
+      "last_seen": "2026-11-24T01:52:21.719Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_f2873ba23639",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/USDCIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:53:55.717Z",
+      "last_seen": "2026-11-24T01:53:55.717Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b2910f67805f",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for USDCIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "USDCIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:53:55.739Z",
+      "last_seen": "2026-11-24T01:53:55.739Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_5c463b15fb7e",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/QNTIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:53:56.065Z",
+      "last_seen": "2026-11-24T01:53:56.065Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b5312283eb36",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for QNTIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "QNTIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T01:53:56.088Z",
+      "last_seen": "2026-11-24T01:53:56.088Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_00548b471831",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/EGALAIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T02:06:13.301Z",
+      "last_seen": "2026-11-24T02:06:13.301Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_d2731c351f7b",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for EGALAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "EGALAIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T02:06:13.323Z",
+      "last_seen": "2026-11-24T02:06:13.323Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_18c945792fb7",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for CVXIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "CVXIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T02:08:27.917Z",
+      "last_seen": "2026-11-24T02:08:27.917Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_417d13410b50",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/PUMPIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T02:10:48.864Z",
+      "last_seen": "2026-11-24T02:10:48.864Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a3c22b254a6b",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for PUMPIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "PUMPIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T02:10:48.886Z",
+      "last_seen": "2026-11-24T02:10:48.886Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a69a52425138",
+      "category": "EXCHANGE_API",
+      "severity": "WARNING",
+      "module": "nobitex_api",
+      "file": "nobitex_api.py",
+      "function": "_raw_request_impl",
+      "line": 287,
+      "exception_type": "NobitexError",
+      "message": "GET /market/orders/list failed: NETWORK",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 260,
+          "function": "_raw_request_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 235,
+          "function": "_raw_request"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 287,
+          "function": "_raw_request_impl"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T02:12:41.115Z",
+      "last_seen": "2026-11-24T02:12:41.115Z",
+      "recovered": true,
+      "recovery_action": "retryable; caller keeps its previous state",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_c1c39a2abe53",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for AVAXIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "AVAXIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T08:11:41.161Z",
+      "last_seen": "2026-11-24T08:11:41.161Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_0d110fe5d573",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "nobitex_api.py",
+      "function": "_raw_request_impl",
+      "line": 289,
+      "exception_type": "NobitexError",
+      "message": "POST /market/orders/update-status failed: API_ERROR",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 235,
+          "function": "_raw_request"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 289,
+          "function": "_raw_request_impl"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T08:58:36.883Z",
+      "last_seen": "2026-11-24T08:58:36.883Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_f320f2c0a80f",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for AEVOIRT: <urlopen error _ssl.c:1064: The handshake operation timed out>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "AEVOIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-24T15:47:41.039Z",
+      "last_seen": "2026-11-24T15:47:41.039Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_c60eef474f65",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for TAOIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "TAOIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:34:59.275Z",
+      "last_seen": "2026-11-25T01:34:59.275Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_05f82a5e26cd",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for ETCIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "ETCIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:40:24.548Z",
+      "last_seen": "2026-11-25T01:40:24.548Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_5d26fdc4efc6",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "ssl.py",
+      "function": "read",
+      "line": 1138,
+      "exception_type": "ConnectionResetError",
+      "message": "GET /v3/orderbook/CAKEIRT failed: ConnectionResetError",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1325,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1459,
+          "function": "getresponse"
+        },
+        {
+          "file": "client.py",
+          "line": 336,
+          "function": "begin"
+        },
+        {
+          "file": "client.py",
+          "line": 297,
+          "function": "_read_status"
+        },
+        {
+          "file": "socket.py",
+          "line": 729,
+          "function": "readinto"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1304,
+          "function": "recv_into"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1138,
+          "function": "read"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:42:34.834Z",
+      "last_seen": "2026-11-25T01:42:34.834Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_1c96dde293ad",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "ssl.py",
+      "function": "read",
+      "line": 1138,
+      "exception_type": "ConnectionResetError",
+      "message": "market collection failed for CAKEIRT: [WinError 10054] An existing connection was forcibly closed by the remote host",
+      "frames": [
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1325,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1459,
+          "function": "getresponse"
+        },
+        {
+          "file": "client.py",
+          "line": 336,
+          "function": "begin"
+        },
+        {
+          "file": "client.py",
+          "line": 297,
+          "function": "_read_status"
+        },
+        {
+          "file": "socket.py",
+          "line": 729,
+          "function": "readinto"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1304,
+          "function": "recv_into"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1138,
+          "function": "read"
+        }
+      ],
+      "symbol": "CAKEIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:42:34.858Z",
+      "last_seen": "2026-11-25T01:42:34.858Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_829193865607",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/1K_CATIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:47:59.949Z",
+      "last_seen": "2026-11-25T01:47:59.949Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_9f8b95513db0",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for 1K_CATIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "1K_CATIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:47:59.971Z",
+      "last_seen": "2026-11-25T01:47:59.971Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b5a4cedb6b7d",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for ZORAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "ZORAIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:50:09.984Z",
+      "last_seen": "2026-11-25T01:50:09.984Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_2ee98e486951",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/REIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:52:53.401Z",
+      "last_seen": "2026-11-25T01:52:53.401Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_ae50be2fbe27",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for REIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "REIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:52:53.424Z",
+      "last_seen": "2026-11-25T01:52:53.424Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_86df4be64030",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "GET /v3/orderbook/MANAIRT failed: URLError",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:58:50.697Z",
+      "last_seen": "2026-11-25T01:58:50.697Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_ee434de87eb2",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for MANAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 238,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 760,
+          "function": "orderbook"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "MANAIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:58:50.715Z",
+      "last_seen": "2026-11-25T01:58:50.715Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a72bac971682",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for CRVIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "CRVIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T01:59:23.321Z",
+      "last_seen": "2026-11-25T01:59:23.321Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_3e5223ff8dbc",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for ARBIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "ARBIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T02:09:47.144Z",
+      "last_seen": "2026-11-25T02:09:47.144Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_4da08bc8834e",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "do_open",
+      "line": 1324,
+      "exception_type": "URLError",
+      "message": "market collection failed for 1K_BONKIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "frames": [
+        {
+          "file": "request.py",
+          "line": 1321,
+          "function": "do_open"
+        },
+        {
+          "file": "client.py",
+          "line": 1367,
+          "function": "request"
+        },
+        {
+          "file": "client.py",
+          "line": 1413,
+          "function": "_send_request"
+        },
+        {
+          "file": "client.py",
+          "line": 1362,
+          "function": "endheaders"
+        },
+        {
+          "file": "client.py",
+          "line": 1122,
+          "function": "_send_output"
+        },
+        {
+          "file": "client.py",
+          "line": 1066,
+          "function": "send"
+        },
+        {
+          "file": "client.py",
+          "line": 1508,
+          "function": "connect"
+        },
+        {
+          "file": "ssl.py",
+          "line": 455,
+          "function": "wrap_socket"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1076,
+          "function": "_create"
+        },
+        {
+          "file": "ssl.py",
+          "line": 1372,
+          "function": "do_handshake"
+        },
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 487,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 504,
+          "function": "_open"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 1369,
+          "function": "https_open"
+        },
+        {
+          "file": "request.py",
+          "line": 1324,
+          "function": "do_open"
+        }
+      ],
+      "symbol": "1K_BONKIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T02:11:27.425Z",
+      "last_seen": "2026-11-25T02:11:27.425Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_cadc0dd6b685",
+      "category": "EXCHANGE_API",
+      "severity": "ERROR",
+      "module": "nobitex_api",
+      "file": "request.py",
+      "function": "http_error_default",
+      "line": 611,
+      "exception_type": "HTTPError",
+      "message": "GET /market/udf/history failed: 502",
+      "frames": [
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 493,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 602,
+          "function": "http_response"
+        },
+        {
+          "file": "request.py",
+          "line": 531,
+          "function": "error"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 611,
+          "function": "http_error_default"
+        }
+      ],
+      "symbol": "",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T06:32:56.864Z",
+      "last_seen": "2026-11-25T06:32:56.864Z",
+      "recovered": false,
+      "recovery_action": "",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_e039f649c362",
+      "category": "MARKET_DATA",
+      "severity": "WARNING",
+      "module": "collector.collect",
+      "file": "request.py",
+      "function": "http_error_default",
+      "line": 611,
+      "exception_type": "HTTPError",
+      "message": "market collection failed for NEIROIRT: HTTP Error 502: Bad Gateway",
+      "frames": [
+        {
+          "file": "collector.py",
+          "line": 192,
+          "function": "collect"
+        },
+        {
+          "file": "collector.py",
+          "line": 250,
+          "function": "_collect_market"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 795,
+          "function": "candles"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 569,
+          "function": "_public_get"
+        },
+        {
+          "file": "nobitex_api.py",
+          "line": 588,
+          "function": "_public_get_impl"
+        },
+        {
+          "file": "request.py",
+          "line": 187,
+          "function": "urlopen"
+        },
+        {
+          "file": "request.py",
+          "line": 493,
+          "function": "open"
+        },
+        {
+          "file": "request.py",
+          "line": 602,
+          "function": "http_response"
+        },
+        {
+          "file": "request.py",
+          "line": 531,
+          "function": "error"
+        },
+        {
+          "file": "request.py",
+          "line": 464,
+          "function": "_call_chain"
+        },
+        {
+          "file": "request.py",
+          "line": 611,
+          "function": "http_error_default"
+        }
+      ],
+      "symbol": "NEIROIRT",
+      "market_section": "",
+      "occurrences": 1,
+      "first_seen": "2026-11-25T06:32:56.872Z",
+      "last_seen": "2026-11-25T06:32:56.872Z",
+      "recovered": true,
+      "recovery_action": "market skipped for this cycle",
+      "resolution": "open"
+    }
+  ]
+}

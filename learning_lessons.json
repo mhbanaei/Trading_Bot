@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "dataset": "learning_lessons",
+  "generated_at": "2026-11-25T11:43:37.136Z",
+  "synthetic": false,
+  "note": "Lessons are PROPOSALS. Nothing here has been applied to the strategy; only an explicit, tested change may mark one verified.",
+  "totals": {
+    "lessons": 0,
+    "by_status": {}
+  },
+  "lessons": []
+}

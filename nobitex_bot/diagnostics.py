@@ -16,10 +16,10 @@ Two SQLite databases, both created and migrated automatically:
     failed trade and is never recorded here (that is a strategy outcome and
     lives in the ``performance`` table).
 
-Both files are mirrored into ``RTC/`` with the SQLite backup API (see
-:meth:`Diagnostics.sync_to_rtc`) — never by copying a file that is being
-written.  ``sync_rtc.py`` skips runtime databases when it prunes, so a
-source refresh can never delete or overwrite them.
+Both files are PRIVATE runtime data: they live on the machine that runs the
+bot and are never copied into ``RTC/``. The commit-ready snapshot contains
+sanitized JSON/Markdown reports instead, produced by a separate process
+(``python sync_rtc.py`` -> :mod:`nobitex_bot.rtc_export`).
 
 Design rules:
 
@@ -321,10 +321,12 @@ class _Db:
     def backup_to(self, dest: Path) -> None:
         """Transaction-safe copy of this database to ``dest``.
 
-        Writes a temporary file next to the destination and swaps it in,
-        so a reader never sees a half-written database and a running RTC
-        process is never handed a corrupt file. ``journal_mode=DELETE`` on
-        the copy keeps the mirror a single file (no -wal sidecar).
+        Writes a temporary file next to the destination and swaps it in, so
+        a reader never sees a half-written database. ``journal_mode=DELETE``
+        on the copy keeps the backup a single file (no -wal sidecar).
+
+        Destination is a PRIVATE directory chosen by the caller; this method
+        is for local backups only and is never used to fill ``RTC/``.
         """
         dest = Path(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -373,25 +375,19 @@ class _Db:
 class Diagnostics:
     """Central error monitor + failed-trade ledger (thread-safe)."""
 
-    def __init__(self, data_dir: str | Path, *, rtc_dir: str | Path | None = None,
+    def __init__(self, data_dir: str | Path, *,
                  retention_days: float = 30.0, max_errors: int = 20000,
                  max_failed_trades: int = 20000,
-                 rtc_sync: bool = True,
-                 rtc_sync_min_interval_s: float = 300.0,
                  background: bool = True,
                  secrets: Iterable[str] | None = None,
                  log_dir: str | Path | None = None):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.rtc_dir = Path(rtc_dir) if rtc_dir else None
         self.retention_days = float(retention_days or 0)
         self.max_errors = max(0, int(max_errors or 0))
         self.max_failed_trades = max(0, int(max_failed_trades or 0))
-        self.rtc_sync_enabled = bool(rtc_sync)
-        self.rtc_min_interval = max(0.0, float(rtc_sync_min_interval_s or 0))
         self.redactor = Redactor(secrets)
         self.log_dir = Path(log_dir) if log_dir else self.data_dir / "logs"
-        self._last_rtc_sync = 0.0
         self.dropped_writes = 0
         self._closed = False
         self._errors = _Db(self.data_dir / ERROR_DB_NAME, ERRORS_SCHEMA)
@@ -792,11 +788,6 @@ class Diagnostics:
             "dropped_writes": self.dropped_writes,
             "error_db": str(self._errors.path),
             "failed_trade_db": str(self._trades.path),
-            "rtc": {
-                "enabled": bool(self.rtc_sync_enabled and self.rtc_dir),
-                "dir": str(self.rtc_dir or ""),
-                "last_sync": self._meta(self._errors, "rtc_last_sync") or "",
-            },
         }
 
     @staticmethod
@@ -949,26 +940,17 @@ class Diagnostics:
                 "SELECT COUNT(*) FROM failed_trades")[0][0] or 0)
         return removed
 
-    # --------------------------------------------------------- RTC mirror
-    def sync_to_rtc(self, rtc_dir: str | Path | None = None,
-                    force: bool = False) -> dict:
-        """Copy both databases into ``RTC/`` with the SQLite backup API.
+    # -------------------------------------------------------- local backup
+    def backup_local(self, dest_dir: str | Path) -> dict:
+        """Consistent LOCAL backup of both private databases.
 
-        Transaction-safe and idempotent: a temp file is filled from the
-        live connection and atomically swapped in, so neither side can see
-        a half-written database. The mirror is a READ-ONLY snapshot; the
-        main application is the only writer (documented in AGENTS.md).
+        For an operator's own copies only. It is deliberately not connected
+        to the commit-ready snapshot: copying a raw database into ``RTC/`` is
+        forbidden, and :mod:`nobitex_bot.rtc_export` produces the sanitized
+        reports instead. The source databases are only read (SQLite backup
+        API), never modified.
         """
-        target = Path(rtc_dir) if rtc_dir else self.rtc_dir
-        if not target:
-            return {"ok": False, "error": "no RTC directory configured"}
-        if not self.rtc_sync_enabled and not force:
-            return {"ok": False, "error": "rtc sync disabled"}
-        now = time.time()
-        if (not force and self.rtc_min_interval
-                and now - self._last_rtc_sync < self.rtc_min_interval):
-            return {"ok": True, "skipped": True,
-                    "reason": "recent sync", "dir": str(target)}
+        target = Path(dest_dir)
         out: dict = {"ok": True, "dir": str(target), "files": []}
         try:
             target.mkdir(parents=True, exist_ok=True)
@@ -976,20 +958,16 @@ class Diagnostics:
             for db, name in ((self._errors, ERROR_DB_NAME),
                              (self._trades, FAILED_TRADE_DB_NAME)):
                 dest = target / name
-                self._set_meta(db, "rtc_source", str(db.path))
-                self._set_meta(db, "rtc_last_sync", utc_now_iso())
                 db.backup_to(dest)
                 out["files"].append(str(dest))
-            self._last_rtc_sync = now
-        except Exception as exc:  # never break trading over a mirror copy
+        except Exception as exc:  # never break trading over a backup copy
             out["ok"] = False
             out["error"] = str(exc)
-            self.record_error("RTC", "WARNING",
-                              "RTC database sync failed: %s" % exc,
-                              module="diagnostics.sync_to_rtc",
+            self.record_error("DATABASE", "WARNING",
+                              "local diagnostics backup failed: %s" % exc,
+                              module="diagnostics.backup_local",
                               recovered=True,
-                              recovery_action="main database untouched; "
-                                              "retry on the next cycle")
+                              recovery_action="main database untouched")
         return out
 
 

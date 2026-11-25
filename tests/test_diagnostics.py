@@ -262,87 +262,72 @@ def test_concurrent_writes_do_not_lose_records(tmp_path):
     diag.close()
 
 
-# 13 ---------------------------------------------------------- RTC sync
-def test_rtc_sync_uses_backup_and_is_readable(tmp_path):
-    data = tmp_path / "data"
-    rtc = tmp_path / "RTC"
-    rtc.mkdir()
-    diag = make(data, rtc_dir=rtc)
-    diag.record_error("RTC", "WARNING", "sync me")
+# 13 ------------------------------------------------ private local backup
+def test_local_backup_is_consistent_and_never_touches_the_source(tmp_path):
+    diag = make(tmp_path / "data")
+    diag.record_error("DATABASE", "ERROR", "backup me")
     diag.record_failed_trade(symbol="ETHUSDT", intended_action="SELL",
-                             failure_reason="liquidity", 
+                             failure_reason="liquidity",
                              failure_category="LIQUIDITY")
-    out = diag.sync_to_rtc(force=True)
+    dest = tmp_path / "backups"
+    out = diag.backup_local(dest)
     assert out["ok"] is True
     for name in ("error.db", "failed_trade.db"):
-        dest = rtc / name
-        assert dest.exists()
-        assert not (rtc / (name + ".sync-tmp")).exists()
-        with sqlite3.connect(str(dest)) as conn:
+        assert (dest / name).exists()
+        assert not (dest / (name + ".sync-tmp")).exists()
+        with sqlite3.connect(str(dest / name)) as conn:
             assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-    reader = sqlite3.connect(str(rtc / "error.db"))
-    try:
-        assert reader.execute("SELECT COUNT(*) FROM errors").fetchone()[0] == 1
-        # a second sync while an RTC reader holds the file open must neither
-        # lose rows nor duplicate them (Windows-safe fallback in backup_to)
-        diag.record_error("RTC", "WARNING", "second")
-        out = diag.sync_to_rtc(force=True)
-        assert out["ok"] is True
-        assert reader.execute("SELECT COUNT(*) FROM errors").fetchone()[0] == 2
-    finally:
-        reader.close()
+    diag.close()
+    # the backup still answers after the source connection is gone
+    with sqlite3.connect(str(dest / "error.db")) as conn:
+        assert conn.execute("SELECT message FROM errors").fetchone()[0] == \
+            "backup me"
+
+
+def test_diagnostics_has_no_rtc_mirror(tmp_path):
+    """The bot owns private databases only; RTC gets sanitized exports."""
+    diag = make(tmp_path)
+    assert not hasattr(diag, "sync_to_rtc")
+    assert not hasattr(diag, "rtc_dir")
+    assert "rtc" not in diag.summary()
     diag.close()
 
 
-def test_rtc_sync_respects_the_minimum_interval(tmp_path):
-    diag = make(tmp_path / "data", rtc_dir=tmp_path / "RTC",
-                rtc_sync_min_interval_s=3600)
-    diag.record_error("SYNC", "WARNING", "x")
-    assert diag.sync_to_rtc(force=True)["ok"] is True
-    skipped = diag.sync_to_rtc()
-    assert skipped.get("skipped") is True
-    assert diag.sync_to_rtc(force=True)["ok"] is True
-    diag.close()
-
-
-# 14 ------------------------------------------------- backup and recovery
-def test_backup_copy_is_usable_after_the_source_is_gone(tmp_path):
-    data = tmp_path / "data"
-    rtc = tmp_path / "RTC"
-    diag = make(data, rtc_dir=rtc)
-    diag.record_error("DATABASE", "ERROR", "backup me")
-    diag.sync_to_rtc(force=True)
-    diag.close()
-    # the mirror alone still answers the same query after the source closes
-    with sqlite3.connect(str(rtc / "error.db")) as conn:
-        row = conn.execute("SELECT message FROM errors").fetchone()
-    assert row[0] == "backup me"
-
-
-# 15 ------------------------------------------- runtime DBs survive updates
-def test_sync_rtc_never_deletes_or_copies_runtime_databases(tmp_path,
-                                                            monkeypatch):
+# 15 ------------------------------------------- private DBs stay in place
+def test_sync_rtc_deletes_raw_databases_instead_of_shipping_them(
+        tmp_path, monkeypatch):
     import sync_rtc
 
     src = tmp_path / "src"
     rtc = tmp_path / "RTC"
     (src / "nobitex_bot").mkdir(parents=True)
     (src / "nobitex_bot" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    private = src / "error.db"
+    private.write_bytes(b"SQLite format 3\x00private")
     rtc.mkdir()
     (rtc / "error.db").write_bytes(b"SQLite format 3\x00runtime")
     (rtc / "failed_trade.db").write_bytes(b"SQLite format 3\x00runtime")
+    (rtc / "failed_trade.db-wal").write_bytes(b"wal")
     (rtc / "stale.py").write_text("old\n", encoding="utf-8")
     monkeypatch.setattr(sync_rtc, "ROOT", src)
     monkeypatch.setattr(sync_rtc, "RTC", rtc)
 
     written = {(src / "nobitex_bot" / "a.py").resolve()}
     sync_rtc.prune(written)
-    assert (rtc / "error.db").exists()
-    assert (rtc / "failed_trade.db").exists()
+    assert not (rtc / "error.db").exists()
+    assert not (rtc / "failed_trade.db").exists()
+    assert not (rtc / "failed_trade.db-wal").exists()
     assert not (rtc / "stale.py").exists()
-    # and the copier skips them in the first place
+    # the private database outside RTC/ is byte-for-byte untouched
+    assert private.read_bytes() == b"SQLite format 3\x00private"
+    # and the copier never takes them as source files either
     assert sync_rtc.skip_name("error.db") is True
     assert sync_rtc.skip_name("failed_trade.db") is True
+    assert sync_rtc.skip_name("failed_trade.db-wal") is True
+
+    # a raw database reappearing in RTC/ is a hard failure, not a skip
+    (rtc / "error.db").write_bytes(b"SQLite format 3\x00runtime")
+    assert sync_rtc.scan() >= 1
 
 
 # --------------------------------------------------------------- retention
@@ -403,12 +388,14 @@ def test_config_exposes_and_validates_diagnostics():
     cfg = Config()
     assert isinstance(cfg.diagnostics, DiagnosticsCfg)
     assert cfg.diagnostics.enabled is True
-    # the two locations are explicit settings, not inferred paths
-    assert cfg.diagnostics.directory == ""          # "" = project root
-    assert cfg.diagnostics.rtc_mirror == "RTC"
+    # the private location is an explicit setting, not an inferred path
+    assert cfg.diagnostics.directory == "data"     # "" = project root
     public = cfg.to_public_dict()
-    for key in ("directory", "rtc_mirror", "learning_every_cycles"):
+    for key in ("directory", "learning_every_cycles"):
         assert key in public["diagnostics"], key
+    # no setting can make the bot copy a raw database into RTC/
+    for gone in ("rtc_sync", "rtc_mirror", "rtc_sync_min_interval_s"):
+        assert gone not in public["diagnostics"]
     assert validate_config(cfg) == []
     bad = Config()
     bad.diagnostics.retention_days = -1
@@ -437,14 +424,12 @@ def test_engine_uses_the_explicit_diagnostics_directory(tmp_path):
     cfg = Config()
     cfg.engine.data_dir = str(tmp_path / "data")
     cfg.diagnostics.directory = str(tmp_path / "diag")
-    cfg.diagnostics.rtc_mirror = ""
     cfg.diagnostics.background_writes = False
     try:
         engine = TradingEngine(cfg)
         assert engine.diagnostics is not None
         assert Path(engine.diagnostics.data_dir).resolve() == \
             (tmp_path / "diag").resolve()
-        assert engine.diagnostics.rtc_dir is None
         assert (tmp_path / "diag" / "error.db").exists()
         assert (tmp_path / "diag" / "failed_trade.db").exists()
         assert not (tmp_path / "data" / "error.db").exists()
@@ -457,7 +442,7 @@ def test_engine_resolves_a_relative_directory_against_the_project_root(
     import nobitex_bot.engine as engine_mod
 
     fake_root = tmp_path / "project"
-    (fake_root / "RTC").mkdir(parents=True)
+    (fake_root / "nobitex_bot").mkdir(parents=True)
     monkeypatch.setattr(engine_mod, "__file__",
                         str(fake_root / "nobitex_bot" / "engine.py"))
     cfg = Config()
@@ -468,8 +453,6 @@ def test_engine_resolves_a_relative_directory_against_the_project_root(
         engine = engine_mod.TradingEngine(cfg)
         assert Path(engine.diagnostics.data_dir).resolve() == \
             (fake_root / "state").resolve()
-        # the RTC mirror is resolved the same way and only used when it exists
-        assert engine.diagnostics.rtc_dir == (fake_root / "RTC")
     finally:
         diag_mod.reset_default()
 
@@ -495,7 +478,6 @@ class TestDiagnosticsHandlers(unittest.TestCase):
         cfg = Config()
         cfg.engine.data_dir = str(self.tmp / "data")
         cfg.diagnostics.directory = str(self.tmp / "diagnostics")
-        cfg.diagnostics.rtc_mirror = ""
         cfg.diagnostics.background_writes = False
         cfg.web.password = self.PW
         cfg.web.failure_delay_s = 0

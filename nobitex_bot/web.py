@@ -452,8 +452,6 @@ class Handler(BaseHTTPRequestHandler):
                 # can only WRITE a report — it never changes code or settings
                 return self._json(eng.run_learning(
                     use_ai=bool(body.get("use_ai", False))))
-            if path == "/api/diagnostics/sync_rtc":
-                return self._json(eng.sync_diagnostics_rtc(force=True))
             if path == "/api/diagnostics/resolve":
                 diag = getattr(eng, "diagnostics", None)
                 eid = str(body.get("error_id") or "")

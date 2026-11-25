@@ -6,13 +6,14 @@ human must still validate before any strategy parameter changes.
 
 | File | Contents | Written by |
 | --- | --- | --- |
-| `error.db` (project root by default) | every captured error, deduplicated, with occurrence counters, stack traces, context and resolution status | the bot |
-| `failed_trade.db` (project root by default) | unsuccessful **executions** (rejected / invalid / under-funded / below minimum / illiquid / partial), plus lessons and AI reports | the bot |
-| `RTC/error.db`, `RTC/failed_trade.db` (default mirror) | read-only snapshots of the same two databases | `Diagnostics.sync_to_rtc()` |
+| `error.db` (under `data/` by default) | every captured error, deduplicated, with occurrence counters, stack traces, context and resolution status | the bot |
+| `failed_trade.db` (under `data/` by default) | unsuccessful **executions** (rejected / invalid / under-funded / below minimum / illiquid / partial), plus lessons and AI reports | the bot |
+| `RTC/*.json`, `RTC/diagnostics_report.md` | **sanitized** aggregates, proposals and synthetic reproduction cases exported from both databases | `python sync_rtc.py` (separate process) |
 
-Both files are created automatically on first use, and their parent directory
-is created if missing. Neither is ever committed to Git (see `.gitignore` and
-`RTC/.gitignore`).
+Both databases are created automatically on first use, and their parent
+directory is created if missing. They are private runtime data: never
+committed to Git, and never copied into `RTC/` — not with the SQLite backup
+API, not any other way. The commit-ready snapshot gets reports instead.
 
 ### Where they live
 
@@ -21,18 +22,17 @@ or any other path:
 
 | Setting | Meaning |
 | --- | --- |
-| `diagnostics.directory` | `""` (default) = project root, next to `run.py`. A relative path resolves against the project root; an absolute path is used as-is (an isolated install or a test sandbox). |
-| `diagnostics.rtc_mirror` | `"RTC"` (default) = mirror into `<project root>/RTC` when that directory exists. A relative path resolves against the project root; `""` disables the mirror even with `diagnostics.rtc_sync` on. |
+| `diagnostics.directory` | `"data"` (default) = the runtime data directory under the project root. A relative path resolves against the project root; an absolute path is used as-is (an isolated install or a test sandbox); `""` = the project root itself. |
 
-Both keys ship in the generated `config.example.json` (with these defaults),
-even when the live `config.json` predates them.
+The key ships in the generated `config.example.json` (with this default), even
+when the live `config.json` predates it. There is deliberately no setting that
+points a database at `RTC/`: the snapshot is produced by reports only.
 
 So a test or a second install sets `diagnostics.directory` to its own temp
-directory (and usually `diagnostics.rtc_mirror` to `""`) instead of relying on
-an absolute `engine.data_dir` to opt out:
+directory instead of relying on an absolute `engine.data_dir` to opt out:
 
 ```json
-{"diagnostics": {"directory": "C:/bot-state/diagnostics", "rtc_mirror": ""}}
+{"diagnostics": {"directory": "C:/bot-state/diagnostics"}}
 ```
 
 Changing `directory` starts a fresh pair of databases there; the previous files
@@ -135,24 +135,48 @@ full, writes are dropped and `summary()["dropped_writes"]` shows the loss —
 never a silent exception. Every write also appends a human-readable line to
 `logs/errors.log`; SQLite remains the structured source of truth.
 
-## RTC mirroring
+## Public snapshot: sanitized exports
 
-`Diagnostics.sync_to_rtc()` copies both databases with the SQLite **backup
-API**, never by copying a live file:
+The two sides have separate responsibilities.
 
-1. the source connection is copied into `<name>.db.sync-tmp` in `RTC/`,
-2. the copy is switched to `journal_mode=DELETE` (no `-wal` sidecar),
-3. `os.replace()` swaps it in atomically.
+**Private (the bot):** `error.db` and `failed_trade.db` hold the full history —
+real messages, real order ids, real account context. They stay on the machine
+that runs the bot. `Diagnostics.backup_local(dir)` may take a consistent copy
+with the SQLite backup API, but only into a private directory of the operator's
+choosing.
 
-On Windows a reader (an RTC dashboard, an inspection script) can hold the
-destination file open; `os.replace` then fails and the copy falls back to the
-backup API directly into the destination, which SQLite serialises safely. The
-mirror is a **read-only snapshot** — only the main application writes.
+**Public (`RTC/`):** `python sync_rtc.py` runs a separate export process
+(`nobitex_bot/rtc_export.py`) that reads the private databases read-only and
+writes nine files:
 
-`sync_rtc.py` never copies `*.db` files and its prune step skips every runtime
-database, so refreshing the source mirror cannot delete the error history. The
-generated `RTC/.gitignore` excludes `error.db` / `failed_trade.db` and their
-sidecars.
+| File | Contents |
+| --- | --- |
+| `error_summary.json` | totals per category/severity/module, most frequent sanitized signatures, file/line/function instead of stack text |
+| `failed_trade_summary.json` | attempts per failure class/market/action/strategy, shares, relative slippage and fill ratios |
+| `learning_lessons.json` | lesson text, confidence, verification status (all `proposed`), sanitized evidence |
+| `execution_metrics.json` | slippage in basis points, fill ratios, rejection shares |
+| `strategy_metrics.json` | unsuccessful attempts per strategy and symbol (reliability, not profitability) |
+| `data_quality_report.json` | market-data/sync signals plus database health |
+| `database_schema.json` | tables, columns and indexes only — no rows |
+| `reproduction_cases.json` | **authored synthetic fixtures**, explicitly not recorded incidents |
+| `diagnostics_report.md` | human-readable summary and the export policy |
+
+Three gates run before a byte is written:
+
+1. **allowlist** — fields are selected from `ERROR_FIELDS` / `TRADE_FIELDS` /
+   `LESSON_FIELDS`; a new column is ignored until it is named, and keys such as
+   `portfolio_before`, `order_id`, `token` or `apiKey` are refused at any depth.
+2. **sanitization** — credentials are redacted, absolute paths become
+   `<path>/file.py`, e-mail and wallet addresses are masked, identifiers are
+   pseudonymized with a per-export random salt (correlate inside one snapshot,
+   non-reversible afterwards), and amounts stay relative (ratios, bps, shares).
+3. **validation** — the finished document is re-scanned. A violation raises
+   `PrivacyError`, so the export aborts with a field location and never writes a
+   leaky report. `sync_rtc.py` deletes any raw `.db`, `-wal`, `-shm` or
+   `-journal` it finds in `RTC/` and fails the run if one is still there.
+
+`python sync_rtc.py --check` re-validates the reports already in `RTC/` without
+changing anything.
 
 ## Dashboard
 
@@ -161,7 +185,9 @@ failed trade counts, lessons and their verification status, with filters for
 date, symbol, IRT/USDT section, error category, severity, resolution status,
 failure class and strategy. Stack traces are served only by
 `/api/diagnostics/error?id=…`, behind the dashboard password gate. Actions:
-re-run the analysis, sync the RTC mirror, mark an error resolved.
+re-run the analysis and mark an error resolved. Publishing the sanitized
+snapshot is not a dashboard action: it is `python sync_rtc.py`, a separate
+process an operator runs deliberately.
 
 API:
 
@@ -171,7 +197,6 @@ API:
 | GET | `/api/diagnostics/error?id=` | one error incl. stack trace |
 | GET | `/api/learning` | lessons + stored AI reports |
 | POST | `/api/learning/analyze` | deterministic analysis (`use_ai` opt-in) |
-| POST | `/api/diagnostics/sync_rtc` | force the RTC mirror |
 | POST | `/api/diagnostics/resolve` | change an error's resolution |
 
 ## Tests
@@ -179,12 +204,15 @@ API:
 `tests/test_diagnostics.py` covers automatic creation, restart persistence,
 field capture, deduplication, stack traces, redaction, failed-trade records,
 error↔trade links, repeated-pattern detection, lesson creation/status,
-AI-unavailable fallback, concurrent writes, RTC sync (including a held-open
-reader), backup usability after the source closes, runtime-database
-preservation during a source refresh, bounded retention, logging capture and
-safe no-ops after close. It also pins the explicit location settings
-(`diagnostics.directory` / `rtc_mirror`: absolute, relative and disabled mirror)
-and drives the real HTTP handler for `/api/diagnostics` and
+AI-unavailable fallback, concurrent writes, local backup usability after the
+source closes, deletion of raw databases from `RTC/`, bounded retention,
+logging capture and safe no-ops after close. It also pins the explicit
+`diagnostics.directory` setting (absolute and relative) and drives the real
+HTTP handler for `/api/diagnostics` and
 `/api/diagnostics/error`, including the signed-out 401, server-side filters,
-the stack-trace payload and the 404 for an unknown id. No real exchange order
-is created or simulated.
+the stack-trace payload and the 404 for an unknown id. `tests/test_rtc_export.py`
+is the privacy gate: it seeds identifiers, paths, balances and a wallet-shaped
+value, exports them, and asserts none survive, that the allowlist drops unknown
+columns, that a leaky document aborts the export with nothing written, and that
+the private databases are only read. No real exchange order is created or
+simulated.

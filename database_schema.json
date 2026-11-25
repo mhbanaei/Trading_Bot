@@ -1,0 +1,1129 @@
+{
+  "schema_version": 1,
+  "dataset": "database_schema",
+  "generated_at": "2026-11-25T11:43:37.144Z",
+  "synthetic": false,
+  "note": "Structure only (tables, columns, indexes). No rows, no file paths, no database contents.",
+  "databases": [
+    {
+      "role": "errors",
+      "tables": [
+        {
+          "name": "errors",
+          "columns": [
+            {
+              "name": "fingerprint",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "first_seen",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "last_seen",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "occurrences",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "category",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "severity",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "module",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "file_name",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "function_name",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "line_number",
+              "type": "INTEGER",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "exception_type",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "message",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "stack_trace",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "symbol",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "market_section",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "context",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "recovered",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "recovery_action",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "resolution",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "resolved_at",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_errors_sev",
+              "unique": false,
+              "columns": [
+                "severity"
+              ]
+            },
+            {
+              "name": "idx_errors_res",
+              "unique": false,
+              "columns": [
+                "resolution"
+              ]
+            },
+            {
+              "name": "idx_errors_cat",
+              "unique": false,
+              "columns": [
+                "category"
+              ]
+            },
+            {
+              "name": "idx_errors_last",
+              "unique": false,
+              "columns": [
+                "last_seen"
+              ]
+            },
+            {
+              "name": "sqlite_autoindex_errors_2",
+              "unique": true,
+              "columns": [
+                "fingerprint"
+              ]
+            },
+            {
+              "name": "sqlite_autoindex_errors_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "meta",
+          "columns": [
+            {
+              "name": "key",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": true
+            },
+            {
+              "name": "value",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_meta_1",
+              "unique": true,
+              "columns": [
+                "key"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "role": "failed_trades",
+      "tables": [
+        {
+          "name": "failed_trades",
+          "columns": [
+            {
+              "name": "timestamp",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "symbol",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "market",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "market_section",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "intended_action",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "execution_mode",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "strategy",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "ai_recommendation",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "failure_category",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "order_status",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "exchange_response",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "failure_reason",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "market_conditions",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "candles",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "indicators",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "orderbook",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "expected_price",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "actual_price",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "intended_amount",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "executed_amount",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "fees",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "slippage",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "outcome",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "is_rejected",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "is_partial",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "is_cancelled",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "is_failed",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "db_synced_at",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_ft_sym",
+              "unique": false,
+              "columns": [
+                "symbol"
+              ]
+            },
+            {
+              "name": "idx_ft_cat",
+              "unique": false,
+              "columns": [
+                "failure_category"
+              ]
+            },
+            {
+              "name": "idx_ft_time",
+              "unique": false,
+              "columns": [
+                "timestamp"
+              ]
+            },
+            {
+              "name": "sqlite_autoindex_failed_trades_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "learning_reports",
+          "columns": [
+            {
+              "name": "report_id",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": true
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "engine",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "model",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "body",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_learning_reports_1",
+              "unique": true,
+              "columns": [
+                "report_id"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "lessons",
+          "columns": [
+            {
+              "name": "pattern_key",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "pattern",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "root_cause",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "evidence",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "occurrences",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "confidence",
+              "type": "REAL",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "recommended_correction",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "verification_status",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "ai_explanation",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "last_reviewed",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_lessons_2",
+              "unique": true,
+              "columns": [
+                "pattern_key"
+              ]
+            },
+            {
+              "name": "sqlite_autoindex_lessons_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "meta",
+          "columns": [
+            {
+              "name": "key",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": true
+            },
+            {
+              "name": "value",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_meta_1",
+              "unique": true,
+              "columns": [
+                "key"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "role": "trading_ledger",
+      "tables": [
+        {
+          "name": "ai_decisions",
+          "columns": [
+            {
+              "name": "snapshot_id",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "symbol",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "action",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "confidence",
+              "type": "REAL",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "payload",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "validation_ok",
+              "type": "INTEGER",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_ai_decisions_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "candles",
+          "columns": [
+            {
+              "name": "symbol",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": true
+            },
+            {
+              "name": "timeframe",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": true
+            },
+            {
+              "name": "timestamp",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": true
+            },
+            {
+              "name": "open",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "high",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "low",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "close",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "volume",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "source",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_candles_1",
+              "unique": true,
+              "columns": [
+                "symbol",
+                "timeframe",
+                "timestamp"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "executions",
+          "columns": [
+            {
+              "name": "execution_id",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": true
+            },
+            {
+              "name": "market",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "side",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "price",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "payload",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_executions_1",
+              "unique": true,
+              "columns": [
+                "execution_id"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "fills",
+          "columns": [
+            {
+              "name": "market",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "side",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "price",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "gross_value",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "fee_amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "fee_asset",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "timestamp",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_fills_time",
+              "unique": false,
+              "columns": [
+                "timestamp"
+              ]
+            },
+            {
+              "name": "idx_fills_order",
+              "unique": false,
+              "columns": []
+            },
+            {
+              "name": "sqlite_autoindex_fills_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "kv_state",
+          "columns": [
+            {
+              "name": "key",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": true
+            },
+            {
+              "name": "value",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_kv_state_1",
+              "unique": true,
+              "columns": [
+                "key"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "orders",
+          "columns": [
+            {
+              "name": "market",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "side",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "order_type",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "price",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "matched_amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "unmatched_amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "fee_asset",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "updated_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_orders_status",
+              "unique": false,
+              "columns": [
+                "status"
+              ]
+            },
+            {
+              "name": "sqlite_autoindex_orders_2",
+              "unique": true,
+              "columns": []
+            },
+            {
+              "name": "sqlite_autoindex_orders_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "performance",
+          "columns": [
+            {
+              "name": "symbol",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "action",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "expected_return",
+              "type": "REAL",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "actual_return",
+              "type": "REAL",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "actual_pnl",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "direction_correct",
+              "type": "INTEGER",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "profitable",
+              "type": "INTEGER",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_performance_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        },
+        {
+          "name": "positions",
+          "columns": [
+            {
+              "name": "market",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": true
+            },
+            {
+              "name": "side",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "amount",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "avg_entry",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "realized_pnl",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "opened_at",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "updated_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "last_buy_at",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "total_buys_irt",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "last_buy_price",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_positions_1",
+              "unique": true,
+              "columns": [
+                "market"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "risk_decisions",
+          "columns": [
+            {
+              "name": "status",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "approved_position_size",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "approved_max_loss",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "rejection_reasons",
+              "type": "TEXT",
+              "not_null": false,
+              "primary_key": false
+            },
+            {
+              "name": "payload",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            },
+            {
+              "name": "created_at",
+              "type": "TEXT",
+              "not_null": true,
+              "primary_key": false
+            }
+          ],
+          "indexes": [
+            {
+              "name": "sqlite_autoindex_risk_decisions_1",
+              "unique": true,
+              "columns": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

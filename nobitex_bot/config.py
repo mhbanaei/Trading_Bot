@@ -447,32 +447,29 @@ class DiagnosticsCfg:
     enabled: master switch. Turning it off only stops NEW records; files on
       disk are never deleted.
     directory: WHERE error.db and failed_trade.db live — an explicit
-      setting, never inferred from other paths. Empty (default) = the
-      project root, next to run.py; a relative path resolves against the
-      project root; an absolute path is used as-is. Created if missing.
+      setting, never inferred from other paths. Default "data" = the
+      runtime data directory beside run.py; a relative path resolves
+      against the project root; an absolute path is used as-is; empty
+      string = the project root itself. Created if missing.
     retention_days / max_errors / max_failed_trades: bounded storage. Only
       diagnostic rows are pruned — the trading ledger is untouched.
     background_writes: write through a bounded queue so a slow disk can
       never stall a trading cycle.
-    rtc_sync: mirror both databases with the SQLite backup API. The mirror
-      is a read-only snapshot; the main process is the only writer.
-    rtc_mirror: destination directory for that snapshot. Empty = no mirror
-      at all (even with rtc_sync on). Relative paths resolve against the
-      project root and are only used when the directory already exists.
+    These databases are PRIVATE runtime state. Nothing here copies them into
+      ``RTC/``: that snapshot gets sanitized JSON/Markdown reports, produced
+      by the separate ``python sync_rtc.py`` process
+      (``nobitex_bot/rtc_export.py``), never a raw database.
     learning_every_cycles: how often the deterministic failure-pattern
       analysis runs (0 disables the periodic run).
     learning_ai_enabled: allow the optional FreeLLMAPI explanation. It only
       writes a report; it can never change code, config or risk limits.
     """
     enabled: bool = True
-    directory: str = ""                # "" = project root
+    directory: str = "data"            # "" = project root
     retention_days: float = 30.0
     max_errors: int = 20000
     max_failed_trades: int = 20000
     background_writes: bool = True
-    rtc_sync: bool = True
-    rtc_mirror: str = "RTC"
-    rtc_sync_min_interval_s: float = 300.0
     learning_every_cycles: int = 12
     learning_min_evidence: int = 3
     learning_ai_enabled: bool = False
@@ -566,8 +563,7 @@ class Config:
                       self.risk.risk_mode_analysis_exit)
         dg = d.setdefault("diagnostics", {})
         for f in ("enabled", "directory", "retention_days", "max_errors",
-                  "max_failed_trades", "background_writes", "rtc_sync",
-                  "rtc_mirror", "rtc_sync_min_interval_s",
+                  "max_failed_trades", "background_writes",
                   "learning_every_cycles", "learning_min_evidence",
                   "learning_ai_enabled"):
             dg.setdefault(f, getattr(self.diagnostics, f))
@@ -803,8 +799,6 @@ def validate_config(cfg: Config) -> list[str]:
                      "learning_every_cycles", "learning_min_evidence"):
             if int(getattr(dg, name)) < 0:
                 bad("diagnostics.%s must be >= 0" % name)
-        if float(dg.rtc_sync_min_interval_s) < 0:
-            bad("diagnostics.rtc_sync_min_interval_s must be >= 0")
     return p
 
 

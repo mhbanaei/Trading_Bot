@@ -38,7 +38,6 @@ def _demo_engine(tmp: Path) -> TradingEngine:
     cfg = Config()
     cfg.engine.data_dir = str(tmp / "data")
     cfg.diagnostics.directory = str(tmp / "diagnostics")
-    cfg.diagnostics.rtc_mirror = ""
     return TradingEngine(cfg)
 
 

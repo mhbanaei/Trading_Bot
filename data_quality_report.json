@@ -1,0 +1,390 @@
+{
+  "schema_version": 1,
+  "dataset": "data_quality_report",
+  "generated_at": "2026-11-25T11:43:37.136Z",
+  "synthetic": false,
+  "note": "Data-quality and synchronization signals observed by the bot, plus database health. No file paths, no account data.",
+  "signals_total": 31,
+  "by_category": [
+    {
+      "value": "MARKET_DATA",
+      "count": 31
+    }
+  ],
+  "by_module": [
+    {
+      "value": "collector.collect",
+      "count": 31
+    }
+  ],
+  "by_symbol": [
+    {
+      "value": "AEVOIRT",
+      "count": 2
+    },
+    {
+      "value": "SLVONIRT",
+      "count": 1
+    },
+    {
+      "value": "GRASSIRT",
+      "count": 1
+    },
+    {
+      "value": "RSRIRT",
+      "count": 1
+    },
+    {
+      "value": "XRPIRT",
+      "count": 1
+    },
+    {
+      "value": "ATIRT",
+      "count": 1
+    },
+    {
+      "value": "XAUTIRT",
+      "count": 1
+    },
+    {
+      "value": "CGPTIRT",
+      "count": 1
+    },
+    {
+      "value": "COOKIEIRT",
+      "count": 1
+    },
+    {
+      "value": "FORMIRT",
+      "count": 1
+    },
+    {
+      "value": "ENAIRT",
+      "count": 1
+    },
+    {
+      "value": "100K_FLOKIIRT",
+      "count": 1
+    },
+    {
+      "value": "USDCIRT",
+      "count": 1
+    },
+    {
+      "value": "QNTIRT",
+      "count": 1
+    },
+    {
+      "value": "EGALAIRT",
+      "count": 1
+    },
+    {
+      "value": "CVXIRT",
+      "count": 1
+    },
+    {
+      "value": "PUMPIRT",
+      "count": 1
+    },
+    {
+      "value": "AVAXIRT",
+      "count": 1
+    },
+    {
+      "value": "TAOIRT",
+      "count": 1
+    },
+    {
+      "value": "ETCIRT",
+      "count": 1
+    }
+  ],
+  "signals": [
+    {
+      "error_ref": "id_533d959ee7d6",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for USDTIRT: HTTP Error 403: Forbidden",
+      "occurrences": 2511,
+      "last_seen": "2026-11-25T07:59:56.248Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_74b7b4c1073e",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for SLVONIRT: <urlopen error _ssl.c:1064: The handshake operation timed out>",
+      "occurrences": 1,
+      "last_seen": "2026-11-23T20:15:19.592Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_67ad86d6911c",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for GRASSIRT: <urlopen error _ssl.c:1064: The handshake operation timed out>",
+      "occurrences": 1,
+      "last_seen": "2026-11-23T20:15:31.669Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_295d36b6a8c8",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for RSRIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-23T21:00:45.035Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_7f2792810d38",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for XRPIRT: [WinError 10054] An existing connection was forcibly closed by the remote host",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:37:41.986Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a2cedcad39f6",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for ATIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:40:56.108Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_7ddea9ec1f11",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for XAUTIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:42:33.860Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_0cedafcc9289",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for AEVOIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:43:38.884Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b4d36ad2e306",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for CGPTIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:44:45.806Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_207f26d3ae99",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for COOKIEIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:45:18.328Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_0f67ef4edc04",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for FORMIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:45:50.903Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_6d8056f14172",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for ENAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:48:33.461Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a5cfd1314d36",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for 100K_FLOKIIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:52:21.719Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b2910f67805f",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for USDCIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:53:55.739Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b5312283eb36",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for QNTIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T01:53:56.088Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_d2731c351f7b",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for EGALAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T02:06:13.323Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_18c945792fb7",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for CVXIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T02:08:27.917Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a3c22b254a6b",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for PUMPIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T02:10:48.886Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_c1c39a2abe53",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for AVAXIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T08:11:41.161Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_f320f2c0a80f",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for AEVOIRT: <urlopen error _ssl.c:1064: The handshake operation timed out>",
+      "occurrences": 1,
+      "last_seen": "2026-11-24T15:47:41.039Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_c60eef474f65",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for TAOIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:34:59.275Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_05f82a5e26cd",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for ETCIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:40:24.548Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_1c96dde293ad",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for CAKEIRT: [WinError 10054] An existing connection was forcibly closed by the remote host",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:42:34.858Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_9f8b95513db0",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for 1K_CATIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:47:59.971Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_b5a4cedb6b7d",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for ZORAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:50:09.984Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_ae50be2fbe27",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for REIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:52:53.424Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_ee434de87eb2",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for MANAIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:58:50.715Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_a72bac971682",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for CRVIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T01:59:23.321Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_3e5223ff8dbc",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for ARBIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T02:09:47.144Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_4da08bc8834e",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for 1K_BONKIRT: <urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1082)>",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T02:11:27.425Z",
+      "resolution": "open"
+    },
+    {
+      "error_ref": "id_e039f649c362",
+      "category": "MARKET_DATA",
+      "module": "collector.collect",
+      "message": "market collection failed for NEIROIRT: HTTP Error 502: Bad Gateway",
+      "occurrences": 1,
+      "last_seen": "2026-11-25T06:32:56.872Z",
+      "resolution": "open"
+    }
+  ],
+  "database_health": {
+    "error_db_present": true,
+    "failed_trade_db_present": true,
+    "quick_check": "ok",
+    "errors": 55,
+    "failed_trades": 0
+  }
+}

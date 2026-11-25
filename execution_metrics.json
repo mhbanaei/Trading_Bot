@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "dataset": "execution_metrics",
+  "generated_at": "2026-11-25T11:43:37.136Z",
+  "synthetic": false,
+  "note": "Only unsuccessful attempts are recorded, so no success rate can be derived. Values are relative (basis points, ratios, shares).",
+  "recorded_attempts": 0,
+  "slippage_bps_by_category": [],
+  "fill_ratio": {
+    "samples": 0,
+    "median": null,
+    "partial_share": 0.0
+  },
+  "min_order_rejections": {
+    "count": 0,
+    "share": 0.0
+  },
+  "network_failures": {
+    "count": 0,
+    "share": 0.0
+  }
+}

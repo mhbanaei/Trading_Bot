@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "dataset": "reproduction_cases",
+  "generated_at": "2026-11-25T11:43:37.144Z",
+  "synthetic": false,
+  "note": "AUTHORED SYNTHETIC FIXTURES. They are not recorded incidents: they describe inputs a test can build to reproduce a software behaviour. Real observed incidents are the sanitized aggregates in the other reports.",
+  "all_synthetic": true,
+  "source": "authored test fixtures",
+  "cases": [
+    {
+      "id": "irt-sell-http-404",
+      "title": "IRT market SELL answers HTTP 404",
+      "category": "API_NETWORK",
+      "inputs": {
+        "market_section": "IRT",
+        "action": "SELL",
+        "http_status": 404,
+        "retry_count": 0
+      },
+      "expected": "The rejection is recorded as one deduplicated API_NETWORK error, the cycle continues, and no retry loop exceeds the configured backoff.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "min-order-rejection",
+      "title": "Order below the exchange minimum is rejected",
+      "category": "MIN_ORDER",
+      "inputs": {
+        "notional_usdt": 0.2,
+        "exchange_minimum_usdt": 0.5,
+        "market_section": "IRT"
+      },
+      "expected": "The local size gate refuses the order before submission (no network call) and records MIN_ORDER once.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "insufficient-balance",
+      "title": "Sizing uses a stale free balance",
+      "category": "INSUFFICIENT_BALANCE",
+      "inputs": {
+        "cached_free_cash": 100.0,
+        "actual_free_cash": 0.0,
+        "intended_notional": 40.0
+      },
+      "expected": "The rejection is classified INSUFFICIENT_BALANCE and the wallet is re-synced before the next sizing decision.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "slippage-limit",
+      "title": "Fill price exceeds the slippage budget",
+      "category": "SLIPPAGE",
+      "inputs": {
+        "expected_price": 1000.0,
+        "actual_price": 1012.0,
+        "max_slippage_fraction": 0.001
+      },
+      "expected": "A 120 bps deviation is refused or closed by the plan; the attempt is recorded with the relative deviation only.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "partial-fill",
+      "title": "Order fills partially and the remainder is left resting",
+      "category": "PARTIAL_FILL",
+      "inputs": {
+        "intended_amount": 10.0,
+        "executed_amount": 4.0,
+        "order_status": "PARTIALLY_FILLED"
+      },
+      "expected": "The unfilled remainder is tracked explicitly (chase or cancel), and the attempt carries a 0.4 fill ratio.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "duplicate-order-guard",
+      "title": "Duplicate client order id is rejected by the exchange",
+      "category": "INVALID_ORDER",
+      "inputs": {
+        "same_client_ref": true,
+        "attempts_in_cycle": 2
+      },
+      "expected": "The second submission is refused locally before reaching the exchange; one INVALID_ORDER record at most.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "ai-timeout",
+      "title": "AI endpoint times out mid-cycle",
+      "category": "AI",
+      "inputs": {
+        "timeout_s": 45,
+        "response": null
+      },
+      "expected": "The cycle falls back to the deterministic heuristic, records one AI warning with no key material, and trading continues.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "missing-candles",
+      "title": "Candle store returns no frames for a market",
+      "category": "DATA_QUALITY",
+      "inputs": {
+        "frames": [],
+        "market": "EXAMPLEIRT"
+      },
+      "expected": "The market is skipped as DATA_QUALITY (not traded), and the signal records the data age or the empty response.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "market-isolation",
+      "title": "IRT buy is funded with USDT-only cash",
+      "category": "MARKET_SELECTION",
+      "inputs": {
+        "market_section": "IRT",
+        "interaction": "independent",
+        "usdt_cash": 500.0,
+        "irt_cash": 0.0
+      },
+      "expected": "The buy is blocked: sections stay independent unless the interaction setting explicitly allows a transfer.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "database-locked",
+      "title": "SQLite reports 'database is locked'",
+      "category": "DATABASE",
+      "inputs": {
+        "busy_timeout_ms": 10000,
+        "concurrent_writer": true
+      },
+      "expected": "The write retries within the busy timeout, then records one DATABASE error and drops the record instead of stalling a trading thread.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    },
+    {
+      "id": "rtc-export-privacy",
+      "title": "Export pipeline sees a credential-shaped value",
+      "category": "SYNC",
+      "inputs": {
+        "message": "request failed with token <redacted>",
+        "frames": [
+          {
+            "file": "api.py",
+            "line": 10,
+            "function": "call"
+          }
+        ]
+      },
+      "expected": "The value is redacted, the path becomes a base name, and the export aborts instead of writing if validation still finds a secret.",
+      "synthetic": true,
+      "observed_incident": false,
+      "assertion": "Reproduce with a unit/integration test and assert the stated behaviour; never against a live account."
+    }
+  ]
+}

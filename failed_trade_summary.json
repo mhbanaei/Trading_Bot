@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "dataset": "failed_trade_summary",
+  "generated_at": "2026-11-25T11:43:37.136Z",
+  "synthetic": false,
+  "note": "Unsuccessful execution ATTEMPTS only. A position closed at its designed stop-loss is a normal outcome and is NOT here. Amounts are relative (ratios/percentages); absolute balances are never exported.",
+  "totals": {
+    "attempts": 0,
+    "outcomes": {}
+  },
+  "by_failure_category": [],
+  "by_symbol": [],
+  "by_market_section": [],
+  "by_action": [],
+  "by_strategy": [],
+  "by_execution_mode": [],
+  "by_order_status": [],
+  "shares": {
+    "rejected": 0.0,
+    "partial_fill": 0.0,
+    "cancelled": 0.0,
+    "failed": 0.0
+  },
+  "top_failure_reasons": [],
+  "sample_attempts": []
+}

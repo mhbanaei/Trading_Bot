@@ -814,7 +814,6 @@ html[data-theme="dark"] .strike-badge .num{color:var(--orange)}
         </select>
         <button id="diagRefresh">به‌روزرسانی</button>
         <button id="diagAnalyze">تحلیل الگوها</button>
-        <button id="diagRtcSync">همگام‌سازی RTC</button>
       </div>
       <div id="diagErrBox"></div>
       <div id="diagDetail"></div>
@@ -3481,9 +3480,6 @@ document.addEventListener("click",e=>{
   if(a)a.onclick=async()=>{toast("در حال تحلیل الگوهای خطا…");
     try{const r=await jpost("/api/learning/analyze",{use_ai:false});
       toast(r.ok?("تحلیل انجام شد — "+(r.lesson_count||0)+" درس"):("تحلیل انجام نشد: "+(r.error||"?")));loadDiagnostics()}catch(e){toast("تحلیل انجام نشد")}};
-  const s=$("#diagRtcSync");
-  if(s)s.onclick=async()=>{try{const r=await jpost("/api/diagnostics/sync_rtc",{});
-    toast(r.ok?"پایگاه‌های خطا در RTC همگام شد":"همگام‌سازی نشد: "+(r.error||""))}catch(e){toast("همگام‌سازی نشد")}};
 })();
 setInterval(poll,2500);
 setInterval(refreshSlow,8000);

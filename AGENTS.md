@@ -24,29 +24,43 @@ Never copied into `RTC/`: the real `config.json`, `data/` (trading databases,
 `.env*`, private keys. `sync_rtc.py` scans the result for the actual secret
 values and exits non-zero instead of letting a leak through.
 
-### Runtime diagnostics databases (never copy, never prune)
+### Private databases vs. public snapshot (two-way separation)
 
 `error.db` and `failed_trade.db` live where `diagnostics.directory` says — an
-explicit setting in `config.json` (empty = the PROJECT ROOT; relative paths
-resolve against the project root; absolute paths are used as-is). They are
-mirrored to `diagnostics.rtc_mirror` (default `RTC`, empty = no mirror) by the
-running bot (`nobitex_bot/diagnostics.py` → `Diagnostics.sync_to_rtc()`) using
-the SQLite backup API. They are read-only snapshots in `RTC/`; only the main
-process writes.
+explicit setting in `config.json`, default `data` (resolved under the project
+root; `""` = the project root itself; absolute paths are used as-is). Together
+with `data/trading_bot.db` they are PRIVATE runtime state: full messages, order
+ids, account context, balances.
 
-Tests and sandboxes must set `diagnostics.directory` to their own temp dir and
-`diagnostics.rtc_mirror` to `""` so they never write into the real databases
-or the repository's `RTC/` snapshot.
+They are **never copied into `RTC/`** — not with the SQLite backup API, not by
+any other route. The commit-ready snapshot only receives the sanitized reports
+written by `nobitex_bot/rtc_export.py` during `python sync_rtc.py`:
 
-- `sync_rtc.py` skips every `*.db`, `*.sqlite*` and sidecar in `RTC/` when it
-  prunes — a source refresh must never delete or overwrite them.
-- `RTC/.gitignore` excludes them, and the root `.gitignore` does too. Their
-  contents (real errors, real failed orders) are private and never committed.
-- Do not delete either database to "reset" something: retention
+`error_summary.json`, `failed_trade_summary.json`, `learning_lessons.json`,
+`execution_metrics.json`, `strategy_metrics.json`, `data_quality_report.json`,
+`database_schema.json`, `reproduction_cases.json`, `diagnostics_report.md`.
+
+Export rules (enforced in code and re-checked by `--check`):
+
+- explicit field allowlists; unknown columns are dropped, never forwarded;
+- identifiers pseudonymized with a per-export salt, amounts relative;
+- stack traces become file/line/function, never raw text;
+- credentials, e-mails, wallet addresses and absolute paths are masked;
+- `reproduction_cases.json` is authored synthetic fixtures and says so — never
+  present a made-up case as an observed incident;
+- a validation failure aborts the export instead of writing a leaky report.
+
+Tests and sandboxes must set `diagnostics.directory` to their own temp dir so
+they never write into the real databases.
+
+- `sync_rtc.py` deletes any `*.db`, `*.sqlite*`, `-wal`/`-shm`/`-journal` or
+  `*.sync-tmp` left inside `RTC/`, and the scanner fails the run if one
+  survives. It never touches databases outside `RTC/`.
+- Do not delete a private database to "reset" something: retention
   (`diagnostics.*` in `config.json`) is the only supported cleanup, and it
   never touches the trading ledger.
-- A second/isolated install with an ABSOLUTE `engine.data_dir` keeps its own
-  diagnostics under that directory and does not touch the live RTC mirror.
+- Publishing is deliberate: `python sync_rtc.py`, then push with the user's
+  explicit permission. The dashboard has no publish button.
 
 ## Ground rules for this project
 

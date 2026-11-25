@@ -196,7 +196,6 @@
     "top_gainers_min_change_pct": 2
   },
   "diagnostics": {
-    "directory": "",
-    "rtc_mirror": "RTC"
+    "directory": "data"
   }
 }

@@ -164,9 +164,11 @@ class TradingEngine:
         self.events = EventBus(self.data_dir)
         self.storage = Storage(self.data_dir)
         # ---- error monitoring + failed-trade intelligence
-        # Two SQLite files (error.db, failed_trade.db) where
-        # diagnostics.directory says, plus transaction-safe mirrors in RTC/.
-        # Failure to open them must never stop trading.
+        # Two PRIVATE SQLite files (error.db, failed_trade.db) where
+        # diagnostics.directory says. They are never copied into RTC/; that
+        # snapshot only gets sanitized reports (nobitex_bot/rtc_export.py,
+        # run by `python sync_rtc.py`). Failure to open them never stops
+        # trading.
         self.diagnostics = None
         try:
             from . import diagnostics as diagnostics_mod
@@ -180,12 +182,6 @@ class TradingEngine:
                                          getattr(dcfg, "directory", ""))
                 if diag_dir is None:
                     diag_dir = project_root
-                # rtc_mirror "" (or a missing directory) disables the mirror,
-                # even when rtc_sync is on.
-                rtc_dir = _project_path(project_root,
-                                        getattr(dcfg, "rtc_mirror", ""))
-                if rtc_dir is not None and not rtc_dir.is_dir():
-                    rtc_dir = None
                 secrets = [
                     getattr(cfg.exchange, "nobitex_api_key", ""),
                     getattr(cfg.exchange, "nobitex_password", ""),
@@ -196,14 +192,10 @@ class TradingEngine:
                 ]
                 self.diagnostics = diagnostics_mod.configure(
                     diag_dir,
-                    rtc_dir=rtc_dir,
                     retention_days=getattr(dcfg, "retention_days", 30.0),
                     max_errors=getattr(dcfg, "max_errors", 20000),
                     max_failed_trades=getattr(dcfg, "max_failed_trades",
                                               20000),
-                    rtc_sync=bool(getattr(dcfg, "rtc_sync", True)),
-                    rtc_sync_min_interval_s=getattr(
-                        dcfg, "rtc_sync_min_interval_s", 300.0),
                     background=bool(getattr(dcfg, "background_writes", True)),
                     secrets=[s for s in secrets if isinstance(s, str)],
                     log_dir=diag_dir / "logs")
@@ -1220,7 +1212,7 @@ class TradingEngine:
             pass
 
     def _diagnostics_housekeeping(self) -> None:
-        """Bounded storage, periodic learning pass and RTC mirror.
+        """Bounded storage and the periodic deterministic learning pass.
 
         Runs on the same slow cadence as the other disk upkeep so it never
         touches a trading-critical path.
@@ -1234,7 +1226,6 @@ class TradingEngine:
         if every and self._cycles_run and self._cycles_run % every == 0:
             from .learning import analyze
             analyze(diag, int(getattr(dcfg, "learning_min_evidence", 3) or 3))
-            diag.sync_to_rtc()
 
     def _note_error(self, category: str, severity: str, message: str,
                     **kwargs) -> str:
@@ -8940,17 +8931,7 @@ class TradingEngine:
         out = learning.analyze(diag, min_evidence)
         if use_ai and bool(getattr(dcfg, "learning_ai_enabled", False)):
             out["ai"] = learning.ai_report(diag, self.cfg.ai, min_evidence)
-        try:
-            diag.sync_to_rtc()
-        except Exception:
-            pass
         return out
-
-    def sync_diagnostics_rtc(self, force: bool = True) -> dict:
-        diag = getattr(self, "diagnostics", None)
-        if diag is None:
-            return {"ok": False, "error": "diagnostics disabled"}
-        return diag.sync_to_rtc(force=force)
 
     def history(self, kind: str, limit: int = 100) -> list:
         if kind == "decisions":
